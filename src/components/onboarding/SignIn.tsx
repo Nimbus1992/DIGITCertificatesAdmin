@@ -38,7 +38,7 @@ const SignIn: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   };
 
   return (
-    <AuthShell step="Step 1 of 3 · Sign in" showSidePanel>
+    <AuthShell step="Step 1 of 3 · Sign in" showSidePanel sidePanelPosition="left">
       <Card className="border-border shadow-sm">
         <form onSubmit={handleSubmit} className="px-7 py-8 space-y-6">
           <div className="space-y-2">
