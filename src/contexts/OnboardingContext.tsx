@@ -72,6 +72,8 @@ export interface OnboardingState {
   goLiveStep: number;
   isOnboardingComplete: boolean;
   isActivated: boolean;
+  isLoggedIn: boolean;
+  isPasswordReset: boolean;
   isPublished: boolean;
   isLive: boolean;
   services: ServiceItem[];
@@ -104,6 +106,8 @@ const initialState: OnboardingState = {
   goLiveStep: 0,
   isOnboardingComplete: false,
   isActivated: false,
+  isLoggedIn: false,
+  isPasswordReset: false,
   isPublished: false,
   isLive: false,
   services: [],

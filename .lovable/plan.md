@@ -1,37 +1,54 @@
 ## Goal
-Make the organization confirmation screen feel denser, more operational, and unmistakably "entering a workspace" — by adding a read-only Workspace URL, a workspace badge near the heading, and tightening spacing.
+Replace the single "Activate your account" screen with an enterprise-style two-step activation: (1) Login with temporary password, (2) Mandatory password reset, then continue to workspace confirmation.
 
-## Changes (single file: `src/components/onboarding/ConfirmOrganization.tsx`)
+## Flow
 
-### 1. Header / identity block
-- Tighten vertical alignment between avatar and heading: align avatar center to heading row (`items-center` instead of `items-start`, drop the `pt-1` offset).
-- Reduce gap between avatar and text from `gap-4` → `gap-3`.
-- Add a small muted badge next to (or just under) the "Welcome, {orgName} 👋" heading reading **"Licenses & Permits Workspace"** using existing `Badge` component with `variant="secondary"` and muted styling.
-- Keep the small "Logo" caption under the avatar.
+```text
+Login (email + temp password 12345678)
+        ↓ success
+Reset Password (current / new / confirm)
+        ↓ success
+ConfirmOrganization (existing)
+        ↓
+Dashboard
+```
 
-### 2. Regional settings — new Workspace URL field
-- Add a new full-width field at the bottom of the Regional Settings grid (spanning `sm:col-span-2`):
-  - Label: **"Workspace URL"**
-  - Read-only `Input` with value like `springfield.digit.org` (derive from `state.orgName` slug + `.digit.org`, fallback to `your-org.digit.org`).
-  - Right-aligned copy icon button (`Copy` from lucide-react) inside the input via relative wrapper; on click, `navigator.clipboard.writeText(...)` + toast "Copied".
-  - Disabled visual treatment (`bg-muted/40 text-muted-foreground cursor-not-allowed`).
-  - Helper text below: *"Applicants and employees will access services using this URL."*
-- Remove the now-unused empty `{'\n'}` helper paragraph under the Regional settings header.
+## Changes
 
-### 3. Spacing tightening
-- Card inner padding: `p-6` → `p-5`.
-- Section vertical rhythm: `space-y-5` → `space-y-4`; section internal `space-y-3` → `space-y-2.5`.
-- Grid gap: `gap-4` → `gap-3`.
-- Reduce header→card gap: `mb-5` → `mb-4`.
-- Footer padding: `px-6 py-4` → `px-5 py-3`; keep border-top and muted background.
-- Page wrapper: `py-8` → `py-6`.
+### 1. `src/contexts/OnboardingContext.tsx`
+- Add `isLoggedIn: boolean` and `isPasswordReset: boolean` to `OnboardingState` (default `false`).
+- Keep `isActivated` as the final gate (true only after password reset completes).
 
-### 4. Imports
-- Add `Copy` from `lucide-react`.
-- Add `Input` from `@/components/ui/input`.
-- Add `Badge` from `@/components/ui/badge`.
-- Add `useToast` from `@/hooks/use-toast`.
+### 2. New `src/components/onboarding/SignIn.tsx`
+- Enterprise-styled login card matching current `ActivateAccount` visual language (Shield icon, same typography, accent button).
+- Heading: "Sign in to your workspace". Subtext: "Use the temporary password shared by your platform team to activate your account."
+- Fields: Email address (pre-filled from `state.email` if present), Temporary password.
+- Validation: email regex + non-empty password. On submit, check password === `"12345678"`; if not, show inline error "Incorrect password. Use the temporary password shared with you."
+- Subtle helper hint below form: "First time signing in? Use the temporary password from your activation email."
+- On success: persist email + derived orgName to context, call `onComplete()`.
 
-## Out of scope
-- No changes to OnboardingContext, routing, or other screens.
-- No business logic changes — Workspace URL is presentational/derived only.
+### 3. New `src/components/onboarding/ResetPassword.tsx`
+- Same visual shell. Heading: "Reset your password". Subtext: "For security, set a new password before accessing your workspace."
+- Fields: Current password, New password, Confirm new password.
+- Validation:
+  - Current password must equal `"12345678"` → else "Current password is incorrect."
+  - New password ≥ 8 chars, must differ from current → else clear error.
+  - Confirm must match new password.
+- Inline field-level error states + a single error line under the form.
+- Continue button disabled until all valid. On success, call `onComplete()`.
+
+### 4. `src/pages/Onboarding.tsx`
+Routing logic:
+```text
+if (!isLoggedIn)        → <SignIn onComplete={() => updateState({ isLoggedIn: true })} />
+else if (!isPasswordReset) → <ResetPassword onComplete={() => updateState({ isPasswordReset: true, isActivated: true })} />
+else                    → <ConfirmOrganization ... />
+```
+
+### 5. Cleanup
+- Delete `src/components/onboarding/ActivateAccount.tsx` (replaced by SignIn + ResetPassword).
+
+## Notes
+- Pure frontend prototype — no Supabase auth wiring; temp password `"12345678"` is hardcoded as requested.
+- Reuse existing design tokens (`bg-accent`, `text-accent-foreground`, h-11 inputs, same spacing) so all three screens feel like one continuous enterprise activation flow.
+- No changes to `ConfirmOrganization` or downstream steps.
