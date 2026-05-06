@@ -110,65 +110,60 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
     (highlightAuto ? "ring-2 ring-accent/50 ring-offset-2 ring-offset-background" : "");
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      <div className="max-w-2xl mx-auto animate-slide-up">
+    <div className="min-h-screen bg-background px-4 py-6 flex items-start justify-center">
+      <div className="max-w-xl w-full mx-auto animate-slide-up">
         {/* Header with logo */}
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex flex-col items-center shrink-0">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="relative w-16 h-16 rounded-full bg-muted border border-border flex items-center justify-center overflow-hidden hover:border-accent/50 transition-colors group"
-              aria-label="Upload organization logo"
-            >
-              {state.logoUrl ? (
-                <img src={state.logoUrl} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-lg font-semibold text-muted-foreground">{initial}</span>
-              )}
-              <span className="absolute inset-0 bg-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Camera className="h-4 w-4 text-background" />
-              </span>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleLogo}
-              />
-            </button>
-            <p className="text-[10px] text-muted-foreground mt-1.5 text-center leading-tight">Logo</p>
-          </div>
+        <div className="mb-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="relative w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center overflow-hidden hover:border-accent/50 transition-colors group shrink-0"
+            aria-label="Upload organization logo"
+          >
+            {state.logoUrl ? (
+              <img src={state.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-sm font-semibold text-muted-foreground">{initial}</span>
+            )}
+            <span className="absolute inset-0 bg-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Camera className="h-3.5 w-3.5 text-background" />
+            </span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleLogo}
+            />
+          </button>
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
-                Welcome, {orgName} <span aria-hidden>👋</span>
-              </h1>
-              <Badge variant="secondary" className="font-medium text-[11px] bg-muted text-muted-foreground hover:bg-muted">
+            <h1 className="text-xl md:text-2xl font-semibold text-foreground tracking-tight leading-tight">
+              Welcome, {orgName} <span aria-hidden>👋</span>
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="secondary" className="font-medium text-[10px] bg-muted text-muted-foreground hover:bg-muted px-1.5 py-0">
                 Licenses & Permits Workspace
               </Badge>
+              <span className="text-xs text-muted-foreground">
+                Review and personalize before continuing.
+              </span>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your workspace is already prepared, review and personalize it before continuing.
-            </p>
           </div>
         </div>
 
         {/* Form card */}
         <Card className="overflow-hidden">
-          <div className="p-5 space-y-4">
+          <div className="px-5 py-4 space-y-3.5">
             {/* Department section */}
-            <section className="space-y-2.5">
-              <div>
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Department
-                </h2>
-              </div>
+            <section className="space-y-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Department
+              </h2>
               <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label className="text-xs">Department</Label>
                   <Select value={state.department} onValueChange={(v) => updateState({ department: v })}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select department" /></SelectTrigger>
                     <SelectContent>
                       {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                     </SelectContent>
@@ -178,28 +173,26 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
             </section>
 
             {/* Regional settings */}
-            <section className="space-y-2.5">
-              <div>
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Regional settings
-                </h2>
-              </div>
+            <section className="space-y-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Regional settings
+              </h2>
               <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label className="text-xs">Country</Label>
                   <Select value={state.country} onValueChange={handleCountryChange}>
-                    <SelectTrigger className="h-11"><SelectValue placeholder="Select country" /></SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select country" /></SelectTrigger>
                     <SelectContent>
                       {countries.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label className="text-xs">Currency</Label>
                   <div className={cn(highlightRing)}>
                     <Select value={state.currency} onValueChange={handleCurrencyChange}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Select currency" /></SelectTrigger>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select currency" /></SelectTrigger>
                       <SelectContent>
                         {currencies.map((c) => (
                           <SelectItem key={c.code} value={c.code}>
@@ -211,11 +204,11 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label className="text-xs">Country code</Label>
                   <div className={cn(highlightRing)}>
                     <Select value={state.phoneCountryCode} onValueChange={(v) => updateState({ phoneCountryCode: v })}>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Select code" /></SelectTrigger>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select code" /></SelectTrigger>
                       <SelectContent>
                         {phoneCodes.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                       </SelectContent>
@@ -223,28 +216,28 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <Label className="text-xs">Default language</Label>
                   <Select value={state.language} onValueChange={(v) => updateState({ language: v })}>
-                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="English">English</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className="space-y-1 sm:col-span-2">
                   <Label className="text-xs">Workspace URL</Label>
                   <div className="relative">
                     <Input
                       readOnly
                       value={workspaceUrl}
-                      className="h-11 pr-10 bg-muted/40 text-muted-foreground cursor-not-allowed focus-visible:ring-0"
+                      className="h-9 pr-9 bg-muted/40 text-muted-foreground cursor-not-allowed focus-visible:ring-0"
                     />
                     <button
                       type="button"
                       onClick={copyUrl}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       aria-label="Copy workspace URL"
                     >
                       <Copy className="h-3.5 w-3.5" />
@@ -259,14 +252,14 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-4 px-5 py-3 border-t bg-muted/30">
+          <div className="flex items-center justify-end gap-3 px-5 py-2.5 border-t bg-muted/30">
             <p className="text-[11px] text-muted-foreground">
               You can update these anytime from Workspace Settings.
             </p>
             <Button
               onClick={onComplete}
               disabled={!canContinue}
-              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-10 px-5"
+              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-9 px-4"
             >
               Continue <ArrowRight className="h-4 w-4" />
             </Button>
