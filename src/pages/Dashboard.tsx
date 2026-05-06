@@ -1,10 +1,17 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { useOnboarding, ServiceItem } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Settings,
   Eye,
@@ -26,13 +33,12 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   useEffect(() => {
     const seen = localStorage.getItem("lnp-welcome-seen");
     if (!seen && state.orgName) {
-      toast.success(`Welcome${state.orgName ? `, ${state.orgName}` : ""}!`, {
-        description: "Your organization is ready. Set up your first service to get started.",
-      });
+      setWelcomeOpen(true);
       localStorage.setItem("lnp-welcome-seen", "1");
     }
   }, [state.orgName]);
@@ -316,6 +322,28 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Welcome to Licenses & Permits</DialogTitle>
+            <DialogDescription>
+              Start by choosing a service template and configuring your first workflow.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setWelcomeOpen(false);
+                navigate("/services");
+              }}
+              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
+            >
+              <LayoutTemplate className="h-4 w-4" /> Choose Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
