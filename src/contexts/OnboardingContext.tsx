@@ -48,6 +48,7 @@ export interface ServiceItem {
 
 export interface OnboardingState {
   currentStep: number;
+  email: string;
   orgName: string;
   country: string;
   department: string;
@@ -78,6 +79,7 @@ export interface OnboardingState {
 
 const initialState: OnboardingState = {
   currentStep: 0,
+  email: "",
   orgName: "",
   country: "",
   department: "",
