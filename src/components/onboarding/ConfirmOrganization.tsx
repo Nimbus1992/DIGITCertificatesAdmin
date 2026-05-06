@@ -1,8 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, Camera } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Camera, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -84,15 +87,33 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
   const initial = (state.orgName?.trim()?.[0] || "?").toUpperCase();
   const canContinue = !!state.country && !!state.department;
 
+  const workspaceUrl = useMemo(() => {
+    const slug = (state.orgName || "your-org")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "your-org";
+    return `${slug}.digit.org`;
+  }, [state.orgName]);
+
+  const copyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(workspaceUrl);
+      toast.success("Workspace URL copied");
+    } catch {
+      toast.error("Unable to copy");
+    }
+  };
+
   const highlightRing =
     "transition-all rounded-md " +
     (highlightAuto ? "ring-2 ring-accent/50 ring-offset-2 ring-offset-background" : "");
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
+    <div className="min-h-screen bg-background px-4 py-6">
       <div className="max-w-2xl mx-auto animate-slide-up">
         {/* Header with logo */}
-        <div className="mb-5 flex items-start gap-4">
+        <div className="mb-4 flex items-center gap-3">
           <div className="flex flex-col items-center shrink-0">
             <button
               type="button"
@@ -118,11 +139,16 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
             </button>
             <p className="text-[10px] text-muted-foreground mt-1.5 text-center leading-tight">Logo</p>
           </div>
-          <div className="flex-1 min-w-0 pt-1">
-            <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
-              Welcome, {orgName} <span aria-hidden>👋</span>
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
+                Welcome, {orgName} <span aria-hidden>👋</span>
+              </h1>
+              <Badge variant="secondary" className="font-medium text-[11px] bg-muted text-muted-foreground hover:bg-muted">
+                Licenses & Permits Workspace
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
               Your workspace is already prepared, review and personalize it before continuing.
             </p>
           </div>
@@ -130,15 +156,15 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
 
         {/* Form card */}
         <Card className="overflow-hidden">
-          <div className="p-6 space-y-5">
+          <div className="p-5 space-y-4">
             {/* Department section */}
-            <section className="space-y-3">
+            <section className="space-y-2.5">
               <div>
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Department
                 </h2>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Department</Label>
                   <Select value={state.department} onValueChange={(v) => updateState({ department: v })}>
@@ -152,14 +178,13 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
             </section>
 
             {/* Regional settings */}
-            <section className="space-y-3">
+            <section className="space-y-2.5">
               <div>
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Regional settings
                 </h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{'\n'}</p>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Country</Label>
                   <Select value={state.country} onValueChange={handleCountryChange}>
@@ -207,12 +232,34 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Workspace URL</Label>
+                  <div className="relative">
+                    <Input
+                      readOnly
+                      value={workspaceUrl}
+                      className="h-11 pr-10 bg-muted/40 text-muted-foreground cursor-not-allowed focus-visible:ring-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyUrl}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      aria-label="Copy workspace URL"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Applicants and employees will access services using this URL.
+                  </p>
+                </div>
               </div>
             </section>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-4 px-6 py-4 border-t bg-muted/30">
+          <div className="flex items-center justify-between gap-4 px-5 py-3 border-t bg-muted/30">
             <p className="text-[11px] text-muted-foreground">
               You can update these anytime from Workspace Settings.
             </p>
