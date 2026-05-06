@@ -71,6 +71,7 @@ export interface OnboardingState {
   authMethod: AuthMethod;
   goLiveStep: number;
   isOnboardingComplete: boolean;
+  isActivated: boolean;
   isPublished: boolean;
   isLive: boolean;
   services: ServiceItem[];
@@ -102,6 +103,7 @@ const initialState: OnboardingState = {
   authMethod: "email",
   goLiveStep: 0,
   isOnboardingComplete: false,
+  isActivated: false,
   isPublished: false,
   isLive: false,
   services: [],

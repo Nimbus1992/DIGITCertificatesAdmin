@@ -8,18 +8,22 @@ const Onboarding: React.FC = () => {
   const { state, updateState } = useOnboarding();
   const navigate = useNavigate();
 
-  const steps = [
-    <ActivateAccount key="activate" onComplete={() => updateState({ currentStep: 1 })} />,
+  if (!state.isActivated) {
+    return (
+      <ActivateAccount
+        onComplete={() => updateState({ isActivated: true, currentStep: 1 })}
+      />
+    );
+  }
+
+  return (
     <ConfirmOrganization
-      key="confirm"
       onComplete={() => {
         updateState({ isOnboardingComplete: true });
         navigate("/dashboard");
       }}
-    />,
-  ];
-
-  return <>{steps[state.currentStep] || steps[0]}</>;
+    />
+  );
 };
 
 export default Onboarding;
