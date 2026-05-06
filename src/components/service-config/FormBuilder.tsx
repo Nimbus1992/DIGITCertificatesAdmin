@@ -1,0 +1,1125 @@
+import React, { useState, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import {
+  ArrowLeft, HelpCircle, Plus, Search, X, ChevronLeft, ChevronRight, Save,
+  User, MapPin, Phone, Mail, Hash, Type, AlignLeft, Calendar,
+  Circle, CheckSquare, List, Tag, Upload, Info, GripVertical, Trash2
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+/* ─── Types ─────────────────────────────────────────────── */
+
+type FieldType = "text" | "number" | "dropdown" | "radio" | "checkbox" | "date" | "file" | "textarea" | "multiselect" | "section_header";
+
+interface FormField {
+  id: string;
+  type: FieldType;
+  label: string;
+  placeholder: string;
+  helpText: string;
+  required: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  patternMessage?: string;
+  min?: number;
+  max?: number;
+  pastDateOnly?: boolean;
+  defaultValue?: string;
+  options?: string[];
+  showIf?: { field: string; equals: string };
+  dependsOn?: string;
+  dependsValueMap?: Record<string, string[]>;
+}
+
+interface FormSection {
+  id: string;
+  name: string;
+  description: string;
+  fields: FormField[];
+}
+
+/* ─── Field palette categories ──────────────────────────── */
+
+interface FieldTypeEntry { type: FieldType; label: string; icon: LucideIcon }
+interface FieldCategory { name: string; items: FieldTypeEntry[] }
+
+const FIELD_CATEGORIES: FieldCategory[] = [
+  {
+    name: "Input Fields",
+    items: [
+      { type: "text", label: "Name", icon: User },
+      { type: "text", label: "Address", icon: MapPin },
+      { type: "number", label: "Phone", icon: Phone },
+      { type: "text", label: "Email", icon: Mail },
+      { type: "number", label: "Numeric", icon: Hash },
+      { type: "text", label: "Text Input", icon: Type },
+      { type: "textarea", label: "Text Area", icon: AlignLeft },
+      { type: "date", label: "Date Picker", icon: Calendar },
+    ],
+  },
+  {
+    name: "Selection",
+    items: [
+      { type: "radio", label: "Radio", icon: Circle },
+      { type: "checkbox", label: "Checkbox", icon: CheckSquare },
+      { type: "dropdown", label: "Dropdown", icon: List },
+      { type: "multiselect", label: "Selection Tag", icon: Tag },
+    ],
+  },
+  {
+    name: "Upload",
+    items: [
+      { type: "file", label: "File Upload", icon: Upload },
+    ],
+  },
+];
+
+/* ─── Helpers ───────────────────────────────────────────── */
+
+let fieldCounter = 100;
+const createField = (type: FieldType, label: string): FormField => ({
+  id: `field-${++fieldCounter}`,
+  type,
+  label: label || "Untitled Field",
+  placeholder: "",
+  helpText: "",
+  required: false,
+  options: ["dropdown", "radio", "checkbox", "multiselect"].includes(type)
+    ? ["Option 1", "Option 2"]
+    : undefined,
+});
+
+import { TRADE_FORM_SECTIONS, type TradeFormField } from "@/data/tradeLicenseTemplate";
+
+// Map preview field types → FormBuilder's local FieldType
+const mapTradeFieldType = (t: TradeFormField["type"]): FieldType => {
+  switch (t) {
+    case "tel":
+    case "number":   return "number";
+    case "email":
+    case "text":     return "text";
+    case "dropdown": return "dropdown";
+    case "radio":    return "radio";
+    case "date":     return "date";
+    case "file":     return "file";
+    case "checkbox": return "checkbox";
+    default:         return "text";
+  }
+};
+
+const DEFAULT_SECTIONS: FormSection[] = TRADE_FORM_SECTIONS.map((sec) => ({
+  id: sec.id,
+  name: sec.name,
+  description: sec.description,
+  fields: sec.fields.map<FormField>((f) => ({
+    id: f.id,
+    type: mapTradeFieldType(f.type),
+    label: f.label,
+    placeholder: f.placeholder,
+    helpText: f.helpText ?? "",
+    required: f.required,
+    options: f.options,
+    minLength: f.validation?.minLength,
+    maxLength: f.validation?.maxLength,
+    pattern: f.validation?.pattern,
+    patternMessage: f.validation?.patternMessage,
+    min: f.validation?.min,
+    max: f.validation?.max,
+    pastDateOnly: f.validation?.pastDateOnly,
+    showIf: f.showIf,
+    dependsOn: f.dependsOn,
+    dependsValueMap: f.dependsValueMap,
+  })),
+}));
+
+// Helper: does this field carry any extra rules?
+const fieldHasRules = (f: FormField): boolean =>
+  Boolean(
+    f.minLength != null || f.maxLength != null || f.pattern ||
+    f.min != null || f.max != null || f.pastDateOnly ||
+    f.showIf || f.dependsOn,
+  );
+
+/* ─── Component ─────────────────────────────────────────── */
+
+interface FormBuilderProps {
+  moduleName: string;
+  onBack: () => void;
+}
+
+const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
+  const [sections, setSections] = useState<FormSection[]>(DEFAULT_SECTIONS);
+  const [activeSectionId, setActiveSectionId] = useState(sections[0].id);
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [paletteSearch, setPaletteSearch] = useState("");
+  const [rightTab, setRightTab] = useState<"elements" | "logic">("elements");
+
+  const activeSection = sections.find((s) => s.id === activeSectionId)!;
+  const activeSectionIndex = sections.findIndex((s) => s.id === activeSectionId);
+  const selectedField = selectedFieldId
+    ? activeSection.fields.find((f) => f.id === selectedFieldId) ?? null
+    : null;
+
+  /* ── Section helpers ── */
+  const addSection = () => {
+    const s: FormSection = {
+      id: `sec-${Date.now()}`,
+      name: `Section ${sections.length + 1}`,
+      description: "",
+      fields: [],
+    };
+    setSections((prev) => [...prev, s]);
+    setActiveSectionId(s.id);
+    setSelectedFieldId(null);
+  };
+
+  const updateSection = (updates: Partial<FormSection>) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === activeSectionId ? { ...s, ...updates } : s))
+    );
+  };
+
+  const deleteFieldFromSection = (fieldId: string) => {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === activeSectionId
+          ? { ...s, fields: s.fields.filter((f) => f.id !== fieldId) }
+          : s
+      )
+    );
+    if (selectedFieldId === fieldId) setSelectedFieldId(null);
+  };
+
+  const deleteSection = () => {
+    if (sections.length <= 1) {
+      toast({ title: "Cannot delete the last section", variant: "destructive" });
+      return;
+    }
+    const idx = sections.findIndex((s) => s.id === activeSectionId);
+    const next = sections.filter((s) => s.id !== activeSectionId);
+    setSections(next);
+    setActiveSectionId(next[Math.max(0, idx - 1)].id);
+    setSelectedFieldId(null);
+    toast({ title: "Section deleted" });
+  };
+
+  /* ── Field helpers ── */
+  const addFieldFromPalette = (type: FieldType, label: string) => {
+    const f = createField(type, label);
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === activeSectionId ? { ...s, fields: [...s.fields, f] } : s
+      )
+    );
+    setSelectedFieldId(f.id);
+  };
+
+  const updateField = (fieldId: string, updates: Partial<FormField>) => {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === activeSectionId
+          ? {
+              ...s,
+              fields: s.fields.map((f) =>
+                f.id === fieldId ? { ...f, ...updates } : f
+              ),
+            }
+          : s
+      )
+    );
+  };
+
+  /* ── Navigation ── */
+  const goSection = (dir: -1 | 1) => {
+    const next = activeSectionIndex + dir;
+    if (next >= 0 && next < sections.length) {
+      setActiveSectionId(sections[next].id);
+      setSelectedFieldId(null);
+    }
+  };
+
+  /* ── Filtered palette ── */
+  const filteredCategories = useMemo(() => {
+    if (!paletteSearch.trim()) return FIELD_CATEGORIES;
+    const q = paletteSearch.toLowerCase();
+    return FIELD_CATEGORIES.map((c) => ({
+      ...c,
+      items: c.items.filter((i) => i.label.toLowerCase().includes(q)),
+    })).filter((c) => c.items.length > 0);
+  }, [paletteSearch]);
+
+  /* ── Render a single field on the canvas ── */
+  const renderCanvasField = (field: FormField) => {
+    const isSelected = selectedFieldId === field.id;
+    return (
+      <div
+        key={field.id}
+        onClick={() => setSelectedFieldId(field.id)}
+        className={`group relative rounded-md border p-3 cursor-pointer transition-colors ${
+          isSelected
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "border-transparent hover:border-muted-foreground/20 hover:bg-muted/30"
+        }`}
+      >
+        <div className="flex items-center gap-1 mb-1">
+          <Label className="text-sm font-medium text-foreground">
+            {field.label}
+          </Label>
+          {field.required && (
+            <span className="text-destructive text-xs">*</span>
+          )}
+        </div>
+
+        {(field.type === "text" || field.type === "number") && (
+          <Input
+            disabled
+            placeholder={field.placeholder || field.label}
+            className="bg-background"
+          />
+        )}
+        {field.type === "textarea" && (
+          <Textarea
+            disabled
+            placeholder={field.placeholder || field.label}
+            className="bg-background min-h-[60px]"
+          />
+        )}
+        {field.type === "dropdown" && (
+          <Select disabled>
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder={`Select ${field.label}`} />
+            </SelectTrigger>
+          </Select>
+        )}
+        {field.type === "multiselect" && (
+          <Select disabled>
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder={`Select ${field.label}`} />
+            </SelectTrigger>
+          </Select>
+        )}
+        {field.type === "radio" && (
+          <div className="flex gap-4">
+            {(field.options || ["Option 1", "Option 2"]).map((o) => (
+              <label
+                key={o}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground"
+              >
+                <input type="radio" disabled className="accent-primary" />
+                {o}
+              </label>
+            ))}
+          </div>
+        )}
+        {field.type === "checkbox" && (
+          <div className="flex gap-4">
+            {(field.options || ["Option 1", "Option 2"]).map((o) => (
+              <label
+                key={o}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground"
+              >
+                <input type="checkbox" disabled className="accent-primary" />
+                {o}
+              </label>
+            ))}
+          </div>
+        )}
+        {field.type === "date" && (
+          <Input disabled type="date" className="bg-background" />
+        )}
+        {field.type === "file" && (
+          <div className="border-2 border-dashed border-muted-foreground/20 rounded-md p-3 text-center text-sm text-muted-foreground">
+            Click or drag to upload
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ─── Render ──────────────────────────────────────────── */
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-2rem)] bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b bg-card">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Service Dashboard
+        </button>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <HelpCircle className="h-4 w-4" /> Help
+        </div>
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex items-center gap-0 border-b bg-card overflow-x-auto">
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => {
+              setActiveSectionId(s.id);
+              setSelectedFieldId(null);
+            }}
+            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              s.id === activeSectionId
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {s.name}
+          </button>
+        ))}
+        <button
+          onClick={addSection}
+          className="flex items-center gap-1 px-4 py-2.5 text-sm text-primary hover:bg-primary/5 whitespace-nowrap"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Section
+        </button>
+      </div>
+
+      {/* Main 3-column area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: Field Palette */}
+        <div className="w-56 shrink-0 border-r bg-card flex flex-col">
+          <div className="p-3 border-b">
+            <h3 className="text-sm font-semibold mb-2 text-foreground">
+              Form Fields
+            </h3>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search fields..."
+                value={paletteSearch}
+                onChange={(e) => setPaletteSearch(e.target.value)}
+                className="pl-8 h-8 text-sm"
+              />
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-4">
+              {filteredCategories.map((cat) => (
+                <div key={cat.name}>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    {cat.name}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {cat.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() =>
+                            addFieldFromPalette(item.type, item.label)
+                          }
+                          className="flex flex-col items-center gap-1 p-2.5 rounded-md border border-border bg-background text-xs text-foreground hover:border-primary hover:bg-primary/5 transition-colors"
+                        >
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                          <span className="leading-tight text-center">
+                            {item.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Center: Canvas */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-muted/30">
+          <ScrollArea className="flex-1">
+            <div className="p-6 max-w-2xl mx-auto">
+              <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-6 bg-card">
+                <h2 className="text-lg font-semibold text-foreground mb-1">
+                  {activeSection.name}
+                </h2>
+                {activeSection.description && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {activeSection.description}
+                  </p>
+                )}
+                <div className="space-y-1">
+                  {activeSection.fields.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Click a field type on the left to add fields
+                    </p>
+                  )}
+                  {activeSection.fields.map(renderCanvasField)}
+                </div>
+                <div className="flex justify-end mt-6">
+                  <Button size="sm" className="px-6">
+                    Next
+                  </Button>
+                </div>
+              </div>
+
+              {/* Section navigation arrows */}
+              <div className="flex items-center justify-center gap-4 mt-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={activeSectionIndex === 0}
+                  onClick={() => goSection(-1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {activeSectionIndex + 1} / {sections.length}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={activeSectionIndex === sections.length - 1}
+                  onClick={() => goSection(1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Right: Properties panel */}
+        <div className="w-72 shrink-0 border-l bg-card flex flex-col">
+          <div className="p-3 border-b">
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-semibold text-foreground">
+                {selectedField ? "Field Properties" : "Section Properties"}
+              </h3>
+              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            {selectedField && (
+              <button
+                onClick={() => setSelectedFieldId(null)}
+                className="text-xs text-primary mt-1 hover:underline"
+              >
+                ← Back to section
+              </button>
+            )}
+          </div>
+
+          {/* Elements / Logic tabs */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setRightTab("elements")}
+              className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${
+                rightTab === "elements"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground"
+              }`}
+            >
+              Elements
+            </button>
+            <button
+              onClick={() => setRightTab("logic")}
+              className={`flex-1 py-2 text-xs font-medium border-b-2 transition-colors ${
+                rightTab === "logic"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground"
+              }`}
+            >
+              Logic
+            </button>
+          </div>
+
+          <ScrollArea className="flex-1">
+            {rightTab === "elements" ? (
+              selectedField ? (
+                /* ── Field-level properties ── */
+                <div className="p-3 space-y-4">
+                  <div>
+                    <Label className="text-xs">Field Label</Label>
+                    <Input
+                      value={selectedField.label}
+                      onChange={(e) =>
+                        updateField(selectedField.id, { label: e.target.value })
+                      }
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Field Type</Label>
+                    <Select
+                      value={selectedField.type}
+                      onValueChange={(v) =>
+                        updateField(selectedField.id, { type: v as FieldType })
+                      }
+                    >
+                      <SelectTrigger className="mt-1 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          "text",
+                          "number",
+                          "dropdown",
+                          "radio",
+                          "checkbox",
+                          "date",
+                          "file",
+                          "textarea",
+                          "multiselect",
+                        ].map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t.charAt(0).toUpperCase() + t.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Placeholder</Label>
+                    <Input
+                      value={selectedField.placeholder}
+                      onChange={(e) =>
+                        updateField(selectedField.id, {
+                          placeholder: e.target.value,
+                        })
+                      }
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Help Text</Label>
+                    <Input
+                      value={selectedField.helpText}
+                      onChange={(e) =>
+                        updateField(selectedField.id, {
+                          helpText: e.target.value,
+                        })
+                      }
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">
+                    Validation
+                  </p>
+
+                  {/* Rules summary chips */}
+                  {fieldHasRules(selectedField) && (
+                    <div className="flex flex-wrap gap-1">
+                      {selectedField.minLength != null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Min length {selectedField.minLength}</span>
+                      )}
+                      {selectedField.maxLength != null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Max length {selectedField.maxLength}</span>
+                      )}
+                      {selectedField.min != null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Min {selectedField.min}</span>
+                      )}
+                      {selectedField.max != null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Max {selectedField.max}</span>
+                      )}
+                      {selectedField.pattern && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary" title={selectedField.pattern}>
+                          Pattern{selectedField.patternMessage ? `: ${selectedField.patternMessage}` : ""}
+                        </span>
+                      )}
+                      {selectedField.pastDateOnly && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Past date only</span>
+                      )}
+                      {selectedField.showIf && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Conditional</span>
+                      )}
+                      {selectedField.dependsOn && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Dependent options</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Required</Label>
+                    <Switch
+                      checked={selectedField.required}
+                      onCheckedChange={(v) =>
+                        updateField(selectedField.id, { required: v })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Min Length</Label>
+                      <Input
+                        type="number"
+                        value={selectedField.minLength ?? ""}
+                        onChange={(e) =>
+                          updateField(selectedField.id, {
+                            minLength: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          })
+                        }
+                        className="mt-1 h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Max Length</Label>
+                      <Input
+                        type="number"
+                        value={selectedField.maxLength ?? ""}
+                        onChange={(e) =>
+                          updateField(selectedField.id, {
+                            maxLength: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          })
+                        }
+                        className="mt-1 h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  {selectedField.type === "number" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Min Value</Label>
+                        <Input
+                          type="number"
+                          value={selectedField.min ?? ""}
+                          onChange={(e) =>
+                            updateField(selectedField.id, {
+                              min: e.target.value ? Number(e.target.value) : undefined,
+                            })
+                          }
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Max Value</Label>
+                        <Input
+                          type="number"
+                          value={selectedField.max ?? ""}
+                          onChange={(e) =>
+                            updateField(selectedField.id, {
+                              max: e.target.value ? Number(e.target.value) : undefined,
+                            })
+                          }
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs">Pattern (Regex)</Label>
+                    <Input
+                      value={selectedField.pattern ?? ""}
+                      onChange={(e) =>
+                        updateField(selectedField.id, {
+                          pattern: e.target.value,
+                        })
+                      }
+                      className="mt-1 h-8 text-sm"
+                      placeholder="e.g. ^[A-Z]+"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Pattern Message</Label>
+                    <Input
+                      value={selectedField.patternMessage ?? ""}
+                      onChange={(e) =>
+                        updateField(selectedField.id, {
+                          patternMessage: e.target.value,
+                        })
+                      }
+                      className="mt-1 h-8 text-sm"
+                      placeholder="Shown when pattern fails"
+                    />
+                  </div>
+                  {selectedField.type === "date" && (
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Past date only</Label>
+                      <Switch
+                        checked={!!selectedField.pastDateOnly}
+                        onCheckedChange={(v) =>
+                          updateField(selectedField.id, { pastDateOnly: v })
+                        }
+                      />
+                    </div>
+                  )}
+                  {selectedField.options && (
+                    <>
+                      <Separator />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase">
+                        Options
+                      </p>
+                      {selectedField.options.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <Input
+                            value={opt}
+                            onChange={(e) => {
+                              const opts = [
+                                ...(selectedField.options || []),
+                              ];
+                              opts[i] = e.target.value;
+                              updateField(selectedField.id, { options: opts });
+                            }}
+                            className="h-7 text-xs flex-1"
+                          />
+                          <button
+                            onClick={() => {
+                              const opts = (
+                                selectedField.options || []
+                              ).filter((_, j) => j !== i);
+                              updateField(selectedField.id, { options: opts });
+                            }}
+                          >
+                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </div>
+                      ))}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() =>
+                          updateField(selectedField.id, {
+                            options: [
+                              ...(selectedField.options || []),
+                              `Option ${
+                                (selectedField.options?.length ?? 0) + 1
+                              }`,
+                            ],
+                          })
+                        }
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Add Option
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* ── Section-level properties ── */
+                <div className="p-3 space-y-4">
+                  <div>
+                    <Label className="text-xs">Page Heading</Label>
+                    <Input
+                      value={activeSection.name}
+                      onChange={(e) =>
+                        updateSection({ name: e.target.value })
+                      }
+                      className="mt-1 h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Page Description</Label>
+                    <Textarea
+                      value={activeSection.description}
+                      onChange={(e) =>
+                        updateSection({ description: e.target.value })
+                      }
+                      className="mt-1 text-sm min-h-[60px]"
+                    />
+                  </div>
+                  <Separator />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">
+                    Fields
+                  </p>
+                  <div className="space-y-1">
+                    {activeSection.fields.map((f) => (
+                      <div
+                        key={f.id}
+                        onClick={() => setSelectedFieldId(f.id)}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-sm transition-colors ${
+                          selectedFieldId === f.id
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-muted"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="truncate">{f.label}</span>
+                          {fieldHasRules(f) && (
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+                              title="Has validation or conditional logic"
+                            />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[10px] px-1.5 py-0 rounded bg-secondary text-secondary-foreground">
+                            {f.type}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteFieldFromSection(f.id);
+                            }}
+                          >
+                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {activeSection.fields.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        No fields yet
+                      </p>
+                    )}
+                  </div>
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={deleteSection}
+                    disabled={sections.length <= 1}
+                    className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Section
+                  </Button>
+                </div>
+              )
+            ) : (
+              /* ── Logic tab content ── */
+              <div className="p-3 space-y-4">
+                {!selectedField ? (
+                  <div className="text-sm text-muted-foreground text-center mt-8">
+                    <p className="font-medium mb-2 text-foreground">Conditional Logic</p>
+                    <p className="text-xs">Select a field to view or edit its visibility rules and dependent options.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Conditional visibility */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase">Conditional Visibility</p>
+                        {selectedField.showIf && (
+                          <button
+                            onClick={() => updateField(selectedField.id, { showIf: undefined })}
+                            className="text-[10px] text-destructive hover:underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {selectedField.showIf ? (
+                        (() => {
+                          const parent = activeSection.fields.find((x) => x.id === selectedField.showIf!.field);
+                          const parentOpts = parent?.options ?? [];
+                          return (
+                            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/50 p-2.5">
+                              <p className="text-[11px] text-amber-900">
+                                Show this field only when <strong>{parent?.label ?? selectedField.showIf.field}</strong> equals <strong>{selectedField.showIf.equals || "—"}</strong>.
+                              </p>
+                              <div>
+                                <Label className="text-xs">Depends on field</Label>
+                                <Select
+                                  value={selectedField.showIf.field}
+                                  onValueChange={(v) =>
+                                    updateField(selectedField.id, {
+                                      showIf: { field: v, equals: selectedField.showIf!.equals },
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {activeSection.fields
+                                      .filter((x) => x.id !== selectedField.id)
+                                      .map((x) => (
+                                        <SelectItem key={x.id} value={x.id}>{x.label}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label className="text-xs">Equals</Label>
+                                {parentOpts.length > 0 ? (
+                                  <Select
+                                    value={selectedField.showIf.equals}
+                                    onValueChange={(v) =>
+                                      updateField(selectedField.id, {
+                                        showIf: { field: selectedField.showIf!.field, equals: v },
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="mt-1 h-8 text-sm">
+                                      <SelectValue placeholder="Choose value" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {parentOpts.map((opt) => (
+                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    value={selectedField.showIf.equals}
+                                    onChange={(e) =>
+                                      updateField(selectedField.id, {
+                                        showIf: { field: selectedField.showIf!.field, equals: e.target.value },
+                                      })
+                                    }
+                                    className="mt-1 h-8 text-sm"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="rounded-md border border-dashed border-border p-3 text-center">
+                          <p className="text-[11px] text-muted-foreground mb-2">No visibility rule set.</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7"
+                            disabled={activeSection.fields.filter((x) => x.id !== selectedField.id).length === 0}
+                            onClick={() => {
+                              const first = activeSection.fields.find((x) => x.id !== selectedField.id);
+                              if (!first) return;
+                              updateField(selectedField.id, {
+                                showIf: { field: first.id, equals: first.options?.[0] ?? "" },
+                              });
+                            }}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Add visibility rule
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Dependent options */}
+                    {selectedField.type === "dropdown" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase">Dependent Options</p>
+                          {selectedField.dependsOn && (
+                            <button
+                              onClick={() =>
+                                updateField(selectedField.id, {
+                                  dependsOn: undefined,
+                                  dependsValueMap: undefined,
+                                })
+                              }
+                              className="text-[10px] text-destructive hover:underline"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {selectedField.dependsOn ? (
+                          (() => {
+                            const parent = activeSection.fields.find((x) => x.id === selectedField.dependsOn);
+                            const parentOpts = parent?.options ?? [];
+                            const map = selectedField.dependsValueMap ?? {};
+                            return (
+                              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50/50 p-2.5">
+                                <p className="text-[11px] text-amber-900">
+                                  Options change based on <strong>{parent?.label ?? selectedField.dependsOn}</strong>.
+                                </p>
+                                <div>
+                                  <Label className="text-xs">Parent field</Label>
+                                  <Select
+                                    value={selectedField.dependsOn}
+                                    onValueChange={(v) =>
+                                      updateField(selectedField.id, { dependsOn: v, dependsValueMap: {} })
+                                    }
+                                  >
+                                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {activeSection.fields
+                                        .filter((x) => x.id !== selectedField.id && x.type === "dropdown")
+                                        .map((x) => (
+                                          <SelectItem key={x.id} value={x.id}>{x.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs">Options per parent value</Label>
+                                  {parentOpts.length === 0 && (
+                                    <p className="text-[10px] text-muted-foreground">Parent has no options yet.</p>
+                                  )}
+                                  {parentOpts.map((opt) => (
+                                    <div key={opt} className="flex items-center gap-2">
+                                      <span className="text-[11px] w-1/3 truncate text-foreground">{opt}</span>
+                                      <Input
+                                        value={(map[opt] ?? []).join(", ")}
+                                        onChange={(e) => {
+                                          const next = {
+                                            ...map,
+                                            [opt]: e.target.value
+                                              .split(",")
+                                              .map((s) => s.trim())
+                                              .filter(Boolean),
+                                          };
+                                          updateField(selectedField.id, { dependsValueMap: next });
+                                        }}
+                                        placeholder="comma-separated"
+                                        className="h-7 text-xs flex-1"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="rounded-md border border-dashed border-border p-3 text-center">
+                            <p className="text-[11px] text-muted-foreground mb-2">No dependent-options rule set.</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs h-7"
+                              disabled={
+                                activeSection.fields.filter(
+                                  (x) => x.id !== selectedField.id && x.type === "dropdown",
+                                ).length === 0
+                              }
+                              onClick={() => {
+                                const first = activeSection.fields.find(
+                                  (x) => x.id !== selectedField.id && x.type === "dropdown",
+                                );
+                                if (!first) return;
+                                updateField(selectedField.id, {
+                                  dependsOn: first.id,
+                                  dependsValueMap: {},
+                                });
+                              }}
+                            >
+                              <Plus className="h-3 w-3 mr-1" /> Add dependency
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-5 py-3 border-t bg-card">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => toast({ title: "Form saved successfully" })}
+        >
+          <Save className="h-4 w-4 mr-1" /> Save Form
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default FormBuilder;

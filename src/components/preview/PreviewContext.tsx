@@ -1,0 +1,834 @@
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
+import { toast } from "sonner";
+import { Smartphone, Mail, X } from "lucide-react";
+import { NOTIFICATION_MATRIX, type RecipientRole } from "./notifications/notificationMatrix";
+import { resolveTemplate, type SimulatedMessage } from "./notifications/templateEngine";
+
+// ─── Types ───────────────────────────────────────────────
+export type PreviewRole = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
+export type DeviceMode = "mobile" | "tablet" | "desktop";
+export type ApplicationType = "NEW" | "RENEWAL";
+export type DocumentStatus = "Pending" | "Verified" | "Rejected";
+
+export interface FieldValidation {
+  pattern?: string;          // regex source
+  patternMessage?: string;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  pastDateOnly?: boolean;
+}
+
+export interface FormFieldConfig {
+  id: string;
+  type: string;              // text | number | tel | email | dropdown | radio | date | file | checkbox
+  label: string;
+  placeholder: string;
+  required: boolean;
+  options?: string[];
+  helpText?: string;
+  validation?: FieldValidation;
+  dependsOn?: string;                          // parent field id
+  dependsValueMap?: Record<string, string[]>;  // parent value -> options
+  showIf?: { field: string; equals: string };  // conditional visibility
+}
+
+// Dependent dropdown maps & ID validation maps (exported for form usage)
+export const TRADE_CATEGORY_MAP: Record<string, string[]> = {
+  "Retail Shop": ["Grocery", "Clothing", "Electronics"],
+  "Restaurant": ["Dine-in", "Takeaway", "Cloud Kitchen"],
+  "Manufacturing": ["Small Scale", "Medium Scale"],
+  "Application Business": ["Consultancy", "Repair", "IT Applications"],
+};
+
+export const CITY_ZONE_MAP: Record<string, string[]> = {
+  "City A": ["Ward 1", "Ward 2", "Ward 3"],
+  "City B": ["Zone A", "Zone B"],
+};
+
+export const ID_VALIDATION: Record<string, { pattern: RegExp; message: string }> = {
+  Aadhaar: { pattern: /^\d{12}$/, message: "Aadhaar must be 12 digits" },
+  Passport: { pattern: /^[A-Z0-9]{6,12}$/i, message: "Passport must be 6–12 alphanumeric characters" },
+  "Driving License": { pattern: /^[A-Z0-9-]{6,16}$/i, message: "Driving License must be 6–16 alphanumeric characters" },
+};
+
+export interface FormSectionConfig {
+  id: string;
+  name: string;
+  description: string;
+  fields: FormFieldConfig[];
+}
+
+export interface WorkflowStateConfig {
+  id: string;
+  name: string;
+  type: "start" | "in_progress" | "end";
+}
+
+export interface WorkflowTransitionConfig {
+  id: string;
+  name: string;
+  fromStateId: string;
+  toStateId: string;
+  role: PreviewRole | "any";
+  checklist: { id: string; text: string }[];
+}
+
+export interface ChecklistItemState {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+export interface PreviewNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: number;
+  read: boolean;
+  applicationId?: string;
+  recipientRole?: RecipientRole;
+}
+
+export interface PreviewDocument {
+  id: string;
+  name: string;
+  type: string;
+  uploadedAt: number;
+  status: DocumentStatus;
+  reused?: boolean;
+}
+
+export interface UserDocument {
+  id: string;
+  name: string;
+  type: string;
+  uploadedAt: number;
+}
+
+export interface DemandInfo {
+  fee: number;
+  tax: number;
+  total: number;
+  generatedAt: number;
+}
+
+export interface PaymentDetails {
+  paidAt: number;
+  txnId: string;
+  amount: number;
+  invoiceNumber: string;
+}
+
+export interface LicenseInfo {
+  number: string;
+  issuedAt: number;
+  validTill: number;
+  qrSeed: string;
+}
+
+export interface TimelineEntry {
+  state: string;
+  actor: string;
+  note?: string;
+  at: number;
+}
+
+export interface PreviewApplication {
+  id: string;
+  applicationNumber: string;
+  type: ApplicationType;
+  parentLicenseId?: string;
+  status: string;
+  currentStateId: string;
+  formData: Record<string, string>;
+  documents: PreviewDocument[];
+  checklists: Record<string, ChecklistItemState[]>;
+  demand: DemandInfo | null;
+  paymentStatus: "pending" | "paid" | null;
+  paymentDetails: PaymentDetails | null;
+  timeline: TimelineEntry[];
+  license: LicenseInfo | null;
+  createdAt: number;
+  assignee?: string;
+}
+
+export interface PreviewScreen {
+  type:
+    | "catalogue"
+    | "home"
+    | "apply_intro"
+    | "apply"
+    | "renew"
+    | "success"
+    | "my_applications"
+    | "my_documents"
+    | "application_detail"
+    | "payment"
+    | "license"
+    | "demand_notice"
+    | "invoice"
+    | "employee_home"
+    | "inbox"
+    | "search"
+    | "application_review";
+  applicationId?: string;
+  parentLicenseId?: string;
+  filterStates?: string[];
+  filterLabel?: string;
+}
+
+interface PreviewContextValue {
+  role: PreviewRole;
+  setRole: (r: PreviewRole) => void;
+  deviceMode: DeviceMode;
+  setDeviceMode: (d: DeviceMode) => void;
+  screen: PreviewScreen;
+  setScreen: (s: PreviewScreen) => void;
+  applications: PreviewApplication[];
+  notifications: PreviewNotification[];
+  unreadCount: number;
+  markNotificationsRead: () => void;
+  // Simulated SMS / EMAIL — citizen channel only
+  messages: SimulatedMessage[];
+  unreadMessagesCount: number;
+  markMessagesRead: () => void;
+  messagesDrawerOpen: boolean;
+  setMessagesDrawerOpen: (o: boolean) => void;
+  formSections: FormSectionConfig[];
+  workflowStates: WorkflowStateConfig[];
+  workflowTransitions: WorkflowTransitionConfig[];
+  serviceName: string;
+  userDocuments: UserDocument[];
+  addUserDocument: (name: string, type: string) => string;
+  removeUserDocument: (id: string) => void;
+  submitApplication: (formData: Record<string, string>, documents: PreviewDocument[]) => string;
+  submitRenewal: (parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => string;
+  transitionApplication: (appId: string, transitionId: string) => void;
+  payApplication: (appId: string) => void;
+  issueLicense: (appId: string) => void;
+  completeRenewal: (appId: string) => void;
+  assignApplication: (appId: string, assignee: string) => void;
+  toggleChecklist: (appId: string, stateId: string, itemId: string) => void;
+  setDocumentStatus: (appId: string, docId: string, status: DocumentStatus) => void;
+  resetDemo: () => void;
+}
+
+const PreviewContext = createContext<PreviewContextValue | null>(null);
+
+export const usePreview = () => {
+  const ctx = useContext(PreviewContext);
+  if (!ctx) throw new Error("usePreview must be used within PreviewProvider");
+  return ctx;
+};
+
+export type CitizenDocumentKind = "demand" | "invoice" | "license";
+
+export interface CitizenDocumentEntry {
+  kind: CitizenDocumentKind;
+  label: string;
+  generatedAt: number;
+}
+
+export const getCitizenDocuments = (app: PreviewApplication): CitizenDocumentEntry[] => {
+  const docs: CitizenDocumentEntry[] = [];
+  if (app.demand) docs.push({ kind: "demand", label: "Demand Notice", generatedAt: app.demand.generatedAt });
+  if (app.paymentDetails) docs.push({ kind: "invoice", label: "Payment Invoice", generatedAt: app.paymentDetails.paidAt });
+  if (app.license) docs.push({ kind: "license", label: "Business License Certificate", generatedAt: app.license.issuedAt });
+  return docs;
+};
+
+// ─── Default Config ───
+const DEFAULT_SECTIONS: FormSectionConfig[] = [
+  {
+    id: "sec-1", name: "Applicant Details", description: "Identify the applicant",
+    fields: [
+      { id: "fullName", type: "text", label: "Full Name", placeholder: "e.g. Anita Sharma", required: true,
+        validation: { minLength: 3, pattern: "^[A-Za-z ]+$", patternMessage: "Alphabets only" } },
+      { id: "mobile", type: "tel", label: "Mobile Number", placeholder: "10-digit mobile", required: true,
+        validation: { pattern: "^\\d{10}$", patternMessage: "Enter a valid 10-digit mobile" } },
+      { id: "email", type: "email", label: "Email", placeholder: "name@example.com", required: false,
+        validation: { pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", patternMessage: "Enter a valid email" } },
+      { id: "idType", type: "dropdown", label: "ID Type", placeholder: "Select ID type", required: true,
+        options: ["Aadhaar", "Passport", "Driving License"] },
+      { id: "idNumber", type: "text", label: "ID Number", placeholder: "Enter ID number", required: true,
+        helpText: "Format depends on the selected ID type" },
+    ],
+  },
+  {
+    id: "sec-2", name: "Business Details", description: "Information about the business",
+    fields: [
+      { id: "businessName", type: "text", label: "Business Name", placeholder: "Registered business name", required: true,
+        validation: { minLength: 3 } },
+      { id: "tradeType", type: "dropdown", label: "Trade Type", placeholder: "Select trade type", required: true,
+        options: ["Retail Shop", "Restaurant", "Manufacturing", "Application Business"] },
+      { id: "businessCategory", type: "dropdown", label: "Business Category", placeholder: "Select a trade type first", required: true,
+        dependsOn: "tradeType", dependsValueMap: TRADE_CATEGORY_MAP },
+      { id: "ownershipType", type: "dropdown", label: "Ownership Type", placeholder: "Select ownership", required: true,
+        options: ["Individual", "Partnership", "Company"] },
+      { id: "employees", type: "number", label: "Number of Employees", placeholder: "0", required: false,
+        validation: { min: 0 } },
+      { id: "turnover", type: "number", label: "Annual Turnover (₹)", placeholder: "0", required: false,
+        validation: { min: 0 } },
+    ],
+  },
+  {
+    id: "sec-3", name: "Business Address", description: "Where the business operates",
+    fields: [
+      { id: "addr1", type: "text", label: "Address Line 1", placeholder: "Street, building", required: true },
+      { id: "addr2", type: "text", label: "Address Line 2", placeholder: "Locality (optional)", required: false },
+      { id: "city", type: "dropdown", label: "City", placeholder: "Select city", required: true,
+        options: ["City A", "City B"] },
+      { id: "zone", type: "dropdown", label: "Zone / Ward", placeholder: "Select a city first", required: true,
+        dependsOn: "city", dependsValueMap: CITY_ZONE_MAP },
+      { id: "pincode", type: "number", label: "Pincode", placeholder: "6-digit pincode", required: true,
+        validation: { pattern: "^\\d{6}$", patternMessage: "Enter a valid 6-digit pincode" } },
+    ],
+  },
+  {
+    id: "sec-4", name: "Operational Details", description: "How your business operates",
+    fields: [
+      { id: "startDate", type: "date", label: "Business Start Date", placeholder: "", required: true,
+        validation: { pastDateOnly: true } },
+      { id: "shopArea", type: "number", label: "Shop Area (sq ft)", placeholder: "e.g. 250", required: true,
+        validation: { min: 1 }, helpText: "Used to calculate licence fees" },
+      { id: "isHazardous", type: "radio", label: "Is Hazardous Activity?", placeholder: "", required: true,
+        options: ["No", "Yes"] },
+      { id: "hazardType", type: "dropdown", label: "Hazard Type", placeholder: "Select hazard type", required: true,
+        options: ["Chemical", "Electrical", "Fire Risk"], showIf: { field: "isHazardous", equals: "Yes" } },
+    ],
+  },
+  {
+    id: "sec-5", name: "Documents", description: "Upload required documents (PDF / JPG / PNG, max 5 MB)",
+    fields: [
+      { id: "docId", type: "file", label: "ID Proof", placeholder: "", required: true },
+      { id: "docAddr", type: "file", label: "Address Proof", placeholder: "", required: true },
+      { id: "docBusiness", type: "file", label: "Business Proof", placeholder: "", required: true },
+    ],
+  },
+  {
+    id: "sec-6", name: "Declaration", description: "Confirm and submit",
+    fields: [
+      { id: "declaration", type: "checkbox", label: "I confirm that all the details provided are true and correct to the best of my knowledge.", placeholder: "", required: true },
+    ],
+  },
+];
+
+const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
+  { id: "s1", name: "Submitted", type: "start" },
+  { id: "s_dv", name: "Under Document Verification", type: "in_progress" },
+  { id: "s_ip", name: "Inspection Pending", type: "in_progress" },
+  { id: "s3", name: "Under Approval", type: "in_progress" },
+  { id: "s4", name: "Payment Pending", type: "in_progress" },
+  { id: "s5", name: "Paid", type: "in_progress" },
+  { id: "s6", name: "License Issued", type: "end" },
+  { id: "s7", name: "Sent Back", type: "in_progress" },
+  { id: "s8", name: "Rejected", type: "end" },
+  { id: "s9", name: "License Renewed", type: "end" },
+];
+
+const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
+  // Document Verifier picks up Submitted -> Under Document Verification (auto-claim) and then Verify Application moves to Inspection Pending
+  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", checklist: [] },
+  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", checklist: [
+    { id: "cdv1", text: "Applicant details verified" },
+    { id: "cdv2", text: "All documents verified" },
+    { id: "cdv3", text: "Business details valid" },
+  ]},
+  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", checklist: [
+    { id: "csb1", text: "Reason for sending back recorded" },
+  ]},
+
+  // Field Inspector
+  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", checklist: [
+    { id: "cfi1", text: "Site visited" },
+    { id: "cfi2", text: "Business exists" },
+    { id: "cfi3", text: "Compliance verified" },
+  ]},
+  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", checklist: [
+    { id: "csb2", text: "Inspection issues recorded" },
+  ]},
+
+  // Approver
+  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", checklist: [
+    { id: "cap1", text: "All previous steps completed" },
+    { id: "cap2", text: "Inspection passed" },
+    { id: "cap3", text: "Fee structure confirmed" },
+  ]},
+  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", checklist: [
+    { id: "crj1", text: "Rejection reason documented" },
+  ]},
+
+  // Citizen
+  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", checklist: [] },
+];
+
+const ROLE_LABEL: Record<PreviewRole, string> = {
+  citizen: "Citizen",
+  documentVerifier: "Document Verifier",
+  fieldInspector: "Field Inspector",
+  approver: "Approver",
+};
+
+// ─── Provider ───
+interface PreviewProviderProps {
+  children: React.ReactNode;
+  serviceName: string;
+}
+
+export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serviceName }) => {
+  const [role, setRole] = useState<PreviewRole>("citizen");
+  const [deviceMode, setDeviceMode] = useState<DeviceMode>("mobile");
+  const [screen, setScreen] = useState<PreviewScreen>({ type: "catalogue" });
+  const [applications, setApplications] = useState<PreviewApplication[]>([]);
+  const [notifications, setNotifications] = useState<PreviewNotification[]>([]);
+  const [userDocuments, setUserDocuments] = useState<UserDocument[]>([]);
+  // Simulated SMS / EMAIL — surfaced via floating alert + Messages drawer (citizen only).
+  const [messages, setMessages] = useState<SimulatedMessage[]>([]);
+  const [messagesReadAt, setMessagesReadAt] = useState<number>(0);
+  const [messagesDrawerOpen, setMessagesDrawerOpen] = useState(false);
+
+  const roleRef = useRef<PreviewRole>(role);
+  roleRef.current = role;
+
+  // PUSH = silent in-app only. Adds to bell list; never raises a toast.
+  const pushNotification = useCallback(
+    (title: string, message: string, applicationId?: string, recipientRole?: RecipientRole) => {
+      setNotifications(prev => [
+        { id: crypto.randomUUID(), title, message, timestamp: Date.now(), read: false, applicationId, recipientRole },
+        ...prev,
+      ]);
+    },
+    []
+  );
+
+  // Floating alert renderer used by sonner's toast.custom for SMS / Email.
+  const renderSimulatedAlert = useCallback(
+    (kind: "SMS" | "EMAIL", subject: string, body: string, t: string | number) => {
+      const isSms = kind === "SMS";
+      const Icon = isSms ? Smartphone : Mail;
+      const accent = isSms
+        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+        : "border-indigo-200 bg-indigo-50 text-indigo-900";
+      const iconBg = isSms ? "bg-emerald-500" : "bg-indigo-500";
+      const senderLabel = isSms ? "SMS · Gov Applications" : "Email · noreply@govservices.in";
+      return (
+        <div
+          onClick={() => { setMessagesDrawerOpen(true); toast.dismiss(t); }}
+          className={`pointer-events-auto cursor-pointer w-[340px] rounded-xl border ${accent} shadow-lg overflow-hidden`}
+          role="button"
+        >
+          <div className="flex items-start gap-3 p-3">
+            <div className={`h-8 w-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+              <Icon className="h-4 w-4 text-white" strokeWidth={2.4} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">{senderLabel}</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); toast.dismiss(t); }}
+                  className="opacity-50 hover:opacity-100"
+                  aria-label="Dismiss"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+              {!isSms && <p className="font-semibold text-sm mt-0.5 line-clamp-1">{subject}</p>}
+              <p className={`text-xs mt-0.5 ${isSms ? "line-clamp-2" : "line-clamp-2 opacity-90"}`}>{body}</p>
+              <p className="text-[10px] mt-1.5 opacity-60">Tap to open Messages</p>
+            </div>
+          </div>
+        </div>
+      );
+    },
+    []
+  );
+
+  // Emit a workflow event → fans out to PUSH (bell only) and simulated SMS / EMAIL (floating + drawer, citizen only).
+  const emitEvent = useCallback(
+    (
+      triggerId: string,
+      app: PreviewApplication,
+      meta: Record<string, string> = {}
+    ) => {
+      const templates = NOTIFICATION_MATRIX.filter(t => t.id === triggerId);
+      templates.forEach(tpl => {
+        const { title, message } = resolveTemplate(tpl, app, meta);
+        tpl.channels.forEach(channel => {
+          if (channel === "PUSH") {
+            pushNotification(title, message, app.id, tpl.recipientRole);
+            return;
+          }
+          // SMS / EMAIL — only ever simulated for citizen recipient.
+          if (tpl.recipientRole !== "citizen") return;
+          const simulated: SimulatedMessage = {
+            id: crypto.randomUUID(),
+            channel,
+            recipientRole: tpl.recipientRole,
+            title,
+            message,
+            applicationId: app.id,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [simulated, ...prev]);
+          // Floating alert only when the user is currently viewing the citizen surface.
+          if (roleRef.current === "citizen") {
+            toast.custom(
+              (t) => renderSimulatedAlert(channel as "SMS" | "EMAIL", title, message, t),
+              { duration: channel === "SMS" ? 4000 : 5000, position: "bottom-right" }
+            );
+          }
+        });
+      });
+    },
+    [pushNotification, renderSimulatedAlert]
+  );
+
+  const markNotificationsRead = useCallback(() => {
+    setNotifications(prev =>
+      prev.map(n => (!n.recipientRole || n.recipientRole === roleRef.current ? { ...n, read: true } : n))
+    );
+  }, []);
+
+  const unreadCount = useMemo(
+    () => notifications.filter(n => !n.read && (!n.recipientRole || n.recipientRole === role)).length,
+    [notifications, role]
+  );
+
+  const markMessagesRead = useCallback(() => {
+    setMessagesReadAt(Date.now());
+  }, []);
+
+  const unreadMessagesCount = useMemo(
+    () => messages.filter(m => m.timestamp > messagesReadAt).length,
+    [messages, messagesReadAt]
+  );
+
+  const buildAppNumber = (prefix: string) => {
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+    const slug = serviceName.toLowerCase().replace(/\s+/g, "-");
+    return `${prefix}-${slug}-${ts}-${Math.floor(Math.random() * 900 + 100)}`;
+  };
+
+  const addUserDocument = useCallback((name: string, type: string) => {
+    const id = crypto.randomUUID();
+    setUserDocuments(prev => [{ id, name, type, uploadedAt: Date.now() }, ...prev]);
+    toast.success("Document uploaded", { description: `${type} added to My Documents.` });
+    return id;
+  }, []);
+
+  const removeUserDocument = useCallback((id: string) => {
+    setUserDocuments(prev => prev.filter(d => d.id !== id));
+  }, []);
+
+  const submitApplication = useCallback((formData: Record<string, string>, documents: PreviewDocument[]) => {
+    const appNumber = buildAppNumber("TL");
+    const app: PreviewApplication = {
+      id: crypto.randomUUID(),
+      applicationNumber: appNumber,
+      type: "NEW",
+      status: "Submitted",
+      currentStateId: "s1",
+      formData,
+      documents,
+      checklists: {},
+      demand: null,
+      paymentStatus: null,
+      paymentDetails: null,
+      timeline: [{ state: "Submitted", actor: "Citizen", note: "Application created", at: Date.now() }],
+      license: null,
+      createdAt: Date.now(),
+    };
+    setApplications(prev => [app, ...prev]);
+    emitEvent("application_submitted", app);
+    return app.id;
+  }, [serviceName, emitEvent]);
+
+  const submitRenewal = useCallback((parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => {
+    const appNumber = buildAppNumber("TL-RNW");
+    const app: PreviewApplication = {
+      id: crypto.randomUUID(),
+      applicationNumber: appNumber,
+      type: "RENEWAL",
+      parentLicenseId: parentAppId,
+      status: "Submitted",
+      currentStateId: "s1",
+      formData,
+      documents,
+      checklists: {},
+      demand: null,
+      paymentStatus: null,
+      paymentDetails: null,
+      timeline: [{ state: "Submitted", actor: "Citizen", note: "Renewal request created", at: Date.now() }],
+      license: null,
+      createdAt: Date.now(),
+    };
+    setApplications(prev => [app, ...prev]);
+    emitEvent("renewal_submitted", app);
+    return app.id;
+  }, [serviceName, emitEvent]);
+
+  const transitionApplication = useCallback((appId: string, transitionId: string) => {
+    const transition = DEFAULT_TRANSITIONS.find(t => t.id === transitionId);
+    if (!transition) return;
+    const targetState = DEFAULT_WORKFLOW_STATES.find(s => s.id === transition.toStateId);
+    if (!targetState) return;
+
+    let updatedApp: PreviewApplication | null = null;
+    setApplications(prev => prev.map(app => {
+      if (app.id !== appId) return app;
+      const actor = ROLE_LABEL[role];
+      const updated: PreviewApplication = {
+        ...app,
+        currentStateId: transition.toStateId,
+        status: targetState.name,
+        timeline: [
+          ...app.timeline,
+          { state: targetState.name, actor, note: transition.name, at: Date.now() },
+        ],
+      };
+      // Auto-generate demand on Approve (now t_approve)
+      if (transition.id === "t_approve") {
+        updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
+        updated.paymentStatus = "pending";
+      }
+      updatedApp = updated;
+      return updated;
+    }));
+
+    if (!updatedApp) return;
+    const meta = { actionBy: ROLE_LABEL[role] };
+    const triggerByTransition: Record<string, string | undefined> = {
+      t_verify_app: "application_verified",
+      t_send_back_dv: "application_sent_back",
+      t_complete_insp: "inspection_completed",
+      t_send_back_ip: "application_sent_back",
+      t_approve: "application_approved",
+      t_reject: "application_rejected",
+      // t_claim_dv and t_resubmit are silent — no notification trigger in matrix
+    };
+    const triggerId = triggerByTransition[transition.id];
+    if (triggerId) emitEvent(triggerId, updatedApp, meta);
+  }, [role, emitEvent]);
+
+  const setDocumentStatus = useCallback((appId: string, docId: string, status: DocumentStatus) => {
+    let updatedApp: PreviewApplication | null = null;
+    let docName = "";
+    setApplications(prev => prev.map(app => {
+      if (app.id !== appId) return app;
+      const doc = app.documents.find(d => d.id === docId);
+      if (!doc) return app;
+      docName = doc.type;
+      const docs = app.documents.map(d => d.id === docId ? { ...d, status } : d);
+      const updated: PreviewApplication = {
+        ...app,
+        documents: docs,
+        timeline: [
+          ...app.timeline,
+          { state: app.status, actor: ROLE_LABEL[role], note: `Document "${doc.type}" ${status.toLowerCase()}`, at: Date.now() },
+        ],
+      };
+      updatedApp = updated;
+      return updated;
+    }));
+    if (updatedApp) {
+      if (status === "Verified") emitEvent("document_verified", updatedApp, { documentName: docName });
+      else if (status === "Rejected") emitEvent("document_rejected", updatedApp, { documentName: docName });
+    }
+  }, [role, emitEvent]);
+
+  const payApplication = useCallback((appId: string) => {
+    let updatedApp: PreviewApplication | null = null;
+    setApplications(prev => prev.map(app => {
+      if (app.id !== appId) return app;
+      if (!app.demand) return app;
+      const updated: PreviewApplication = {
+        ...app,
+        currentStateId: "s5",
+        status: "Paid",
+        paymentStatus: "paid",
+        paymentDetails: {
+          paidAt: Date.now(),
+          txnId: `TXN${Date.now().toString().slice(-8)}`,
+          amount: app.demand.total,
+          invoiceNumber: `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 90000 + 10000))}`,
+        },
+        timeline: [
+          ...app.timeline,
+          { state: "Paid", actor: "Citizen", note: `Paid ₹${app.demand.total}`, at: Date.now() },
+        ],
+      };
+      updatedApp = updated;
+      return updated;
+    }));
+    if (updatedApp) emitEvent("payment_successful", updatedApp);
+  }, [emitEvent]);
+
+  const issueLicense = useCallback((appId: string) => {
+    let updatedApp: PreviewApplication | null = null;
+    setApplications(prev => prev.map(app => {
+      if (app.id !== appId) return app;
+      const issuedAt = Date.now();
+      const validTill = issuedAt + 365 * 24 * 60 * 60 * 1000;
+      const license: LicenseInfo = {
+        number: `TL/${new Date().getFullYear()}/${Math.floor(Math.random() * 90000 + 10000)}`,
+        issuedAt,
+        validTill,
+        qrSeed: app.applicationNumber,
+      };
+      const updated: PreviewApplication = {
+        ...app,
+        currentStateId: "s6",
+        status: "License Issued",
+        license,
+        timeline: [
+          ...app.timeline,
+          { state: "License Issued", actor: ROLE_LABEL[role], note: `License ${license.number}`, at: issuedAt },
+        ],
+      };
+      updatedApp = updated;
+      return updated;
+    }));
+    if (updatedApp) emitEvent("license_issued", updatedApp);
+  }, [role, emitEvent]);
+
+  const completeRenewal = useCallback((appId: string) => {
+    let parentId: string | undefined;
+    let newLicenseNumber = "";
+    setApplications(prev => {
+      const renewalApp = prev.find(a => a.id === appId);
+      if (!renewalApp) return prev;
+      parentId = renewalApp.parentLicenseId;
+      const issuedAt = Date.now();
+      const parentApp = parentId ? prev.find(a => a.id === parentId) : null;
+      const baseTime = parentApp?.license ? Math.max(issuedAt, parentApp.license.validTill) : issuedAt;
+      const validTill = baseTime + 365 * 24 * 60 * 60 * 1000;
+      newLicenseNumber = `TL/${new Date().getFullYear()}/${Math.floor(Math.random() * 90000 + 10000)}-R`;
+      const newLicense: LicenseInfo = {
+        number: newLicenseNumber,
+        issuedAt,
+        validTill,
+        qrSeed: renewalApp.applicationNumber,
+      };
+
+      return prev.map(app => {
+        if (app.id === appId) {
+          return {
+            ...app,
+            currentStateId: "s9",
+            status: "License Renewed",
+            license: newLicense,
+            timeline: [
+              ...app.timeline,
+              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Renewed license ${newLicense.number}`, at: issuedAt },
+            ],
+          };
+        }
+        if (parentId && app.id === parentId && app.license) {
+          return {
+            ...app,
+            license: { ...app.license, number: newLicense.number, issuedAt, validTill },
+            timeline: [
+              ...app.timeline,
+              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Validity extended to ${new Date(validTill).toLocaleDateString()}`, at: issuedAt },
+            ],
+          };
+        }
+        return app;
+      });
+    });
+    // Build a synthetic app snapshot for variable injection (license is freshly minted above)
+    const renewedSnapshot: PreviewApplication | undefined = (() => {
+      // Re-read from latest set won't be sync; use what we know:
+      const issuedAt = Date.now();
+      return {
+        id: appId,
+        applicationNumber: appId,
+        type: "RENEWAL",
+        status: "License Renewed",
+        currentStateId: "s9",
+        formData: {},
+        documents: [],
+        checklists: {},
+        demand: null,
+        paymentStatus: null,
+        paymentDetails: null,
+        timeline: [],
+        license: { number: newLicenseNumber, issuedAt, validTill: issuedAt + 365 * 24 * 60 * 60 * 1000, qrSeed: "" },
+        createdAt: issuedAt,
+      } as PreviewApplication;
+    })();
+    if (renewedSnapshot) emitEvent("renewal_completed", renewedSnapshot);
+  }, [role, emitEvent]);
+
+  const assignApplication = useCallback((appId: string, assignee: string) => {
+    setApplications(prev => prev.map(app =>
+      app.id === appId ? { ...app, assignee } : app
+    ));
+    pushNotification("Application Assigned", `Assigned to ${assignee}`, appId);
+  }, [pushNotification]);
+
+  const toggleChecklist = useCallback((appId: string, stateId: string, itemId: string) => {
+    setApplications(prev => prev.map(app => {
+      if (app.id !== appId) return app;
+      const transition = DEFAULT_TRANSITIONS.find(t => t.fromStateId === stateId && t.checklist.length > 0);
+      const seed: ChecklistItemState[] = transition
+        ? transition.checklist.map(c => ({ id: c.id, text: c.text, checked: false }))
+        : [];
+      const existing = app.checklists[stateId] || seed;
+      // If existing was empty seed but item not present, ensure seed
+      const list = existing.length === 0 ? seed : existing;
+      return {
+        ...app,
+        checklists: {
+          ...app.checklists,
+          [stateId]: list.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i),
+        },
+      };
+    }));
+  }, []);
+
+  const resetDemo = useCallback(() => {
+    setApplications([]);
+    setNotifications([]);
+    setUserDocuments([]);
+    setMessages([]);
+    setMessagesReadAt(Date.now());
+    setMessagesDrawerOpen(false);
+    setScreen(role === "citizen" ? { type: "catalogue" } : { type: "employee_home" });
+    toast.success("Demo reset", { description: "All applications, documents and notifications cleared." });
+  }, [role]);
+
+  const handleSetRole = useCallback((r: PreviewRole) => {
+    setRole(r);
+    if (r === "citizen") {
+      setScreen({ type: "catalogue" });
+      setDeviceMode("mobile");
+    } else {
+      setScreen({ type: "employee_home" });
+      setDeviceMode("desktop");
+    }
+  }, []);
+
+  return (
+    <PreviewContext.Provider value={{
+      role, setRole: handleSetRole, deviceMode, setDeviceMode,
+      screen, setScreen,
+      applications, notifications, unreadCount, markNotificationsRead,
+      messages, unreadMessagesCount, markMessagesRead,
+      messagesDrawerOpen, setMessagesDrawerOpen,
+      formSections: DEFAULT_SECTIONS,
+      workflowStates: DEFAULT_WORKFLOW_STATES,
+      workflowTransitions: DEFAULT_TRANSITIONS,
+      serviceName,
+      userDocuments, addUserDocument, removeUserDocument,
+      submitApplication, submitRenewal,
+      transitionApplication, payApplication, issueLicense, completeRenewal,
+      assignApplication, toggleChecklist, setDocumentStatus, resetDemo,
+    }}>
+      {children}
+    </PreviewContext.Provider>
+  );
+};
