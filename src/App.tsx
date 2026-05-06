@@ -16,7 +16,6 @@ import AppLayout from "./components/AppLayout";
 import PlaceholderPage from "./pages/placeholder/PlaceholderPage";
 import BrandingTheme from "./pages/BrandingTheme";
 import Services from "./pages/Services";
-import LandingPage from "./pages/LandingPage";
 
 const queryClient = new QueryClient();
 
@@ -28,7 +27,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Navigate to="/onboarding" replace />} />
             <Route path="/onboarding" element={<Onboarding />} />
 
             {/* App shell with sidebar */}
