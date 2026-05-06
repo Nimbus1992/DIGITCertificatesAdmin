@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Shield, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import AuthShell from "./AuthShell";
 
 const TEMP_PASSWORD = "12345678";
 
@@ -36,60 +38,74 @@ const SignIn: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <form onSubmit={handleSubmit} className="max-w-md w-full mx-auto animate-slide-up">
-        <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mb-5">
-          <Shield className="h-6 w-6 text-accent" />
-        </div>
-
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
-          Sign in to your workspace
-        </h1>
-        <p className="text-sm text-muted-foreground mb-8">
-          Use the temporary password shared by your platform team to activate your account.
-        </p>
-
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email address</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(""); }}
-              placeholder="you@organization.gov"
-              className="h-11"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs">Temporary password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(""); }}
-              placeholder="Enter temporary password"
-              className="h-11"
-            />
+    <AuthShell step="Step 1 of 3 · Sign in" showSidePanel>
+      <Card className="border-border shadow-sm">
+        <form onSubmit={handleSubmit} className="px-7 py-8 space-y-6">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Workspace Access
+            </p>
+            <h1 className="text-[22px] font-semibold text-foreground tracking-tight leading-tight">
+              Sign in to your workspace
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Enter your work email and the temporary password shared by your platform team to activate your account.
+            </p>
           </div>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs font-medium text-foreground">
+                Email address
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                placeholder="you@organization.gov"
+                className="h-10"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs font-medium text-foreground">
+                Temporary password
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                placeholder="Enter temporary password"
+                className="h-10"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Use the temporary password shared by your platform team.
+              </p>
+            </div>
 
-          <Button
-            type="submit"
-            disabled={!canSubmit}
-            className="w-full h-11 bg-accent text-accent-foreground hover:bg-accent/90 gap-2 mt-2"
-          >
-            Sign in <ArrowRight className="h-4 w-4" />
-          </Button>
+            {error && (
+              <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+                {error}
+              </div>
+            )}
 
-          <p className="text-xs text-muted-foreground text-center pt-1">
-            First time signing in? Use the temporary password from your activation email.
+            <Button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+            >
+              Sign in <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground text-center pt-1 border-t border-border pt-4">
+            Need help? Contact your platform administrator.
           </p>
-        </div>
-      </form>
-    </div>
+        </form>
+      </Card>
+    </AuthShell>
   );
 };
 
