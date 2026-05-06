@@ -1,82 +1,55 @@
-# Refactor Onboarding to Enterprise Activation Flow
+## Goal
+Fix the onboarding so it always starts with "Activate your account" (password setup), then advances to a refined "Confirm organization" screen that reads as enterprise account activation, not a generic admin form.
 
-Transform the current 4-step discovery onboarding (Welcome → SSO → 6-step Org Setup → Complete) into a focused 2-step activation flow for pre-registered organizations, followed by a welcome modal on the dashboard.
+## Problem
+On the current `/onboarding` route, users land directly on the Confirm Organization screen. Cause: `OnboardingContext` persists `currentStep` in localStorage, so a previously-set value (e.g. `1`) skips ActivateAccount. There is also no explicit "is activated" gate.
 
-## New Flow
+## Changes
 
-```text
-Activate Account  →  Confirm Organization  →  Dashboard (welcome modal)  →  Choose Template → Preview → Configure → Go Live
-   (Step 0)              (Step 1)                                            (existing, unchanged)
-```
+### 1. Gate the flow on activation, not on `currentStep`
+- `src/contexts/OnboardingContext.tsx`: add `isActivated: boolean` (default `false`) to `OnboardingState`.
+- `src/pages/Onboarding.tsx`: render based on `state.isActivated` instead of `currentStep`.
+  - Not activated → `ActivateAccount`.
+  - Activated and not complete → `ConfirmOrganization`.
+  - Complete → redirect to `/dashboard`.
+- `ActivateAccount.onComplete` sets `isActivated: true` (in addition to email/orgName).
+- This makes the flow resilient to stale localStorage and refreshes mid-flow.
 
-## Screens to Build
+### 2. ActivateAccount (minor)
+- Keep current layout/copy (already matches the brief: shield icon, "Activate your account", helper line, Email + Password + Confirm).
+- Ensure email is pre-filled from `state.email` when present (already true) and remains editable.
 
-### 1. `ActivateAccount.tsx` (replaces `WelcomeScreen` + `SSOSignIn`)
-
-- Title: "Activate your account"
-- Subtext: "Your organization workspace has already been created. Set your password to get started."
-- Fields: Email (pre-filled & editable), Password, Confirm Password
-- Validation: password ≥ 8 chars, both match
-- CTA: "Continue" → derive org name from email domain/local part, store in context, advance step
-- No SSO buttons, no marketing copy, no helper reassurance text
-- Reuses existing card/Input/Button styling
-
-### 2. `ConfirmOrganization.tsx` (replaces 6-step `OrgSetup` + `OrgSetupComplete`)
-
-Single-page form (not a wizard). Reuses existing Input/Select/country-defaults logic.
+### 3. ConfirmOrganization — refined enterprise feel
+Rework `src/components/onboarding/ConfirmOrganization.tsx`:
 
 **Header**
+- Replace "Hey {org} 👋" with `Welcome, {orgName} 👋` as an H1.
+- Sub-line: "Your workspace is already prepared — review and personalize it before continuing."
+- Remove the editable Organization Name input entirely. Org name is fixed by the platform team.
 
-- "Hey {orgName} 👋" — derived from email (e.g. `john@acme.gov` → "Acme", capitalized)
-- Subtext: "We've pre-configured your workspace. Review and update the details below before continuing."
+**Identity row (compact, avatar pattern)**
+- Small circular avatar (56px) showing logo or org initial, with a hover camera overlay to upload — same component, just inline next to the org name area inside the form card header (not its own large section).
+- Tiny helper underneath: "Optional — used to personalize documents and certificates."
 
-**Pre-configured info card** (above form)
+**Workspace summary card (compact)**
+- Reduce padding (`p-3`), single-line treatment: `Sparkles` icon + "Your workspace is already configured" + inline pill list of included items separated by dots, not a 2-column grid.
+- Lower visual weight: muted background, no accent border.
 
-- Title: "Your workspace includes"
-- 4 items with check icons: Default integrations · Notification setup · Payment support · User management
+**Form card — grouped sections**
+- Section 1: "Department" (single field, full width on mobile, half on desktop).
+- Section 2: "Regional settings" with a small section label + helper "Country auto-fills currency and dialing code." Fields: Country, Currency, Country code, Default language. Keep the subtle ring highlight on auto-updated Currency / Country code (existing `highlightAuto` behavior).
+- Tighten spacing: `space-y-4`, smaller section gaps.
 
-**Logo placeholder** (top of form, near org name)
+**Footer CTA inside the card**
+- Move the Continue button into the form card's footer (bordered top divider, right-aligned).
+- Add muted helper text on the left: "You can update these anytime in Workspace Settings."
+- Remove the floating button block below the card.
 
-- Circular avatar-style placeholder, click to upload (file input → data URL into `state.logoUrl`)
-- Helper: "Add your organization logo to personalize documents and certificates."
-- Skippable
+### 4. Out of scope
+- No changes to Dashboard, routing elsewhere, or backend.
+- No design-token additions; reuse existing semantic tokens.
 
-**Form fields** (all pre-filled from sensible defaults, all editable)
-
-
-| Field             | Default            |
-| ----------------- | ------------------ |
-| Organization Name | derived from email |
-| Department        | "Revenue"          |
-| Country           | "United States"    |
-| Currency          | auto from country  |
-| Country Code      | auto from country  |
-| Default Language  | "English"          |
-
-
-**Smart country behavior**: changing Country auto-updates Currency + Phone Code with a brief ring/fade highlight on those fields (reuse existing `highlightAuto` pattern from `OrgSetup`).
-
-**CTA**: "Continue to Dashboard" → marks `isOnboardingComplete`, navigates to `/dashboard`.
-
-### 3. Dashboard welcome modal
-
-- Replace the current toast in `Dashboard.tsx` with a Dialog shown on first visit (gated by existing `lnp-welcome-seen` localStorage key)
-- Title: "Welcome to Licenses & Permits"
-- Subtext: "Start by choosing a application template and configuring your first workflow."
-- CTA: "Choose Template" → navigates to `/services`, dismisses modal
-
-## Files Changed
-
-- `src/pages/Onboarding.tsx` — reduce to 2 steps, route to new components
-- `src/components/onboarding/ActivateAccount.tsx` — new
-- `src/components/onboarding/ConfirmOrganization.tsx` — new
-- `src/pages/Dashboard.tsx` — swap welcome toast for Dialog modal
-- `src/contexts/OnboardingContext.tsx` — add `email` field to state
-- Delete (no longer used): `WelcomeScreen.tsx`, `SSOSignIn.tsx`, `OrgSetup.tsx`, `OrgSetupComplete.tsx`, `HelperText.tsx`, `StepProgress.tsx`, `TemplateSelection.tsx`, `TemplateCard.tsx`, `TemplateIntroduction.tsx`, `ServiceDetails.tsx`, `AutoSetup.tsx`
-  *(The template/service-creation flow lives in `src/pages/Services.tsx` and is unaffected — only the unused onboarding-embedded versions are removed.)*
-
-## Out of Scope
-
-- No backend/auth wiring (purely UI; password is not actually persisted)
-- No changes to Services, ServiceConfig, GoLive, BrandingTheme, or any post-dashboard flow
-- Design system, colors, and existing card/button patterns kept as-is
+## Technical notes
+- `OnboardingState` change is additive; existing localStorage merges with `initialState` so `isActivated` defaults to `false` for returning users — they'll be sent through ActivateAccount once, which is the desired correction.
+- `canContinue` in ConfirmOrganization no longer depends on `orgName` input; gate on `state.country && state.department` instead.
+- Keep all existing imports, country/currency data, and animation classes.
