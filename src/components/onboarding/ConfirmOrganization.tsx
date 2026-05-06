@@ -116,16 +116,14 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                 onChange={handleLogo}
               />
             </button>
-            <p className="text-[10px] text-muted-foreground mt-1.5 text-center leading-tight">
-              Used on licenses<br />and certificates.
-            </p>
+            <p className="text-[10px] text-muted-foreground mt-1.5 text-center leading-tight">Logo</p>
           </div>
           <div className="flex-1 min-w-0 pt-1">
             <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
               Welcome, {orgName} <span aria-hidden>👋</span>
             </h1>
             <p className="text-sm text-muted-foreground mt-1.5">
-              Your workspace is already prepared — review and personalize it before continuing.
+              Your workspace is already prepared, review and personalize it before continuing.
             </p>
           </div>
         </div>
@@ -159,9 +157,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Regional settings
                 </h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Country auto-fills currency and dialing code.
-                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{'\n'}</p>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
