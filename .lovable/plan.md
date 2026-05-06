@@ -1,62 +1,82 @@
-## Goal
+# Refactor Onboarding to Enterprise Activation Flow
 
-Convert the single-form Org Setup into a one-question-per-screen conversational wizard, and add a "Get Started" empty-state card to the Dashboard. The Completion Screen should send the user to the Dashboard (not directly into template selection), so the Dashboard's empty state becomes the next guided action.
+Transform the current 4-step discovery onboarding (Welcome → SSO → 6-step Org Setup → Complete) into a focused 2-step activation flow for pre-registered organizations, followed by a welcome modal on the dashboard.
 
-## Onboarding flow changes
+## New Flow
 
-Replace the current `OrgSetup.tsx` single page with a 6-screen mini-wizard, plus the existing completion screen. Each screen:
-- Shared shell: organization title, subtext, animated transitions (`animate-fade-in`), a small step indicator (e.g. "Step 2 of 6"), Back + Continue buttons.
-- One question, one input, helper text under the input.
-- Continue is disabled until the question is answered.
+```text
+Activate Account  →  Confirm Organization  →  Dashboard (welcome modal)  →  Choose Template → Preview → Configure → Go Live
+   (Step 0)              (Step 1)                                            (existing, unchanged)
+```
 
-Screens:
-1. **Org name** — text input. Helper: "This will appear on licenses and official documents."
-2. **Department** — select from existing list. Helper: "This helps route applications to the right team."
-3. **Country** — select. On change, auto-fill currency + phone code in state and trigger a brief highlight animation flag (used on screens 4 & 5).
-4. **Currency** — select, pre-filled, editable. Highlight ring fades out on first view if just auto-filled.
-5. **Phone country code** — select, pre-filled, editable. Same highlight behavior.
-6. **Language** — grid of options, only English selectable, others show "Coming Soon".
+## Screens to Build
 
-Implementation:
-- New folder `src/components/onboarding/org/` with: `OrgWizardShell.tsx` (layout + progress + nav), `StepOrgName.tsx`, `StepDepartment.tsx`, `StepCountry.tsx`, `StepCurrency.tsx`, `StepPhoneCode.tsx`, `StepLanguage.tsx`.
-- Rewrite `OrgSetup.tsx` as the controller: holds local sub-step index (0–5), renders the active step inside the shell, manages auto-fill on country change, and sets a transient `justAutoFilled` flag for the highlight animation. Calls `onComplete` after step 6, `onBack` from step 1.
-- Completion screen `OrgSetupComplete.tsx` copy update:
-  - Title: "You're all set"
-  - Subtext: "Now let's set up your first service"
-  - CTA: "Go to Dashboard" → navigates to `/dashboard`.
-- `Onboarding.tsx`: change the step after `OrgSetupComplete` to navigate directly to `/dashboard` (skip Template/ServiceDetails/AutoSetup in the org flow — those become the Dashboard "Choose Template" path). Keep TemplateSelection/ServiceDetails/AutoSetup screens; they're already reachable from `/services`.
-- Update `onboardingGuidance.ts` helper copy to match the new conversational text exactly.
+### 1. `ActivateAccount.tsx` (replaces `WelcomeScreen` + `SSOSignIn`)
 
-## Dashboard empty-state changes
+- Title: "Activate your account"
+- Subtext: "Your organization workspace has already been created. Set your password to get started."
+- Fields: Email (pre-filled & editable), Password, Confirm Password
+- Validation: password ≥ 8 chars, both match
+- CTA: "Continue" → derive org name from email domain/local part, store in context, advance step
+- No SSO buttons, no marketing copy, no helper reassurance text
+- Reuses existing card/Input/Button styling
 
-In `src/pages/Dashboard.tsx`:
-- When `state.services.length === 0`, replace the current dashed empty card with a prominent **Get Started** card at the top:
-  - Title: "Set up your first service"
-  - Subtext: "Choose from a ready-made template to launch in minutes."
-  - Primary CTA: **Choose Template** → `/services`.
-  - Visual: accent gradient panel, sparkle icon, subtle entrance animation.
-- Add a **one-time welcome popup** (subtle Sonner toast or small dismissible card) shown once per browser via `localStorage` flag `lnp-welcome-seen`, greeting the user by `orgName`.
+### 2. `ConfirmOrganization.tsx` (replaces 6-step `OrgSetup` + `OrgSetupComplete`)
 
-## Technical notes
+Single-page form (not a wizard). Reuses existing Input/Select/country-defaults logic.
 
-- Animation: use existing Tailwind utilities (`animate-fade-in`, `animate-slide-up`) and a temporary `ring-2 ring-accent/40` that clears after ~1.2s using `setTimeout` for the auto-fill highlight.
-- State: continue using `useOnboarding` for all field values; the wizard sub-step is local React state inside `OrgSetup.tsx`.
-- No backend, schema, or business-logic changes. Pure UI/flow refactor.
+**Header**
 
-## Files
+- "Hey {orgName} 👋" — derived from email (e.g. `john@acme.gov` → "Acme", capitalized)
+- Subtext: "We've pre-configured your workspace. Review and update the details below before continuing."
 
-Create:
-- `src/components/onboarding/org/OrgWizardShell.tsx`
-- `src/components/onboarding/org/StepOrgName.tsx`
-- `src/components/onboarding/org/StepDepartment.tsx`
-- `src/components/onboarding/org/StepCountry.tsx`
-- `src/components/onboarding/org/StepCurrency.tsx`
-- `src/components/onboarding/org/StepPhoneCode.tsx`
-- `src/components/onboarding/org/StepLanguage.tsx`
+**Pre-configured info card** (above form)
 
-Edit:
-- `src/components/onboarding/OrgSetup.tsx` (controller)
-- `src/components/onboarding/OrgSetupComplete.tsx` (copy + CTA target)
-- `src/pages/Onboarding.tsx` (route completion → `/dashboard`)
-- `src/data/onboardingGuidance.ts` (copy)
-- `src/pages/Dashboard.tsx` (Get Started card + welcome popup)
+- Title: "Your workspace includes"
+- 4 items with check icons: Default integrations · Notification setup · Payment support · User management
+
+**Logo placeholder** (top of form, near org name)
+
+- Circular avatar-style placeholder, click to upload (file input → data URL into `state.logoUrl`)
+- Helper: "Add your organization logo to personalize documents and certificates."
+- Skippable
+
+**Form fields** (all pre-filled from sensible defaults, all editable)
+
+
+| Field             | Default            |
+| ----------------- | ------------------ |
+| Organization Name | derived from email |
+| Department        | "Revenue"          |
+| Country           | "United States"    |
+| Currency          | auto from country  |
+| Country Code      | auto from country  |
+| Default Language  | "English"          |
+
+
+**Smart country behavior**: changing Country auto-updates Currency + Phone Code with a brief ring/fade highlight on those fields (reuse existing `highlightAuto` pattern from `OrgSetup`).
+
+**CTA**: "Continue to Dashboard" → marks `isOnboardingComplete`, navigates to `/dashboard`.
+
+### 3. Dashboard welcome modal
+
+- Replace the current toast in `Dashboard.tsx` with a Dialog shown on first visit (gated by existing `lnp-welcome-seen` localStorage key)
+- Title: "Welcome to Licenses & Permits"
+- Subtext: "Start by choosing a application template and configuring your first workflow."
+- CTA: "Choose Template" → navigates to `/services`, dismisses modal
+
+## Files Changed
+
+- `src/pages/Onboarding.tsx` — reduce to 2 steps, route to new components
+- `src/components/onboarding/ActivateAccount.tsx` — new
+- `src/components/onboarding/ConfirmOrganization.tsx` — new
+- `src/pages/Dashboard.tsx` — swap welcome toast for Dialog modal
+- `src/contexts/OnboardingContext.tsx` — add `email` field to state
+- Delete (no longer used): `WelcomeScreen.tsx`, `SSOSignIn.tsx`, `OrgSetup.tsx`, `OrgSetupComplete.tsx`, `HelperText.tsx`, `StepProgress.tsx`, `TemplateSelection.tsx`, `TemplateCard.tsx`, `TemplateIntroduction.tsx`, `ServiceDetails.tsx`, `AutoSetup.tsx`
+  *(The template/service-creation flow lives in `src/pages/Services.tsx` and is unaffected — only the unused onboarding-embedded versions are removed.)*
+
+## Out of Scope
+
+- No backend/auth wiring (purely UI; password is not actually persisted)
+- No changes to Services, ServiceConfig, GoLive, BrandingTheme, or any post-dashboard flow
+- Design system, colors, and existing card/button patterns kept as-is
