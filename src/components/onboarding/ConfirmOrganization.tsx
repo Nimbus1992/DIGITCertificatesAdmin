@@ -97,7 +97,6 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
     reader.readAsDataURL(file);
   };
 
-  const orgName = state.orgName || "there";
   const initial = (state.orgName?.trim()?.[0] || "?").toUpperCase();
   const canContinue = !!state.country && !!state.department;
 
@@ -107,7 +106,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "your-org";
-    return `${slug}.digit.org`;
+    return `www.digit.org/govt-lp-studio/${slug}`;
   }, [state.orgName]);
 
   const copyUrl = async () => {
@@ -154,7 +153,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-foreground tracking-tight leading-tight">
-              Welcome, {orgName}
+              Welcome to Licenses and Permits Studio
             </h1>
             <Badge variant="secondary" className="font-medium text-[10px] bg-muted text-muted-foreground hover:bg-muted px-2 py-0">
               Licenses & Permits Workspace
@@ -239,27 +238,37 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
           <div className="border-t border-border" />
 
           <Section title="Workspace Access">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Workspace URL</Label>
-              <div className="relative">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">Organization name</Label>
                 <Input
                   readOnly
-                  value={workspaceUrl}
-                  className="h-10 pr-10 bg-muted/40 text-foreground cursor-not-allowed focus-visible:ring-0 font-mono text-sm"
+                  value={state.orgName || ""}
+                  className="h-10 bg-muted/40 text-foreground cursor-not-allowed focus-visible:ring-0 text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={copyUrl}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  aria-label="Copy workspace URL"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Applicants and employees will access services using this URL.
-              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">Workspace URL</Label>
+                <div className="relative">
+                  <Input
+                    readOnly
+                    value={workspaceUrl}
+                    className="h-10 pr-10 bg-muted/40 text-foreground cursor-not-allowed focus-visible:ring-0 font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyUrl}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    aria-label="Copy workspace URL"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Applicants and employees will access services using this URL.
+            </p>
           </Section>
         </div>
 
