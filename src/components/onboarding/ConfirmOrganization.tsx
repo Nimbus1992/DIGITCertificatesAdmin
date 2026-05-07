@@ -240,7 +240,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
                 <Label className="text-xs font-medium text-foreground">Organization name</Label>
                 <Input
                   readOnly
-                  value={state.orgName || ""}
+                  value={state.orgName || "GOI"}
                   className="h-10 bg-muted/40 text-foreground cursor-not-allowed focus-visible:ring-0 text-sm"
                 />
               </div>
