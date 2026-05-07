@@ -155,9 +155,6 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
             <h1 className="text-xl font-semibold text-foreground tracking-tight leading-tight">
               Welcome to Licenses and Permits Studio
             </h1>
-            <Badge variant="secondary" className="font-medium text-[10px] bg-muted text-muted-foreground hover:bg-muted px-2 py-0">
-              Licenses & Permits Workspace
-            </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Confirm a few details to finish activating your workspace.
