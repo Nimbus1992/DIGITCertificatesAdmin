@@ -39,7 +39,7 @@ const ResetPassword: React.FC<{ onComplete: () => void }> = ({ onComplete }) => 
   const handleBack = () => updateState({ isLoggedIn: false });
 
   return (
-    <AuthShell step="Step 2 of 3 · Reset password" showSidePanel>
+    <AuthShell step="Step 2 of 3 · Reset password" showSidePanel sidePanelPosition="left">
       <Card className="border-border shadow-sm">
         <form onSubmit={handleSubmit} className="px-7 py-8 space-y-6">
           <div className="space-y-2">
