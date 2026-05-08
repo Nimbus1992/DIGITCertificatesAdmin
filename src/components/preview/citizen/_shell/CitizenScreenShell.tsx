@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowLeft, Bell, MessageSquare } from "lucide-react";
 import { usePreview } from "../../PreviewContext";
+import { useBranding } from "@/hooks/useBranding";
 
 interface Props {
   /** Back chip target screen, omit to hide back chip */
@@ -27,22 +28,26 @@ const CitizenScreenShell: React.FC<Props> = ({
     unreadCount, markNotificationsRead,
     unreadMessagesCount, markMessagesRead, setMessagesDrawerOpen,
   } = usePreview();
+  const { branding } = useBranding();
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col" style={{ backgroundColor: "#F5F7FA" }}>
-      {/* DIGIT header — dark navy */}
+      {/* Portal header — branded */}
       <div
-        className="text-white px-4 py-3 flex items-center justify-between text-sm font-medium shrink-0"
-        style={{ backgroundColor: "#14263F" }}
+        className="text-primary-foreground px-4 py-3 flex items-center justify-between text-sm font-medium shrink-0 bg-primary"
       >
-        <div className="flex items-center gap-2">
-          <span className="grid grid-cols-2 gap-0.5">
-            <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-            <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-            <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-            <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-          </span>
-          DIGIT <span className="text-white/60 ml-1">| dev</span>
+        <div className="flex items-center gap-2 min-w-0">
+          {branding.logoDataUrl ? (
+            <img src={branding.logoDataUrl} alt="" className="h-5 w-5 object-contain rounded-sm bg-white/10" />
+          ) : (
+            <span className="grid grid-cols-2 gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+              <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+              <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+              <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
+            </span>
+          )}
+          <span className="truncate">{branding.portalName}</span>
         </div>
         {showHeaderActions && (
           <div className="flex items-center gap-1">
@@ -98,6 +103,12 @@ const CitizenScreenShell: React.FC<Props> = ({
       {footer && (
         <div className="shrink-0 bg-white border-t px-4 py-3" style={{ borderColor: "#E0E0E0" }}>
           {footer}
+        </div>
+      )}
+
+      {!footer && branding.copyright && (
+        <div className="shrink-0 px-4 py-2 text-center text-[10px] text-muted-foreground bg-white/60 border-t" style={{ borderColor: "#E0E0E0" }}>
+          {branding.copyright}
         </div>
       )}
     </div>
