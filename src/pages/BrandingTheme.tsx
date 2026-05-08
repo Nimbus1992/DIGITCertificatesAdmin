@@ -367,7 +367,7 @@ const BrandingTheme: React.FC = () => {
           {/* Apply Button */}
           <Button
             className="w-full"
-            onClick={() => toast.success("Theme changes applied successfully")}
+            onClick={applyTheme}
             style={{ backgroundColor: primaryColor, color: contrastText, borderRadius: buttonRadius }}
           >
             Apply Theme
