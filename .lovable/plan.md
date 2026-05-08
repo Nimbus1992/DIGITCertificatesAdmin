@@ -1,100 +1,105 @@
 ## Goal
 
-Transform the citizen-facing prototype into a guided, government-grade wizard with consistent page hierarchy: Back link → Wizard progress → Question card → Sticky CTA. Refine UX copy throughout and break dense form sections into 12 sub-screens grouped logically across 5 steps.
+Redesign the **employee dashboard** (`EmployeeHome.tsx`) to match the clean, enterprise government-operations look in the reference screenshot — restrained colors, compact spacing, structured tables — while keeping all current functionality. **All numbers, statuses, and rows are derived live from `usePreview()` state** (no hardcoded values, no mock counts).
 
-## 1. Global page hierarchy
+Applies to all employee roles: Document Verifier, Field Inspector, Approver. Header role label adapts to current role.
 
-Update `CitizenScreenShell.tsx` so every wizard screen renders in this fixed order:
+## Scope
+
+Single file rewrite: `src/components/preview/employee/EmployeeHome.tsx`.
+No changes to `PreviewContext`, routing, `InboxView`, or any data model.
+
+## Dynamic data sources (everything on screen)
+
+All values are computed from `applications` in `PreviewContext` — which already updates as citizens submit and as employees act on applications via `transitionApplication`, `payApplication`, `issueLicense`, etc.
+
+| UI element | Source |
+|---|---|
+| Role label (top eyebrow) | `role` from context |
+| Total Applications count | `applications.length` |
+| Pending Review count | `applications.filter(a => rolePendingStates[role].includes(a.currentStateId)).length` |
+| Approved count | `applications.filter(a => ["s6","s9"].includes(a.currentStateId)).length` |
+| Rejected count | `applications.filter(a => a.currentStateId === "s8").length` |
+| Business License "pending review" count | same `rolePendingStates[role]` filter (or all in-progress states for the service) |
+| Business License Inbox CTA count | same as above |
+| Building Permit / Event Permit | static `0` + disabled (no service in data yet) |
+| Recent Activity rows | latest N applications sorted by most recent `timeline[last].at`, mapped live |
+| Applicant column | `app.formData.fullName` (fallback `"—"`) |
+| Service column | `serviceName` from context |
+| Status pill | bucket derived from `app.currentStateId` |
+| Last Updated | most recent `timeline[*].at` formatted |
+| Action label | `Review` if status bucket === pending, else `View` |
+
+If `applications.length === 0`, all metrics render `0`, table shows a single neutral "No recent activity yet." row, and the Inbox CTA shows `Inbox · 0`.
+
+## Layout
 
 ```text
-[ Header (DIGIT) ]
-[ ← Back chip       ] ← already exists
-[ STEP X OF 5  •  Step Name ]
-[ ────── progress segments ────── ]
-[ ┌──── White Card ───────────────┐ ]
-[ │ Question title                │ ]
-[ │ Inputs + helper + inline err  │ ]
-[ └───────────────────────────────┘ ]
-[ Sticky footer: [Back] [Next →]  ]
+DOCUMENT VERIFIER                                ← role eyebrow
+Licenses & Permits                               ← h1
+Review and process applications across services  ← subtitle
+
+[ Total {n} ] [ Pending {n} ] [ Approved {n} ] [ Rejected {n} ]   ← clickable filter cards
+
+SERVICES
+[ Business License · {n} pending · Inbox·{n} ]  [ Building Permit · Soon ]  [ Event Permit · Soon ]
+
+RECENT ACTIVITY                                                    View inbox →
+┌ App ID │ Applicant │ Service │ Status │ Last Updated │ Action ┐
+│ rows from latest applications…                                  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-- `WizardProgress.tsx` already matches the spec (5 segments, non-clickable). Reuse as-is.
-- Footer: replace "Skip and Continue" pattern with `Back` + `Next`. `Skip` only appears as an inline secondary link inside specific sub-screens (Step 2 Screen 2, Step 3 Screen 1).
+## Visual language
 
-## 2. Screen-by-screen changes
+- Background: solid `bg-background` (no gradient, no blobs, no decorative SVGs).
+- Cards: `bg-card`, `border border-border`, `rounded-lg`, `p-5`.
+- Section labels: uppercase, tracking-wider, `text-xs text-muted-foreground`.
+- Status accents only via small dot/icon: green (Approved `s6/s9`), amber (Pending), red (Rejected `s8`), neutral primary (Total / In Progress).
+- Typography: h1 `text-3xl font-bold tracking-tight`; subtitle `text-sm text-muted-foreground`.
+- Compact table rows (`py-3`), subtle `hover:bg-muted/40`.
 
-### Service catalogue (`ServiceCatalogue.tsx`)
-- Tag chip text → `Citizen Portal` (already correct).
-- Subtitle → `Browse services and apply, pay, or download from one place` (drop trailing period to match spec or keep — minor).
-- Section label → `Available Services`.
-- Trade License card description → `Required for businesses operating within municipal limits`.
+## Metric cards (click-to-filter, dynamic counts)
 
-### Service detail / home (`CitizenHome.tsx`)
-- Header h1 → keep `Apply, Track & Manage`; add small subtitle `Your licenses and permits`.
-- Supporting line under search → `Apply for a new license or manage existing ones`.
-- Metrics labels: `Total Applications`, `Payments Due`, `Active Licenses` (already present).
-- Resume block copy: `Continue where you left off` / `Trade License Application` / `Step X of 5 · <Step Name>` / CTA arrow → `Resume application` (add explicit text label to button).
-- Tiles: `Apply` / `My Applications` (`0 applications`) / `My Documents` (`0 documents — Saved documents you can reuse`).
+Four equal cards in a 4-column grid. Each card:
+- Top row: label (`text-sm text-muted-foreground`) + small status icon top-right (FileText / Clock / CheckCircle2 / XCircle) tinted with the accent color.
+- Big number: `text-4xl font-bold` driven by the live count above.
+- Hover: border shifts to accent; `cursor-pointer`.
+- onClick → `setScreen({ type: "inbox", filterStates, filterLabel })`:
+  - Total → no filter
+  - Pending → `rolePendingStates[role]`
+  - Approved → `["s6","s9"]`
+  - Rejected → `["s8"]`
 
-### Instruction screen (`ApplicationIntro.tsx`)
-- Already matches spec copy. Confirm CTA = `Start Application`, secondary link = `Save and continue later`. No change needed beyond verifying icons/items match the 5 listed.
+## Services section (3 cards)
 
-### Wizard (`ApplicationForm.tsx`) — major refactor
+- **Business License** (active): icon tile, title, dynamic subtitle `"{N} pending review"`, primary CTA `Inbox · {N}` → `setScreen({ type: "inbox" })`. Small icon button (BarChart3) beside it.
+- **Building Permit / Event Permit**: muted, subtitle `"No pending items"`, disabled `Inbox · 0` button.
 
-Replace single-section-per-step with **sub-screens within each step**. Introduce a `subStep` state alongside `currentStep`. Hard-code a sub-screen map (no schema changes to `formSections`); the existing field IDs are reused, only grouped differently for display.
+## Recent Activity table (dynamic rows)
 
-Sub-screen plan (12 wizard screens + Review + Success):
+Columns: `APPLICATION ID` · `APPLICANT` · `SERVICE` · `STATUS` · `LAST UPDATED` · `ACTION`.
 
-| Step | Sub | Title | Fields |
-|------|-----|-------|--------|
-| 1 Applicant | 1.1 | Let's start with your name | `fullName` |
-| 1 Applicant | 1.2 | How can we reach you? | `mobile`, `email` |
-| 1 Applicant | 1.3 | Add your ID details | `idType`, `idNumber` (helper text changes by idType) |
-| 2 Business | 2.1 | What kind of business are you running? | `businessName`, `tradeType`, `businessCategory` |
-| 2 Business | 2.2 | Who owns the business? + Add a few more details (optional) | `ownershipType`, `employees`, `turnover` — footer shows `Skip` inline link for the optional pair |
-| 3 Location | 3.1 | Where is your business located? | Map placeholder (static SVG/image stub with "Long press to drop pin" hint) — `Confirm Location` / `Skip` inline |
-| 3 Location | 3.2 | Is this your business address? | `addr1`, `addr2`, `city`, `zone`, `pincode` (with helper "We've filled this based on your location…") |
-| 4 Operational | 4.1 | When did your business start? | `startDate` |
-| 4 Operational | 4.2 | Tell us a bit about your operations | `shopArea`, `isHazardous`, conditional `hazardType` (same screen) |
-| 5 Documents | 5.1 | Upload documents to complete your application | `docId`, `docAddr`, `docBusiness` |
-| Review | — | Review your application | All sections, expanded, edit-per-section |
-| Declaration | — | Sticky footer with checkbox + Submit | `declaration` |
+- Source: `applications` sorted by latest `timeline[*].at`, slice top 6.
+- Status bucket helper `mapStateToBucket(stateId)`:
+  - `s1`, `s_dv`, `s_ip`, `s3` → **Pending Review** (amber)
+  - `s4`, `s5`, `s7` → **In Progress** (blue)
+  - `s6`, `s9` → **Approved** (green)
+  - `s8` → **Rejected** (red)
+- Action: `Review` for Pending Review bucket, `View` otherwise. Both → `setScreen({ type: "application_review", applicationId })`.
+- `View inbox →` link top-right → `setScreen({ type: "inbox" })`.
+- Empty state: single row "No recent activity yet."
 
-Wizard mechanics:
-- `WizardProgress` shows `step` 1–5 + step name based on `currentStep` (not subStep).
-- `Next` validates only the visible sub-screen's fields (subset of section).
-- `Back` walks backwards through sub-screens, then crosses step boundaries.
-- "Edit" links from Review jump to the relevant sub-screen.
-- The standalone `sec-6` declaration section becomes integrated into the Review screen as a sticky-footer checkbox; remove the separate "Declaration" wizard step from the indicator.
+## Technical notes
 
-### Declaration scroll-to-enable
-On the Review screen:
-- Track scroll position of the review scroll container.
-- Checkbox is `disabled` until `scrollTop + clientHeight >= scrollHeight - 8`.
-- `Submit` button is `disabled` until checkbox checked.
-- Show small helper text under checkbox while disabled: `Scroll to the bottom to confirm`.
+- Touched file: `src/components/preview/employee/EmployeeHome.tsx` only.
+- Imports added: `Table*` from `@/components/ui/table`, `FileText`, `Clock`, `CheckCircle2`, `XCircle`, `BarChart3`, `Building2`, `CalendarDays`, `Store`.
+- Imports dropped: `WorkbenchIllustration`, `CornerBlob`, `IndianRupee`, `Activity`, gradient-only icons.
+- All counts and rows wrapped in `useMemo` keyed on `applications` and `role` so they re-render automatically whenever a citizen submits or an employee performs a transition.
+- No new state, no new context fields, no static fixtures.
 
-### Success screen (`SuccessScreen.tsx`)
-- Title → `Your application has been submitted`.
-- Show Application ID with copy-to-clipboard button (lucide `Copy` icon, `toast.success("Copied")`).
+## Out of scope
 
-## 3. Files to edit
-
-- `src/components/preview/citizen/_shell/CitizenScreenShell.tsx` — ensure footer slot supports the `[Back][Next]` pattern (no structural change; already has `footer` slot).
-- `src/components/preview/citizen/ServiceCatalogue.tsx` — copy tweaks.
-- `src/components/preview/citizen/CitizenHome.tsx` — subtitle + tile copy.
-- `src/components/preview/citizen/ApplicationForm.tsx` — **major rewrite**: introduce sub-step state machine, render via `CitizenScreenShell` + `WizardProgress` with question card + sticky footer, integrate declaration into Review, scroll-gating logic.
-- `src/components/preview/citizen/SuccessScreen.tsx` — title + copy ID button.
-
-## 4. Out of scope
-
-- No changes to `PreviewContext` form schema or validation rules — sub-screen grouping is presentational only.
-- No real map integration; Step 3.1 uses a static map placeholder with a "Drop pin" affordance.
-- Employee screens, payment, license views unchanged.
-- No backend or data-model changes.
-
-## 5. Risks
-
-- Sub-screen validation must reuse `validateSection`'s per-field logic on a filtered field list — extracted into a small helper to avoid duplication.
-- Resume-draft logic currently keys off `currentStep`; remap to persist `{ currentStep, subStep }` so Resume returns to the exact sub-screen.
-- Conditional fields (`hazardType`, dependent dropdowns) must remain on the same sub-screen as the trigger to satisfy the "Do NOT move conditional logic to separate screens" rule.
+- Inbox/ApplicationReview redesign.
+- Adding real Building/Event Permit services (they remain disabled placeholders).
+- Backend, schema, or workflow changes.
