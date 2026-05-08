@@ -3,7 +3,6 @@ import {
   usePreview,
   type PreviewDocument,
   type FormFieldConfig,
-  type FormSectionConfig,
   ID_VALIDATION,
 } from "../PreviewContext";
 import CitizenScreenShell from "./_shell/CitizenScreenShell";
