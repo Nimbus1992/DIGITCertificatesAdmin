@@ -37,7 +37,7 @@ const CitizenHome: React.FC = () => {
   const tiles = [
     { id: "apply", label: "Apply", desc: "Start a new application", icon: Plus, action: () => setScreen({ type: "apply_intro" }), primary: true },
     { id: "my", label: "My Applications", desc: `${total} ${total === 1 ? "application" : "applications"}`, icon: ListChecks, action: () => setScreen({ type: "my_applications" }) },
-    { id: "docs", label: "My Documents", desc: `${userDocuments.length} saved — reuse anytime`, icon: FolderOpen, action: () => setScreen({ type: "my_documents" }) },
+    { id: "docs", label: "My Documents", desc: `${userDocuments.length} documents — Saved documents you can reuse`, icon: FolderOpen, action: () => setScreen({ type: "my_documents" }) },
   ];
 
   const draftStepIdx = draft ? Math.min(draft.step, 4) : 0;
