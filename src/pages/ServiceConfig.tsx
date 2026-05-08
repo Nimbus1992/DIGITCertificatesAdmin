@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,10 @@ const ServiceConfig: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (id && state.activeServiceId !== id) setActiveService(id);
+  }, [id, state.activeServiceId, setActiveService]);
 
   // Find the active service from the services array
   const service = state.services.find((s) => s.id === id);
