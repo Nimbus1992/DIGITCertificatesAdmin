@@ -1,105 +1,93 @@
 ## Goal
 
-Redesign the **employee dashboard** (`EmployeeHome.tsx`) to match the clean, enterprise government-operations look in the reference screenshot — restrained colors, compact spacing, structured tables — while keeping all current functionality. **All numbers, statuses, and rows are derived live from `usePreview()` state** (no hardcoded values, no mock counts).
+Make **Branding & Theme** functional. Edits on `/config/branding` should persist and immediately reflect in:
 
-Applies to all employee roles: Document Verifier, Field Inspector, Approver. Header role label adapts to current role.
+1. **The studio UI** — sidebar org name, app shell logo, primary/accent colors used across the dashboard.
+2. **The service preview** — citizen portal top bar, employee portal top bar, primary buttons/links inside the preview, portal name, footer copyright.
 
-## Scope
+Today the page is purely local React state with a no-op "Apply Theme" toast. Nothing escapes the page.
 
-Single file rewrite: `src/components/preview/employee/EmployeeHome.tsx`.
-No changes to `PreviewContext`, routing, `InboxView`, or any data model.
+## Approach
 
-## Dynamic data sources (everything on screen)
+Persist branding on the **active service** in `OnboardingContext` (already persisted to `localStorage`), then read it from a small `useBranding()` hook and apply it via CSS variables on a wrapper element so existing `bg-primary` / `text-primary` / `border-accent` Tailwind tokens keep working.
 
-All values are computed from `applications` in `PreviewContext` — which already updates as citizens submit and as employees act on applications via `transitionApplication`, `payApplication`, `issueLicense`, etc.
+### 1. Data model
 
-| UI element | Source |
-|---|---|
-| Role label (top eyebrow) | `role` from context |
-| Total Applications count | `applications.length` |
-| Pending Review count | `applications.filter(a => rolePendingStates[role].includes(a.currentStateId)).length` |
-| Approved count | `applications.filter(a => ["s6","s9"].includes(a.currentStateId)).length` |
-| Rejected count | `applications.filter(a => a.currentStateId === "s8").length` |
-| Business License "pending review" count | same `rolePendingStates[role]` filter (or all in-progress states for the service) |
-| Business License Inbox CTA count | same as above |
-| Building Permit / Event Permit | static `0` + disabled (no service in data yet) |
-| Recent Activity rows | latest N applications sorted by most recent `timeline[last].at`, mapped live |
-| Applicant column | `app.formData.fullName` (fallback `"—"`) |
-| Service column | `serviceName` from context |
-| Status pill | bucket derived from `app.currentStateId` |
-| Last Updated | most recent `timeline[*].at` formatted |
-| Action label | `Review` if status bucket === pending, else `View` |
+Extend `ServiceItem` in `src/contexts/OnboardingContext.tsx` with:
 
-If `applications.length === 0`, all metrics render `0`, table shows a single neutral "No recent activity yet." row, and the Inbox CTA shows `Inbox · 0`.
-
-## Layout
-
-```text
-DOCUMENT VERIFIER                                ← role eyebrow
-Licenses & Permits                               ← h1
-Review and process applications across services  ← subtitle
-
-[ Total {n} ] [ Pending {n} ] [ Approved {n} ] [ Rejected {n} ]   ← clickable filter cards
-
-SERVICES
-[ Business License · {n} pending · Inbox·{n} ]  [ Building Permit · Soon ]  [ Event Permit · Soon ]
-
-RECENT ACTIVITY                                                    View inbox →
-┌ App ID │ Applicant │ Service │ Status │ Last Updated │ Action ┐
-│ rows from latest applications…                                  │
-└────────────────────────────────────────────────────────────────┘
+```ts
+branding?: {
+  presetId?: string;
+  primaryColor: string;     // hex
+  accentColor?: string;     // hex
+  font: string;             // family name
+  buttonRadius: string;     // px / rem
+  cardRadius: string;
+  logoDataUrl?: string;     // persisted as data URL (no storage bucket needed)
+  portalName: string;
+  copyright: string;
+};
 ```
 
-## Visual language
+Use a data URL for the logo so it survives reloads via `localStorage` (the current `URL.createObjectURL` is lost on refresh). Read uploaded files with `FileReader.readAsDataURL`.
 
-- Background: solid `bg-background` (no gradient, no blobs, no decorative SVGs).
-- Cards: `bg-card`, `border border-border`, `rounded-lg`, `p-5`.
-- Section labels: uppercase, tracking-wider, `text-xs text-muted-foreground`.
-- Status accents only via small dot/icon: green (Approved `s6/s9`), amber (Pending), red (Rejected `s8`), neutral primary (Total / In Progress).
-- Typography: h1 `text-3xl font-bold tracking-tight`; subtitle `text-sm text-muted-foreground`.
-- Compact table rows (`py-3`), subtle `hover:bg-muted/40`.
+Add a tiny helper `updateActiveServiceBranding(branding)` that calls existing `updateService(activeServiceId, { branding })`.
 
-## Metric cards (click-to-filter, dynamic counts)
+### 2. `BrandingTheme.tsx` rewrite (logic only)
 
-Four equal cards in a 4-column grid. Each card:
-- Top row: label (`text-sm text-muted-foreground`) + small status icon top-right (FileText / Clock / CheckCircle2 / XCircle) tinted with the accent color.
-- Big number: `text-4xl font-bold` driven by the live count above.
-- Hover: border shifts to accent; `cursor-pointer`.
-- onClick → `setScreen({ type: "inbox", filterStates, filterLabel })`:
-  - Total → no filter
-  - Pending → `rolePendingStates[role]`
-  - Approved → `["s6","s9"]`
-  - Rejected → `["s8"]`
+- Initialize all local state from `getActiveService()?.branding` (falling back to the existing defaults / DIGIT preset).
+- Logo upload → `FileReader` → store as data URL in state.
+- "Apply Theme" button (both at top and bottom) → call `updateActiveServiceBranding({...})`, show toast.
+- Live preview panel keeps working with the same local state (instant feedback before saving).
+- No visual redesign of the page.
 
-## Services section (3 cards)
+### 3. `useBranding()` hook + `<BrandingScope>` wrapper
 
-- **Business License** (active): icon tile, title, dynamic subtitle `"{N} pending review"`, primary CTA `Inbox · {N}` → `setScreen({ type: "inbox" })`. Small icon button (BarChart3) beside it.
-- **Building Permit / Event Permit**: muted, subtitle `"No pending items"`, disabled `Inbox · 0` button.
+New file `src/hooks/useBranding.ts`:
 
-## Recent Activity table (dynamic rows)
+- Returns `{ branding, cssVars, fontFamily }`.
+- `cssVars` converts `primaryColor` / `accentColor` hex → HSL triplets and produces a style object that overrides:
+  - `--primary`, `--ring`, `--accent`, `--sidebar-primary`, `--radius` (derived from `cardRadius`), `--primary-foreground` (computed contrast color).
+- `fontFamily` is the chosen font family string.
 
-Columns: `APPLICATION ID` · `APPLICANT` · `SERVICE` · `STATUS` · `LAST UPDATED` · `ACTION`.
+New file `src/components/BrandingScope.tsx`:
 
-- Source: `applications` sorted by latest `timeline[*].at`, slice top 6.
-- Status bucket helper `mapStateToBucket(stateId)`:
-  - `s1`, `s_dv`, `s_ip`, `s3` → **Pending Review** (amber)
-  - `s4`, `s5`, `s7` → **In Progress** (blue)
-  - `s6`, `s9` → **Approved** (green)
-  - `s8` → **Rejected** (red)
-- Action: `Review` for Pending Review bucket, `View` otherwise. Both → `setScreen({ type: "application_review", applicationId })`.
-- `View inbox →` link top-right → `setScreen({ type: "inbox" })`.
-- Empty state: single row "No recent activity yet."
+- Wraps children in a `div` with `style={cssVars}` and `style={{ fontFamily }}`.
+- Optionally injects a `<link>` to Google Fonts for the chosen font (`Roboto`, `Inter`, `Public Sans`, `DM Sans`, `Lato`, `Source Sans Pro`).
 
-## Technical notes
+### 4. Apply in the studio UI
 
-- Touched file: `src/components/preview/employee/EmployeeHome.tsx` only.
-- Imports added: `Table*` from `@/components/ui/table`, `FileText`, `Clock`, `CheckCircle2`, `XCircle`, `BarChart3`, `Building2`, `CalendarDays`, `Store`.
-- Imports dropped: `WorkbenchIllustration`, `CornerBlob`, `IndianRupee`, `Activity`, gradient-only icons.
-- All counts and rows wrapped in `useMemo` keyed on `applications` and `role` so they re-render automatically whenever a citizen submits or an employee performs a transition.
-- No new state, no new context fields, no static fixtures.
+- Wrap the studio shell once in `src/components/AppLayout.tsx` with `<BrandingScope>`. This re-themes the dashboard, sidebar accents, primary buttons.
+- `AppSidebar` already renders `state.orgName` — also render the branded logo when `branding.logoDataUrl` exists (small image next to org name).
+
+### 5. Apply in the service preview
+
+- Wrap the preview content in `src/components/preview/ServicePreview.tsx` with `<BrandingScope>` so the same CSS variable overrides cascade into citizen + employee screens.
+- **Citizen top bar** (`CitizenScreenShell.tsx`): show `branding.logoDataUrl` (fallback to existing icon) and `branding.portalName` (fallback to current label).
+- **Employee top bar** (`EmployeeTopBar.tsx`): replace the hardcoded `bg-gradient-to-r from-[#0b4f6c]…` with `bg-primary`, and show logo + `portalName` instead of the hardcoded "DIGIT | dev".
+- **Footer copyright**: render `branding.copyright` in `CitizenHome` footer area (small text at the bottom of the citizen home screen) — minimally invasive.
+- All existing primary-colored buttons inside the preview already use `bg-primary` / `text-primary-foreground`, so they pick up the override automatically.
+
+### 6. Sensible defaults
+
+If a service has no `branding` saved yet, derive defaults from the existing onboarding values (`state.orgName` → portalName, `state.logoUrl` → logo, `state.themeColor` → primary) and the current "DIGIT" preset. So even before the user opens Branding & Theme, the preview reflects org name and logo from onboarding.
+
+## Files touched
+
+- `src/contexts/OnboardingContext.tsx` — extend `ServiceItem` with `branding`, add helper.
+- `src/hooks/useBranding.ts` — **new**.
+- `src/components/BrandingScope.tsx` — **new**.
+- `src/pages/BrandingTheme.tsx` — wire load/save, file → dataURL, hook up Apply.
+- `src/components/AppLayout.tsx` — wrap with `BrandingScope`.
+- `src/components/AppSidebar.tsx` — render branded logo next to org name.
+- `src/components/preview/ServicePreview.tsx` — wrap preview with `BrandingScope`.
+- `src/components/preview/citizen/_shell/CitizenScreenShell.tsx` — logo + portalName.
+- `src/components/preview/employee/EmployeeTopBar.tsx` — logo + portalName, use `bg-primary`.
+- `src/components/preview/citizen/CitizenHome.tsx` — footer copyright line.
 
 ## Out of scope
 
-- Inbox/ApplicationReview redesign.
-- Adding real Building/Event Permit services (they remain disabled placeholders).
-- Backend, schema, or workflow changes.
+- Per-screen typography overrides (we set one global font family).
+- Dark-mode-specific overrides for the chosen color (we override the `:root` HSL only; dark mode keeps its own values).
+- Remote storage of the logo (data URL in localStorage is sufficient for the prototype).
+- Brand Guidelines file persistence (stays as ephemeral upload — the file isn't applied anywhere visually).
