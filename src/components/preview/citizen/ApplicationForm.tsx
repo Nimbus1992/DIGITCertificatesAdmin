@@ -6,7 +6,8 @@ import {
   type FormSectionConfig,
   ID_VALIDATION,
 } from "../PreviewContext";
-import { Button } from "@/components/ui/button";
+import CitizenScreenShell from "./_shell/CitizenScreenShell";
+import WizardProgress from "./_shell/WizardProgress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,7 +17,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { ArrowRight, ArrowLeft, Check, FileUp, X, FolderOpen, Repeat, FileText, AlertCircle, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowRight, ArrowLeft, Check, FileUp, X, FolderOpen, Repeat,
+  FileText, AlertCircle, Sparkles, MapPin, Pencil,
+} from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Helpers ─────────────────────────────────────
@@ -35,82 +40,107 @@ const getDropdownOptions = (field: FormFieldConfig, formData: Record<string, str
   return field.options || [];
 };
 
-const validateSection = (
-  section: FormSectionConfig,
+const validateField = (
+  field: FormFieldConfig,
   formData: Record<string, string>,
   docs: PreviewDocument[],
-): Record<string, string> => {
-  const errors: Record<string, string> = {};
-  for (const field of section.fields) {
-    if (!isFieldVisible(field, formData)) continue;
+): string | null => {
+  if (!isFieldVisible(field, formData)) return null;
 
-    // Documents: handled by docs list
-    if (field.type === "file") {
-      if (field.required && docs.filter(d => d.type === field.label).length === 0) {
-        errors[field.id] = `${field.label} is required`;
-      }
-      continue;
+  if (field.type === "file") {
+    if (field.required && docs.filter(d => d.type === field.label).length === 0) {
+      return `${field.label} is required`;
     }
-
-    // Checkbox
-    if (field.type === "checkbox") {
-      if (field.required && formData[field.id] !== "true") {
-        errors[field.id] = "You must confirm to proceed";
-      }
-      continue;
-    }
-
-    const raw = (formData[field.id] || "").trim();
-
-    if (field.required && !raw) {
-      errors[field.id] = `${field.label} is required`;
-      continue;
-    }
-    if (!raw) continue; // optional & empty -> skip
-
-    const v = field.validation;
-    if (v) {
-      if (v.minLength && raw.length < v.minLength) {
-        errors[field.id] = `Must be at least ${v.minLength} characters`;
-        continue;
-      }
-      if (v.maxLength && raw.length > v.maxLength) {
-        errors[field.id] = `Must be at most ${v.maxLength} characters`;
-        continue;
-      }
-      if (v.pattern) {
-        const re = new RegExp(v.pattern);
-        if (!re.test(raw)) {
-          errors[field.id] = v.patternMessage || "Invalid format";
-          continue;
-        }
-      }
-      if (field.type === "number" || field.type === "tel") {
-        const n = Number(raw);
-        if (!Number.isNaN(n)) {
-          if (v.min !== undefined && n < v.min) { errors[field.id] = `Minimum ${v.min}`; continue; }
-          if (v.max !== undefined && n > v.max) { errors[field.id] = `Maximum ${v.max}`; continue; }
-        }
-      }
-      if (field.type === "date" && v.pastDateOnly) {
-        if (raw >= todayISO()) {
-          errors[field.id] = "Must be a date in the past";
-          continue;
-        }
-      }
-    }
-
-    // Conditional ID Number validation
-    if (field.id === "idNumber") {
-      const idType = formData["idType"];
-      const rule = idType ? ID_VALIDATION[idType] : undefined;
-      if (rule && !rule.pattern.test(raw)) {
-        errors[field.id] = rule.message;
-      }
-    }
+    return null;
   }
-  return errors;
+  if (field.type === "checkbox") {
+    if (field.required && formData[field.id] !== "true") return "You must confirm to proceed";
+    return null;
+  }
+  const raw = (formData[field.id] || "").trim();
+  if (field.required && !raw) return `${field.label} is required`;
+  if (!raw) return null;
+  const v = field.validation;
+  if (v) {
+    if (v.minLength && raw.length < v.minLength) return `Must be at least ${v.minLength} characters`;
+    if (v.maxLength && raw.length > v.maxLength) return `Must be at most ${v.maxLength} characters`;
+    if (v.pattern && !new RegExp(v.pattern).test(raw)) return v.patternMessage || "Invalid format";
+    if (field.type === "number" || field.type === "tel") {
+      const n = Number(raw);
+      if (!Number.isNaN(n)) {
+        if (v.min !== undefined && n < v.min) return `Minimum ${v.min}`;
+        if (v.max !== undefined && n > v.max) return `Maximum ${v.max}`;
+      }
+    }
+    if (field.type === "date" && v.pastDateOnly && raw >= todayISO()) return "Must be a date in the past";
+  }
+  if (field.id === "idNumber") {
+    const idType = formData["idType"];
+    const rule = idType ? ID_VALIDATION[idType] : undefined;
+    if (rule && !rule.pattern.test(raw)) return rule.message;
+  }
+  return null;
 };
+
+// ─── Sub-screen plan ────────────────────────────
+// Each sub-screen lives within one of the 5 wizard steps.
+interface SubScreen {
+  step: number;          // 1..5
+  stepName: string;      // shown in WizardProgress
+  title: string;         // question card title
+  subtitle?: string;
+  fieldIds: string[];    // field ids from formSections
+  optional?: boolean;    // shows inline Skip link in footer
+  isMap?: boolean;       // step 3.1 map placeholder
+  helperBanner?: string; // shown above fields
+  splitGroups?: { heading?: string; fieldIds: string[] }[]; // optional intra-screen grouping
+}
+
+const STEP_NAMES = [
+  "Applicant Details",
+  "Business Details",
+  "Business Location",
+  "Operational Details",
+  "Documents",
+];
+
+const SUB_SCREENS: SubScreen[] = [
+  // Step 1
+  { step: 1, stepName: STEP_NAMES[0], title: "Let's start with your name", fieldIds: ["fullName"] },
+  { step: 1, stepName: STEP_NAMES[0], title: "How can we reach you?", fieldIds: ["mobile", "email"] },
+  { step: 1, stepName: STEP_NAMES[0], title: "Add your ID details", subtitle: "Helper text changes based on the selected ID type", fieldIds: ["idType", "idNumber"] },
+  // Step 2
+  { step: 2, stepName: STEP_NAMES[1], title: "What kind of business are you running?", fieldIds: ["businessName", "tradeType", "businessCategory"] },
+  {
+    step: 2, stepName: STEP_NAMES[1], title: "Who owns the business?",
+    fieldIds: ["ownershipType", "employees", "turnover"], optional: true,
+    splitGroups: [
+      { fieldIds: ["ownershipType"] },
+      { heading: "Add a few more details (optional)", fieldIds: ["employees", "turnover"] },
+    ],
+  },
+  // Step 3
+  { step: 3, stepName: STEP_NAMES[2], title: "Where is your business located?", subtitle: "Long press to drop a pin, or search by pincode/area.", fieldIds: [], isMap: true, optional: true },
+  {
+    step: 3, stepName: STEP_NAMES[2], title: "Is this your business address?",
+    helperBanner: "We've filled this based on your location. You can edit if needed.",
+    fieldIds: ["addr1", "addr2", "city", "zone", "pincode"],
+  },
+  // Step 4
+  { step: 4, stepName: STEP_NAMES[3], title: "When did your business start?", fieldIds: ["startDate"] },
+  {
+    step: 4, stepName: STEP_NAMES[3], title: "Tell us a bit about your operations",
+    fieldIds: ["shopArea", "isHazardous", "hazardType"],
+    splitGroups: [
+      { heading: "What is the size of your shop (in sq ft)?", fieldIds: ["shopArea"] },
+      { heading: "Does your business involve any safety risks?", fieldIds: ["isHazardous", "hazardType"] },
+    ],
+  },
+  // Step 5
+  { step: 5, stepName: STEP_NAMES[4], title: "Upload documents to complete your application", fieldIds: ["docId", "docAddr", "docBusiness"] },
+];
+
+const REVIEW_INDEX = SUB_SCREENS.length;
 
 // ─── Component ──────────────────────────────────
 const ApplicationForm: React.FC = () => {
@@ -126,19 +156,31 @@ const ApplicationForm: React.FC = () => {
 
   const draftKey = `tl-draft-${parentApp?.id ?? "new"}`;
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<Record<string, string>>(
-    parentApp ? { ...parentApp.formData } : {}
-  );
-  const [docs, setDocs] = useState<PreviewDocument[]>(
-    parentApp ? [...parentApp.documents] : []
-  );
+  const [stepIndex, setStepIndex] = useState(0); // 0..SUB_SCREENS.length (last = review)
+  const [formData, setFormData] = useState<Record<string, string>>(parentApp ? { ...parentApp.formData } : {});
+  const [docs, setDocs] = useState<PreviewDocument[]>(parentApp ? [...parentApp.documents] : []);
   const [pickerField, setPickerField] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [draftRestored, setDraftRestored] = useState(false);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const [declaration, setDeclaration] = useState(false);
   const initRef = useRef(false);
+  const reviewScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // ── Auto-save: restore draft on mount (new applications only) ──
+  // Field index lookup
+  const fieldsById = useMemo(() => {
+    const m: Record<string, FormFieldConfig> = {};
+    formSections.forEach(s => s.fields.forEach(f => { m[f.id] = f; }));
+    return m;
+  }, [formSections]);
+
+  const sectionForField = useMemo(() => {
+    const m: Record<string, FormSectionConfig> = {};
+    formSections.forEach(s => s.fields.forEach(f => { m[f.id] = s; }));
+    return m;
+  }, [formSections]);
+
+  // Restore draft
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
@@ -150,30 +192,51 @@ const ApplicationForm: React.FC = () => {
       if (parsed && typeof parsed === "object") {
         if (parsed.formData) setFormData(parsed.formData);
         if (Array.isArray(parsed.docs)) setDocs(parsed.docs);
-        if (typeof parsed.currentStep === "number") setCurrentStep(parsed.currentStep);
+        if (typeof parsed.stepIndex === "number") setStepIndex(parsed.stepIndex);
         setDraftRestored(true);
       }
     } catch { /* ignore */ }
   }, [draftKey, isRenewal]);
 
-  // ── Auto-save: persist on changes (debounced) ──
+  // Persist
   useEffect(() => {
     if (!initRef.current) return;
     const handle = setTimeout(() => {
       try {
-        sessionStorage.setItem(draftKey, JSON.stringify({ currentStep, formData, docs }));
+        sessionStorage.setItem(draftKey, JSON.stringify({ stepIndex, formData, docs, currentStep: stepIndex }));
       } catch { /* ignore */ }
     }, 400);
     return () => clearTimeout(handle);
-  }, [currentStep, formData, docs, draftKey]);
+  }, [stepIndex, formData, docs, draftKey]);
 
-  const isReview = currentStep === formSections.length;
-  const section = formSections[currentStep];
+  const isReview = stepIndex === REVIEW_INDEX;
+  const sub = !isReview ? SUB_SCREENS[stepIndex] : null;
+
+  const visibleFieldIds = useMemo(() => {
+    if (!sub) return [] as string[];
+    return sub.fieldIds.filter(id => {
+      const f = fieldsById[id];
+      return f && isFieldVisible(f, formData);
+    });
+  }, [sub, fieldsById, formData]);
+
+  const errors = useMemo(() => {
+    if (!sub) return {} as Record<string, string>;
+    const out: Record<string, string> = {};
+    visibleFieldIds.forEach(id => {
+      const f = fieldsById[id];
+      if (!f) return;
+      const err = validateField(f, formData, docs);
+      if (err) out[id] = err;
+    });
+    return out;
+  }, [sub, visibleFieldIds, fieldsById, formData, docs]);
+
+  const subValid = Object.keys(errors).length === 0;
 
   const updateField = (fieldId: string, value: string) => {
     setFormData((prev) => {
       const next = { ...prev, [fieldId]: value };
-      // Reset dependent dropdowns when parent changes
       formSections.forEach(sec => sec.fields.forEach(f => {
         if (f.dependsOn === fieldId) next[f.id] = "";
         if (f.showIf?.field === fieldId && f.showIf.equals !== value) next[f.id] = "";
@@ -182,54 +245,34 @@ const ApplicationForm: React.FC = () => {
     });
   };
 
-  const errors = useMemo(
-    () => (isReview ? {} : validateSection(section, formData, docs)),
-    [section, formData, docs, isReview],
-  );
-  const sectionValid = Object.keys(errors).length === 0;
-
   const addMockDoc = (label: string) => {
     setDocs((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: `${label.toLowerCase().replace(/\s+/g, "-")}.pdf`,
-        type: label,
-        uploadedAt: Date.now(),
-        status: "Pending",
-      },
+      { id: crypto.randomUUID(), name: `${label.toLowerCase().replace(/\s+/g, "-")}.pdf`, type: label, uploadedAt: Date.now(), status: "Pending" },
     ]);
   };
-
   const addReusedDoc = (userDocId: string, label: string) => {
     const userDoc = userDocuments.find((d) => d.id === userDocId);
     if (!userDoc) return;
     setDocs((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: userDoc.name,
-        type: label,
-        uploadedAt: Date.now(),
-        status: "Pending",
-        reused: true,
-      },
+      { id: crypto.randomUUID(), name: userDoc.name, type: label, uploadedAt: Date.now(), status: "Pending", reused: true },
     ]);
   };
-
   const removeDoc = (idx: number) => setDocs((prev) => prev.filter((_, i) => i !== idx));
 
   const discardDraft = () => {
     sessionStorage.removeItem(draftKey);
     setFormData({});
     setDocs([]);
-    setCurrentStep(0);
+    setStepIndex(0);
     setTouched({});
     setDraftRestored(false);
   };
 
   const handleNext = () => {
     if (isReview) {
+      if (!declaration) { toast.error("Please confirm the declaration"); return; }
       const appId = isRenewal && parentApp
         ? submitRenewal(parentApp.id, formData, docs)
         : submitApplication(formData, docs);
@@ -237,259 +280,297 @@ const ApplicationForm: React.FC = () => {
       setScreen({ type: "success", applicationId: appId });
       return;
     }
-    if (!sectionValid) {
-      // Mark all section fields as touched so errors show inline
-      const allTouched: Record<string, boolean> = { ...touched };
-      section.fields.forEach((f) => { allTouched[f.id] = true; });
-      setTouched(allTouched);
+    if (!subValid) {
+      const t = { ...touched };
+      visibleFieldIds.forEach(id => { t[id] = true; });
+      setTouched(t);
       toast.error("Please complete required fields", { description: "Some fields need attention before continuing." });
       return;
     }
-    setCurrentStep((prev) => prev + 1);
+    setStepIndex(i => i + 1);
   };
 
-  const showError = (fieldId: string) => touched[fieldId] && errors[fieldId];
+  const handleBack = () => {
+    if (stepIndex === 0) { setScreen({ type: "apply_intro" }); return; }
+    setStepIndex(i => i - 1);
+  };
 
-  return (
-    <div className="flex-1 overflow-y-auto flex flex-col bg-background">
-      {/* Header */}
-      <div className="bg-[#0b4f6c] text-white px-4 py-3 flex items-center gap-2 text-sm font-medium">
-        <span className="grid grid-cols-2 gap-0.5">
-          <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-          <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-          <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-          <span className="w-1.5 h-1.5 rounded-sm bg-white/80" />
-        </span>
-        DIGIT <span className="text-white/60 ml-1">| dev</span>
-      </div>
+  const handleSkip = () => {
+    setStepIndex(i => i + 1);
+  };
 
-      <div className="px-4 py-2 text-xs">
-        <button onClick={() => setScreen({ type: "home" })} className="text-accent hover:underline">Home</button>
-        <span className="mx-1 text-muted-foreground">/</span>
-        <span className="text-muted-foreground">{isRenewal ? "Renew" : "Apply"}</span>
-      </div>
+  const showError = (id: string) => touched[id] && errors[id];
 
-      {/* Steps indicator */}
-      <div className="px-4 pb-2">
-        <div className="flex items-center justify-center gap-1.5">
-          {[...formSections, { id: "review", name: "Review" }].map((s, i) => (
-            <div key={s.id} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${
-                i < currentStep ? "bg-accent text-accent-foreground" :
-                i === currentStep ? "bg-accent text-accent-foreground ring-2 ring-accent/30" :
-                "bg-muted text-muted-foreground"
-              }`}>
-                {i < currentStep ? <Check className="h-3 w-3" /> : i + 1}
-              </div>
-              <span className="text-[8px] text-muted-foreground text-center leading-tight truncate w-full">{s.name}</span>
-            </div>
-          ))}
+  // Scroll-gating for declaration
+  useEffect(() => {
+    if (!isReview) { setScrolledToBottom(false); setDeclaration(false); return; }
+    const el = reviewScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setScrolledToBottom(true);
+    };
+    onScroll();
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [isReview]);
+
+  // ─── Render a single field ───
+  const renderField = (field: FormFieldConfig) => {
+    const err = showError(field.id);
+    const labelEl = field.type !== "checkbox" && (
+      <Label className="text-sm" style={{ color: "#1D3557" }}>
+        {field.label}
+        {field.required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+    );
+
+    let control: React.ReactNode = null;
+
+    if (field.type === "dropdown") {
+      const opts = getDropdownOptions(field, formData);
+      const disabled = !!field.dependsOn && opts.length === 0;
+      control = (
+        <Select
+          value={formData[field.id] || ""}
+          onValueChange={(v) => { updateField(field.id, v); setTouched(t => ({ ...t, [field.id]: true })); }}
+          disabled={disabled}
+        >
+          <SelectTrigger className="bg-white" onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}>
+            <SelectValue placeholder={disabled ? field.placeholder : (field.placeholder || "Select...")} />
+          </SelectTrigger>
+          <SelectContent className="bg-popover z-50">
+            {opts.map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      );
+    } else if (field.type === "radio") {
+      control = (
+        <div className="flex gap-2">
+          {(field.options || []).map((opt) => {
+            const selected = formData[field.id] === opt;
+            return (
+              <button
+                key={opt} type="button"
+                onClick={() => { updateField(field.id, opt); setTouched(t => ({ ...t, [field.id]: true })); }}
+                className="flex-1 px-3 py-2 rounded-md text-xs font-medium border transition"
+                style={{
+                  backgroundColor: selected ? "#1D3557" : "#F5F7FA",
+                  color: selected ? "#FFFFFF" : "#363636",
+                  borderColor: selected ? "#1D3557" : "#E0E0E0",
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
         </div>
-      </div>
-
-      {/* Draft restored banner */}
-      {draftRestored && !isRenewal && (
-        <div className="mx-4 mb-2 flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-md px-2.5 py-1.5 text-[10px] animate-in fade-in slide-in-from-top-1">
-          <span className="flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3" /> Draft restored — continue where you left off.
+      );
+    } else if (field.type === "date") {
+      control = (
+        <Input type="date"
+          max={field.validation?.pastDateOnly ? todayISO() : undefined}
+          value={formData[field.id] || ""}
+          onChange={(e) => updateField(field.id, e.target.value)}
+          onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}
+          className="bg-white" />
+      );
+    } else if (field.type === "checkbox") {
+      control = (
+        <label className="flex items-start gap-2 rounded-md border bg-card p-3 cursor-pointer" style={{ borderColor: "#E0E0E0" }}>
+          <Checkbox
+            checked={formData[field.id] === "true"}
+            onCheckedChange={(c) => { updateField(field.id, c ? "true" : ""); setTouched(t => ({ ...t, [field.id]: true })); }}
+            className="mt-0.5"
+          />
+          <span className="text-xs leading-snug" style={{ color: "#1D3557" }}>
+            {field.label}
+            {field.required && <span className="text-destructive ml-0.5">*</span>}
           </span>
-          <button onClick={discardDraft} className="underline font-medium hover:text-amber-900">Discard</button>
+        </label>
+      );
+    } else if (field.type === "file") {
+      control = (
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button"
+              onClick={() => { addMockDoc(field.label); setTouched(t => ({ ...t, [field.id]: true })); }}
+              className="border-2 border-dashed rounded-lg p-2.5 text-center text-[11px] flex items-center justify-center gap-1.5"
+              style={{ borderColor: "#1D3557", color: "#1D3557", backgroundColor: "#EAF2FB" }}>
+              <FileUp className="h-3.5 w-3.5" /> Upload New
+            </button>
+            <button type="button"
+              onClick={() => { setPickerField(field.label); setTouched(t => ({ ...t, [field.id]: true })); }}
+              className="border-2 border-dashed rounded-lg p-2.5 text-center text-[11px] flex items-center justify-center gap-1.5"
+              style={{ borderColor: "#F4A261", color: "#A0522D", backgroundColor: "#FFF3E5" }}>
+              <FolderOpen className="h-3.5 w-3.5" /> My Documents
+            </button>
+          </div>
+          <p className="text-[10px] mt-1" style={{ color: "#6B7280" }}>PDF / JPG / PNG · max 5 MB</p>
+          <div className="mt-2 space-y-1">
+            {docs.filter((d) => d.type === field.label).map((d) => {
+              const idx = docs.findIndex((x) => x.id === d.id);
+              return (
+                <div key={d.id} className="flex items-center justify-between text-[11px] rounded px-2 py-1" style={{ backgroundColor: "#F5F7FA" }}>
+                  <span className="truncate flex items-center gap-1.5">
+                    <span className="truncate">{d.name}</span>
+                    {d.reused && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                        <Repeat className="h-2.5 w-2.5" /> Reused
+                      </span>
+                    )}
+                  </span>
+                  <button onClick={() => removeDoc(idx)} className="text-destructive shrink-0 ml-1">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      )}
+      );
+    } else {
+      control = (
+        <Input
+          type={field.type === "number" || field.type === "tel" ? "tel" : (field.type === "email" ? "email" : "text")}
+          placeholder={field.placeholder || ""}
+          value={formData[field.id] || ""}
+          onChange={(e) => updateField(field.id, e.target.value)}
+          onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}
+          className="bg-white"
+        />
+      );
+    }
 
-      {/* Form content */}
-      <div className="flex-1 px-4 pb-4 overflow-y-auto">
-        <h2 className="text-base font-bold text-foreground mb-1">
-          {isRenewal ? `Renew ${serviceName}` : serviceName}
-        </h2>
-        {isRenewal && (
-          <p className="text-[10px] text-muted-foreground mb-2">
-            Details have been pre-filled from your existing license. Review &amp; edit as needed.
+    // Per-field helper override for ID
+    let helper = field.helpText;
+    if (field.id === "idNumber" && formData["idType"]) {
+      const rule = ID_VALIDATION[formData["idType"]];
+      if (rule) helper = rule.message;
+    }
+
+    return (
+      <div key={field.id} className={`space-y-1.5 ${field.showIf ? "animate-in fade-in slide-in-from-top-1" : ""}`}>
+        {labelEl}
+        {control}
+        {helper && !err && <p className="text-[10px]" style={{ color: "#6B7280" }}>{helper}</p>}
+        {err && (
+          <p className="text-[10px] text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" /> {errors[field.id]}
           </p>
         )}
+      </div>
+    );
+  };
 
-        {!isReview ? (
-          <>
-            <h3 className="font-semibold text-foreground text-sm mb-1">{section.name}</h3>
-            {section.description && (
-              <p className="text-[10px] text-muted-foreground mb-3">{section.description}</p>
-            )}
-            <div className="space-y-3.5">
-              {section.fields.map((field) => {
-                if (!isFieldVisible(field, formData)) return null;
-                const err = showError(field.id);
+  // ─── Sticky footer for wizard sub-screens ───
+  const wizardFooter = (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleBack} className="gap-1 flex-1">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleNext}
+          className="flex-1 gap-1 text-white"
+          style={{ backgroundColor: "#F4A261" }}
+        >
+          Next <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {sub?.optional && (
+        <button onClick={handleSkip} className="w-full text-[11px] text-center" style={{ color: "#6B7280" }}>
+          Skip for now
+        </button>
+      )}
+    </div>
+  );
 
-                const labelEl = field.type !== "checkbox" && (
-                  <Label className="text-sm">
-                    {field.label}
-                    {field.required && <span className="text-destructive ml-0.5">*</span>}
-                  </Label>
-                );
+  // ─── Review footer (sticky declaration + submit) ───
+  const reviewFooter = (
+    <div className="space-y-2">
+      <label className={`flex items-start gap-2 rounded-md border p-2.5 ${scrolledToBottom ? "" : "opacity-60"}`} style={{ borderColor: "#E0E0E0", backgroundColor: scrolledToBottom ? "#FFF" : "#F5F7FA" }}>
+        <Checkbox
+          checked={declaration}
+          disabled={!scrolledToBottom}
+          onCheckedChange={(c) => setDeclaration(!!c)}
+          className="mt-0.5"
+        />
+        <span className="text-[11px] leading-snug" style={{ color: "#1D3557" }}>
+          I confirm that all the details provided are correct
+        </span>
+      </label>
+      {!scrolledToBottom && (
+        <p className="text-[10px] text-center" style={{ color: "#6B7280" }}>
+          Scroll to the bottom to confirm
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleBack} className="gap-1 flex-1">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleNext}
+          disabled={!declaration}
+          className="flex-1 gap-1 text-white disabled:opacity-50"
+          style={{ backgroundColor: "#1D3557" }}
+        >
+          Submit <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
 
-                return (
-                  <div
-                    key={field.id}
-                    className={`space-y-1.5 ${field.showIf ? "animate-in fade-in slide-in-from-top-1" : ""}`}
-                  >
-                    {labelEl}
+  // ─── Render review ───
+  if (isReview) {
+    // Map field ids to first sub-screen index for "Edit"
+    const fieldToSub: Record<string, number> = {};
+    SUB_SCREENS.forEach((s, i) => s.fieldIds.forEach(id => { if (!(id in fieldToSub)) fieldToSub[id] = i; }));
 
-                    {/* Dropdown */}
-                    {field.type === "dropdown" ? (() => {
-                      const opts = getDropdownOptions(field, formData);
-                      const disabled = field.dependsOn && opts.length === 0;
-                      return (
-                        <Select
-                          value={formData[field.id] || ""}
-                          onValueChange={(v) => { updateField(field.id, v); setTouched(t => ({ ...t, [field.id]: true })); }}
-                          disabled={disabled}
-                        >
-                          <SelectTrigger className="bg-white" onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}>
-                            <SelectValue placeholder={disabled ? field.placeholder : (field.placeholder || "Select...")} />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {opts.map((opt) => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      );
-                    })()
-                    /* Radio chips (Yes/No style) */
-                    : field.type === "radio" ? (
-                      <div className="flex gap-2">
-                        {(field.options || []).map((opt) => {
-                          const selected = formData[field.id] === opt;
-                          return (
-                            <button
-                              key={opt}
-                              type="button"
-                              onClick={() => { updateField(field.id, opt); setTouched(t => ({ ...t, [field.id]: true })); }}
-                              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium border transition ${
-                                selected
-                                  ? "bg-accent text-accent-foreground border-accent"
-                                  : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )
-                    /* Date */
-                    : field.type === "date" ? (
-                      <Input
-                        type="date"
-                        max={field.validation?.pastDateOnly ? todayISO() : undefined}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}
-                        className="bg-white"
-                      />
-                    )
-                    /* Checkbox (declaration) */
-                    : field.type === "checkbox" ? (
-                      <label className="flex items-start gap-2 rounded-md border border-border bg-card p-3 cursor-pointer">
-                        <Checkbox
-                          checked={formData[field.id] === "true"}
-                          onCheckedChange={(c) => { updateField(field.id, c ? "true" : ""); setTouched(t => ({ ...t, [field.id]: true })); }}
-                          className="mt-0.5"
-                        />
-                        <span className="text-xs text-foreground leading-snug">
-                          {field.label}
-                          {field.required && <span className="text-destructive ml-0.5">*</span>}
-                        </span>
-                      </label>
-                    )
-                    /* File */
-                    : field.type === "file" ? (
-                      <div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { addMockDoc(field.label); setTouched(t => ({ ...t, [field.id]: true })); }}
-                            className="border-2 border-dashed rounded-lg p-2.5 text-center text-[11px] text-accent bg-accent/5 hover:bg-accent/10 flex items-center justify-center gap-1.5"
-                          >
-                            <FileUp className="h-3.5 w-3.5" /> Upload New
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setPickerField(field.label); setTouched(t => ({ ...t, [field.id]: true })); }}
-                            className="border-2 border-dashed rounded-lg p-2.5 text-center text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 flex items-center justify-center gap-1.5 border-indigo-200"
-                          >
-                            <FolderOpen className="h-3.5 w-3.5" /> My Documents
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-muted-foreground mt-1">PDF / JPG / PNG · max 5 MB</p>
-                        <div className="mt-2 space-y-1">
-                          {docs.filter((d) => d.type === field.label).map((d) => {
-                            const idx = docs.findIndex((x) => x.id === d.id);
-                            return (
-                              <div key={d.id} className="flex items-center justify-between text-[11px] bg-muted/50 rounded px-2 py-1">
-                                <span className="truncate flex items-center gap-1.5">
-                                  <span className="truncate">{d.name}</span>
-                                  {d.reused && (
-                                    <span className="inline-flex items-center gap-0.5 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
-                                      <Repeat className="h-2.5 w-2.5" /> Reused
-                                    </span>
-                                  )}
-                                </span>
-                                <button onClick={() => removeDoc(idx)} className="text-destructive shrink-0 ml-1">
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )
-                    /* Text / number / tel / email */
-                    : (
-                      <Input
-                        type={field.type === "number" || field.type === "tel" ? "tel" : (field.type === "email" ? "email" : "text")}
-                        placeholder={field.placeholder || ""}
-                        value={formData[field.id] || ""}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        onBlur={() => setTouched(t => ({ ...t, [field.id]: true }))}
-                        className="bg-white"
-                      />
-                    )}
-
-                    {field.helpText && !err && (
-                      <p className="text-[10px] text-muted-foreground">{field.helpText}</p>
-                    )}
-                    {err && (
-                      <p className="text-[10px] text-destructive flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" /> {errors[field.id]}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+    return (
+      <>
+        <CitizenScreenShell
+          onBack={handleBack}
+          backLabel="Back"
+          progress={<WizardProgress step={5} total={5} stepName="Review" />}
+          footer={reviewFooter}
+        >
+          <div ref={reviewScrollRef} className="h-full">
+            <div className="bg-white rounded-xl shadow-sm p-4 mb-3" style={{ border: "1px solid #E0E0E0" }}>
+              <h2 className="text-base font-bold leading-snug" style={{ color: "#1D3557" }}>
+                Review your application
+              </h2>
+              <p className="text-[11px] mt-1" style={{ color: "#6B7280" }}>
+                Check each section carefully before submitting.
+              </p>
             </div>
-          </>
-        ) : (
-          <>
-            <h3 className="font-semibold text-foreground text-sm mb-3">Review &amp; Submit</h3>
+
             <div className="space-y-3">
               {formSections.map((sec) => {
+                if (sec.fields.every(f => f.type === "checkbox")) return null; // declaration handled in footer
                 const isDocs = sec.fields.some((f) => f.type === "file");
-                const isDeclaration = sec.fields.every((f) => f.type === "checkbox");
                 const visibleFields = sec.fields.filter(
-                  (f) => isFieldVisible(f, formData) && f.type !== "file" && f.type !== "checkbox" && formData[f.id]
+                  (f) => isFieldVisible(f, formData) && f.type !== "file" && f.type !== "checkbox"
                 );
+                const firstFieldId = sec.fields[0]?.id;
+                const editIdx = firstFieldId !== undefined ? fieldToSub[firstFieldId] ?? 0 : 0;
 
                 return (
-                  <div key={sec.id} className="border rounded-lg p-3 bg-card">
-                    <p className="text-[11px] font-semibold text-accent mb-2">{sec.name}</p>
-
+                  <div key={sec.id} className="bg-white rounded-xl shadow-sm p-3" style={{ border: "1px solid #E0E0E0" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#1D3557" }}>{sec.name}</p>
+                      <button onClick={() => setStepIndex(editIdx)} className="text-[10px] font-medium inline-flex items-center gap-1" style={{ color: "#F4A261" }}>
+                        <Pencil className="h-3 w-3" /> Edit
+                      </button>
+                    </div>
                     {isDocs ? (
                       docs.length === 0 ? (
-                        <p className="text-[11px] text-muted-foreground">No documents uploaded.</p>
+                        <p className="text-[11px]" style={{ color: "#6B7280" }}>No documents uploaded.</p>
                       ) : (
                         <ul className="text-[11px] space-y-0.5">
                           {docs.map((d) => (
-                            <li key={d.id} className="text-muted-foreground flex items-center gap-1.5">
+                            <li key={d.id} className="flex items-center gap-1.5" style={{ color: "#363636" }}>
                               • {d.type} — {d.name}
                               {d.reused && (
                                 <span className="inline-flex items-center gap-0.5 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">
@@ -500,22 +581,14 @@ const ApplicationForm: React.FC = () => {
                           ))}
                         </ul>
                       )
-                    ) : isDeclaration ? (
-                      <p className="text-[11px] flex items-center gap-1.5">
-                        {formData["declaration"] === "true" ? (
-                          <><Check className="h-3.5 w-3.5 text-emerald-600" /> <span className="text-foreground font-medium">Confirmed</span></>
-                        ) : (
-                          <><AlertCircle className="h-3.5 w-3.5 text-destructive" /> <span className="text-destructive">Not confirmed</span></>
-                        )}
-                      </p>
                     ) : visibleFields.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground">No details provided.</p>
+                      <p className="text-[11px]" style={{ color: "#6B7280" }}>No details provided.</p>
                     ) : (
                       <dl className="grid grid-cols-2 gap-y-1 text-[11px]">
                         {visibleFields.map((f) => (
                           <React.Fragment key={f.id}>
-                            <dt className="text-muted-foreground">{f.label}</dt>
-                            <dd className="text-foreground font-medium">{formData[f.id]}</dd>
+                            <dt style={{ color: "#6B7280" }}>{f.label}</dt>
+                            <dd className="font-medium" style={{ color: "#1D3557" }}>{formData[f.id] || "—"}</dd>
                           </React.Fragment>
                         ))}
                       </dl>
@@ -524,28 +597,118 @@ const ApplicationForm: React.FC = () => {
                 );
               })}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </CitizenScreenShell>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t flex gap-2 bg-card">
-        {currentStep > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setCurrentStep((p) => p - 1)} className="gap-1">
-            <ArrowLeft className="h-3.5 w-3.5" /> Back
-          </Button>
-        )}
-        <Button
-          size="sm"
-          onClick={handleNext}
-          disabled={!isReview && !sectionValid && Object.keys(touched).some(k => section.fields.some(f => f.id === k))}
-          className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-1 disabled:opacity-60"
-        >
-          {isReview ? "Submit" : "Next"} <ArrowRight className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+        <Dialog open={pickerField !== null} onOpenChange={(o) => !o && setPickerField(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-indigo-500" /> Pick from My Documents
+              </DialogTitle>
+              <DialogDescription>
+                Select a document to attach as <span className="font-semibold">{pickerField}</span>.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPickerField(null)}>Cancel</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
-      {/* My Documents Picker */}
+  // ─── Render wizard sub-screen ───
+  if (!sub) return null;
+
+  return (
+    <>
+      <CitizenScreenShell
+        onBack={handleBack}
+        backLabel="Back"
+        progress={<WizardProgress step={sub.step} total={5} stepName={sub.stepName} />}
+        footer={wizardFooter}
+      >
+        {draftRestored && !isRenewal && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-[10px]"
+            style={{ backgroundColor: "#FFF3E5", border: "1px solid #F4A261", color: "#A0522D" }}>
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3" /> Draft restored — continue where you left off.
+            </span>
+            <button onClick={discardDraft} className="underline font-medium">Discard</button>
+          </div>
+        )}
+
+        {isRenewal && (
+          <div className="mb-2 rounded-md px-2.5 py-1.5 text-[10px]"
+            style={{ backgroundColor: "#EAF2FB", border: "1px solid #1D3557", color: "#1D3557" }}>
+            Renewing {serviceName} — details pre-filled from your existing license.
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm p-4" style={{ border: "1px solid #E0E0E0" }}>
+          <h2 className="text-[15px] font-bold leading-snug mb-1" style={{ color: "#1D3557" }}>
+            {sub.title}
+          </h2>
+          {sub.subtitle && (
+            <p className="text-[11px] mb-3" style={{ color: "#6B7280" }}>{sub.subtitle}</p>
+          )}
+
+          {sub.helperBanner && (
+            <div className="mb-3 rounded-md p-2 text-[11px]" style={{ backgroundColor: "#EAF2FB", color: "#1D3557" }}>
+              {sub.helperBanner}
+            </div>
+          )}
+
+          {sub.isMap ? (
+            <div className="space-y-3">
+              <Input placeholder="Search by pincode or area" className="bg-white" />
+              <div className="relative h-44 rounded-lg overflow-hidden flex items-center justify-center"
+                style={{ backgroundColor: "#EAF2FB", border: "1px dashed #1D3557" }}>
+                <div className="absolute inset-0 opacity-40"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+                    backgroundSize: "20px 20px",
+                  }} />
+                <div className="relative text-center">
+                  <MapPin className="h-7 w-7 mx-auto" style={{ color: "#F4A261" }} />
+                  <p className="text-[10px] mt-1" style={{ color: "#1D3557" }}>Long press to drop a pin</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setStepIndex(i => i + 1)}
+                className="w-full text-white"
+                style={{ backgroundColor: "#1D3557" }}
+              >
+                Confirm Location
+              </Button>
+            </div>
+          ) : sub.splitGroups ? (
+            <div className="space-y-4">
+              {sub.splitGroups.map((g, gi) => (
+                <div key={gi} className="space-y-3">
+                  {g.heading && (
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#6B7280" }}>
+                      {g.heading}
+                    </p>
+                  )}
+                  {g.fieldIds
+                    .map(id => fieldsById[id])
+                    .filter(f => f && isFieldVisible(f, formData))
+                    .map(renderField)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {visibleFieldIds.map(id => renderField(fieldsById[id])).filter(Boolean)}
+            </div>
+          )}
+        </div>
+      </CitizenScreenShell>
+
       <Dialog open={pickerField !== null} onOpenChange={(o) => !o && setPickerField(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -565,17 +728,14 @@ const ApplicationForm: React.FC = () => {
               userDocuments.map((d) => (
                 <button
                   key={d.id}
-                  onClick={() => {
-                    if (pickerField) addReusedDoc(d.id, pickerField);
-                    setPickerField(null);
-                  }}
-                  className="w-full text-left flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
+                  onClick={() => { if (pickerField) addReusedDoc(d.id, pickerField); setPickerField(null); }}
+                  className="w-full text-left flex items-center gap-3 rounded-lg border p-3 hover:bg-indigo-50/50"
                 >
                   <div className="h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
                     <FileText className="h-4 w-4 text-indigo-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-foreground truncate">{d.name}</p>
+                    <p className="text-xs font-semibold truncate">{d.name}</p>
                     <p className="text-[10px] text-muted-foreground">{d.type} • {new Date(d.uploadedAt).toLocaleDateString()}</p>
                   </div>
                 </button>
@@ -587,7 +747,7 @@ const ApplicationForm: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };
 
