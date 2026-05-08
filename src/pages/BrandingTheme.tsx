@@ -9,6 +9,7 @@ import { Check, Upload, Palette, Type, FileText, Shield, ChevronLeft, X } from "
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ThemePreset {
   id: string;
@@ -104,8 +105,10 @@ function getContrastText(hex: string): string {
 
 const BrandingTheme: React.FC = () => {
   const navigate = useNavigate();
-  const { getActiveService, updateActiveServiceBranding, state } = useOnboarding();
-  const saved = getActiveService()?.branding;
+  const { getActiveService, updateActiveServiceBranding, updatePlatformBranding, state } = useOnboarding();
+  const activeService = getActiveService();
+  const [scope, setScope] = useState<"service" | "platform">(activeService ? "service" : "platform");
+  const saved = scope === "service" ? activeService?.branding : state.platformBranding;
 
   const [selectedPreset, setSelectedPreset] = useState<string>(saved?.presetId ?? "digit");
   const [primaryColor, setPrimaryColor] = useState(saved?.primaryColor ?? "#C84C0E");
@@ -156,7 +159,7 @@ const BrandingTheme: React.FC = () => {
   const activePreset = themePresets.find((p) => p.id === selectedPreset);
 
   const applyTheme = () => {
-    updateActiveServiceBranding({
+    const payload = {
       presetId: selectedPreset || undefined,
       primaryColor,
       accentColor: activePreset?.accentColor,
@@ -166,8 +169,14 @@ const BrandingTheme: React.FC = () => {
       logoDataUrl: logoPreview || undefined,
       portalName,
       copyright,
-    });
-    toast.success("Theme applied across the studio and service preview");
+    };
+    if (scope === "service" && activeService) {
+      updateActiveServiceBranding(payload);
+      toast.success("Theme applied to this service");
+    } else {
+      updatePlatformBranding(payload);
+      toast.success("Platform-wide theme applied");
+    }
   };
 
   return (
@@ -185,12 +194,22 @@ const BrandingTheme: React.FC = () => {
             </p>
           </div>
         </div>
-        <Button
+        <div className="flex items-center gap-3">
+          {activeService && (
+            <Tabs value={scope} onValueChange={(v) => setScope(v as "service" | "platform")}>
+              <TabsList>
+                <TabsTrigger value="service">This service</TabsTrigger>
+                <TabsTrigger value="platform">Platform default</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          <Button
           onClick={applyTheme}
           style={{ backgroundColor: primaryColor, color: contrastText, borderRadius: buttonRadius }}
         >
           Apply Theme
-        </Button>
+          </Button>
+        </div>
       </div>
 
       {/* 2-Column Layout: Config Left, Preview Right */}
