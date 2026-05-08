@@ -28,6 +28,18 @@ export interface TeamMember {
   role: "admin" | "operator" | "approver";
 }
 
+export interface BrandingConfig {
+  presetId?: string;
+  primaryColor: string;
+  accentColor?: string;
+  font: string;
+  buttonRadius: string;
+  cardRadius: string;
+  logoDataUrl?: string;
+  portalName: string;
+  copyright: string;
+}
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -44,6 +56,7 @@ export interface ServiceItem {
   authMethod: AuthMethod;
   roleAccess?: RoleAccessConfig[];
   subdomain?: string;
+  branding?: BrandingConfig;
 }
 
 export interface OnboardingState {
@@ -125,6 +138,7 @@ interface OnboardingContextType {
   updateService: (id: string, updates: Partial<ServiceItem>) => void;
   setActiveService: (id: string) => void;
   getActiveService: () => ServiceItem | undefined;
+  updateActiveServiceBranding: (branding: BrandingConfig) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -210,10 +224,20 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return state.services.find((s) => s.id === state.activeServiceId);
   }, [state.services, state.activeServiceId]);
 
+  const updateActiveServiceBranding = useCallback((branding: BrandingConfig) => {
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === prev.activeServiceId ? { ...s, branding } : s
+      ),
+    }));
+  }, []);
+
   return (
     <OnboardingContext.Provider value={{
       state, updateState, nextStep, prevStep, goToStep, resetOnboarding,
       addService, updateService, setActiveService, getActiveService,
+      updateActiveServiceBranding,
     }}>
       {children}
     </OnboardingContext.Provider>
