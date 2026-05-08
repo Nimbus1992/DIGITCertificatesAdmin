@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { PreviewProvider, usePreview } from "./PreviewContext";
@@ -81,6 +81,11 @@ const PreviewContent: React.FC = () => {
 const ServicePreviewInner: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { setActiveService, state } = useOnboarding();
+
+  useEffect(() => {
+    if (id && state.activeServiceId !== id) setActiveService(id);
+  }, [id, state.activeServiceId, setActiveService]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
