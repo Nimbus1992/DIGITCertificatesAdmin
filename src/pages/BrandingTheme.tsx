@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Check, Upload, Palette, Type, FileText, Shield, ChevronLeft, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 interface ThemePreset {
   id: string;
@@ -103,22 +104,27 @@ function getContrastText(hex: string): string {
 
 const BrandingTheme: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedPreset, setSelectedPreset] = useState<string>("digit");
-  const [primaryColor, setPrimaryColor] = useState("#C84C0E");
-  const [selectedFont, setSelectedFont] = useState("Roboto");
-  const [buttonRadius, setButtonRadius] = useState("4px");
-  const [cardRadius, setCardRadius] = useState("4px");
+  const { getActiveService, updateActiveServiceBranding, state } = useOnboarding();
+  const saved = getActiveService()?.branding;
+
+  const [selectedPreset, setSelectedPreset] = useState<string>(saved?.presetId ?? "digit");
+  const [primaryColor, setPrimaryColor] = useState(saved?.primaryColor ?? "#C84C0E");
+  const [selectedFont, setSelectedFont] = useState(saved?.font ?? "Roboto");
+  const [buttonRadius, setButtonRadius] = useState(saved?.buttonRadius ?? "4px");
+  const [cardRadius, setCardRadius] = useState(saved?.cardRadius ?? "4px");
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState("");
+  const [logoPreview, setLogoPreview] = useState(saved?.logoDataUrl ?? state.logoUrl ?? "");
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null);
-  const [copyright, setCopyright] = useState("© 2025 DIGIT Platform");
-  const [portalName, setPortalName] = useState("DIGIT Portal");
+  const [copyright, setCopyright] = useState(saved?.copyright ?? "© 2025 DIGIT Platform");
+  const [portalName, setPortalName] = useState(saved?.portalName ?? state.orgName ?? "DIGIT Portal");
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setLogoFile(file);
-      setLogoPreview(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onload = () => setLogoPreview(reader.result as string);
+      reader.readAsDataURL(file);
     }
   };
 
@@ -149,6 +155,21 @@ const BrandingTheme: React.FC = () => {
   const contrastText = getContrastText(primaryColor);
   const activePreset = themePresets.find((p) => p.id === selectedPreset);
 
+  const applyTheme = () => {
+    updateActiveServiceBranding({
+      presetId: selectedPreset || undefined,
+      primaryColor,
+      accentColor: activePreset?.accentColor,
+      font: selectedFont,
+      buttonRadius,
+      cardRadius,
+      logoDataUrl: logoPreview || undefined,
+      portalName,
+      copyright,
+    });
+    toast.success("Theme applied across the studio and service preview");
+  };
+
   return (
     <div className="space-y-6 animate-fade-in px-6">
       {/* Header */}
@@ -165,7 +186,7 @@ const BrandingTheme: React.FC = () => {
           </div>
         </div>
         <Button
-          onClick={() => toast.success("Theme changes applied successfully")}
+          onClick={applyTheme}
           style={{ backgroundColor: primaryColor, color: contrastText, borderRadius: buttonRadius }}
         >
           Apply Theme
@@ -346,7 +367,7 @@ const BrandingTheme: React.FC = () => {
           {/* Apply Button */}
           <Button
             className="w-full"
-            onClick={() => toast.success("Theme changes applied successfully")}
+            onClick={applyTheme}
             style={{ backgroundColor: primaryColor, color: contrastText, borderRadius: buttonRadius }}
           >
             Apply Theme

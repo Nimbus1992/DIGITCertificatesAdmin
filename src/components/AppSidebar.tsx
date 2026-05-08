@@ -90,19 +90,26 @@ function NavGroup({ label, items }: { label: string; items: typeof mainItems }) 
 }
 
 export function AppSidebar() {
-  const { state } = useOnboarding();
+  const { state, getActiveService } = useOnboarding();
   const { state: sidebarState } = useSidebar();
   const collapsed = sidebarState === "collapsed";
+  const branding = getActiveService()?.branding;
+  const logoUrl = branding?.logoDataUrl || state.logoUrl;
+  const orgName = branding?.portalName || state.orgName || "LnP Platform";
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <Shield className="h-6 w-6 text-sidebar-primary shrink-0" />
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="h-6 w-6 object-contain shrink-0 rounded-sm bg-white/10" />
+          ) : (
+            <Shield className="h-6 w-6 text-sidebar-primary shrink-0" />
+          )}
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
-                {state.orgName || "LnP Platform"}
+                {orgName}
               </p>
               {state.department && (
                 <p className="text-xs text-sidebar-foreground/60 truncate">{state.department}</p>
