@@ -16,7 +16,7 @@ const ServiceCatalogue: React.FC = () => {
   const [query, setQuery] = useState("");
 
   const services: CatalogueService[] = [
-    { id: "trade", title: serviceName, desc: "Required for businesses operating within municipal limits.", icon: Store, active: true },
+    { id: "trade", title: serviceName, desc: "Required for businesses operating within municipal limits", icon: Store, active: true },
     { id: "building", title: "Building Permit", desc: "Construction & occupancy approvals.", icon: Building2, active: false },
     { id: "event", title: "Event Permit", desc: "Public gathering & temporary use.", icon: CalendarDays, active: false },
   ];
@@ -37,7 +37,7 @@ const ServiceCatalogue: React.FC = () => {
           Licenses &amp; Permits
         </h1>
         <p className="text-[12px] mt-1 leading-snug" style={{ color: "#363636" }}>
-          Browse services and apply, pay, or download from one place.
+          Browse services and apply, pay, or download from one place
         </p>
       </div>
 
