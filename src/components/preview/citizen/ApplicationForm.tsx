@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowRight, ArrowLeft, Check, FileUp, X, FolderOpen, Repeat,
+  ArrowRight, ArrowLeft, FileUp, X, FolderOpen, Repeat,
   FileText, AlertCircle, Sparkles, MapPin, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
