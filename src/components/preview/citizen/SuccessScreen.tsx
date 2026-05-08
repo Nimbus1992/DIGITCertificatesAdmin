@@ -1,7 +1,8 @@
 import React from "react";
 import { usePreview } from "../PreviewContext";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowRight, Download } from "lucide-react";
+import { Check, ArrowRight, Download, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 const SuccessScreen: React.FC = () => {
   const { setScreen, screen, applications } = usePreview();
@@ -30,9 +31,23 @@ const SuccessScreen: React.FC = () => {
           <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
             <Check className="h-8 w-8 text-white" />
           </div>
-          <h2 className="text-lg font-bold mb-2">Application Submitted</h2>
+          <h2 className="text-lg font-bold mb-2">Your application has been submitted</h2>
           <p className="text-xs opacity-90 mb-1">Your Application ID</p>
-          <p className="text-[11px] font-mono break-all opacity-95">{app?.applicationNumber || "N/A"}</p>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-[11px] font-mono break-all opacity-95">{app?.applicationNumber || "N/A"}</p>
+            {app?.applicationNumber && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(app.applicationNumber);
+                  toast.success("Application ID copied");
+                }}
+                className="p-1 rounded hover:bg-white/20 transition-colors"
+                aria-label="Copy Application ID"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <p className="text-[11px] text-muted-foreground text-center mb-4 px-2">
