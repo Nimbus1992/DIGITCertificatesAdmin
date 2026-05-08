@@ -91,6 +91,7 @@ export interface OnboardingState {
   isLive: boolean;
   services: ServiceItem[];
   activeServiceId: string;
+  platformBranding?: BrandingConfig;
 }
 
 const initialState: OnboardingState = {
@@ -125,6 +126,7 @@ const initialState: OnboardingState = {
   isLive: false,
   services: [],
   activeServiceId: "",
+  platformBranding: undefined,
 };
 
 interface OnboardingContextType {
@@ -139,6 +141,7 @@ interface OnboardingContextType {
   setActiveService: (id: string) => void;
   getActiveService: () => ServiceItem | undefined;
   updateActiveServiceBranding: (branding: BrandingConfig) => void;
+  updatePlatformBranding: (branding: BrandingConfig) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -233,11 +236,15 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }));
   }, []);
 
+  const updatePlatformBranding = useCallback((branding: BrandingConfig) => {
+    setState((prev) => ({ ...prev, platformBranding: branding }));
+  }, []);
+
   return (
     <OnboardingContext.Provider value={{
       state, updateState, nextStep, prevStep, goToStep, resetOnboarding,
       addService, updateService, setActiveService, getActiveService,
-      updateActiveServiceBranding,
+      updateActiveServiceBranding, updatePlatformBranding,
     }}>
       {children}
     </OnboardingContext.Provider>

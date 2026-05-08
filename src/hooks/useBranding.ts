@@ -54,14 +54,19 @@ export function useBranding(override?: BrandingConfig) {
   const branding = useMemo<BrandingConfig>(() => {
     if (override) return override;
     const svc = getActiveService();
-    if (svc?.branding) return svc.branding;
+    const legacy: Partial<BrandingConfig> = {
+      portalName: state.orgName || undefined,
+      logoDataUrl: state.logoUrl || undefined,
+      primaryColor: state.themeColor || undefined,
+    };
+    // precedence: defaults < legacy < platform < service
     return {
       ...DEFAULT_BRANDING,
-      portalName: state.orgName || DEFAULT_BRANDING.portalName,
-      logoDataUrl: state.logoUrl || undefined,
-      primaryColor: state.themeColor || DEFAULT_BRANDING.primaryColor,
-    };
-  }, [override, getActiveService, state.orgName, state.logoUrl, state.themeColor]);
+      ...Object.fromEntries(Object.entries(legacy).filter(([, v]) => v)),
+      ...(state.platformBranding ?? {}),
+      ...(svc?.branding ?? {}),
+    } as BrandingConfig;
+  }, [override, getActiveService, state.orgName, state.logoUrl, state.themeColor, state.platformBranding]);
 
   const cssVars = useMemo(() => {
     const primary = hexToHslTriplet(branding.primaryColor);
@@ -76,6 +81,7 @@ export function useBranding(override?: BrandingConfig) {
       "--sidebar-primary": primary,
       "--sidebar-ring": primary,
       "--radius": radius,
+      "--button-radius": branding.buttonRadius,
     } as React.CSSProperties;
   }, [branding]);
 
