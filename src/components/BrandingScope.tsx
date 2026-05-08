@@ -16,9 +16,11 @@ interface Props {
   children: React.ReactNode;
   override?: BrandingConfig;
   className?: string;
+  /** Also write CSS vars to <html> so portals (toasts, popovers, dropdowns) inherit. */
+  applyToRoot?: boolean;
 }
 
-const BrandingScope: React.FC<Props> = ({ children, override, className }) => {
+const BrandingScope: React.FC<Props> = ({ children, override, className, applyToRoot }) => {
   const { cssVars, fontFamily } = useBranding(override);
 
   useEffect(() => {
@@ -33,10 +35,23 @@ const BrandingScope: React.FC<Props> = ({ children, override, className }) => {
     document.head.appendChild(link);
   }, [fontFamily]);
 
+  useEffect(() => {
+    if (!applyToRoot) return;
+    const root = document.documentElement;
+    const entries = Object.entries(cssVars as Record<string, string>);
+    entries.forEach(([k, v]) => root.style.setProperty(k, String(v)));
+    root.style.setProperty("font-family", `'${fontFamily}', system-ui, sans-serif`);
+    return () => {
+      entries.forEach(([k]) => root.style.removeProperty(k));
+      root.style.removeProperty("font-family");
+    };
+  }, [applyToRoot, cssVars, fontFamily]);
+
   return (
     <div
-      className={className ?? "contents"}
+      className={className ?? "min-h-screen w-full"}
       style={{ ...cssVars, fontFamily: `'${fontFamily}', system-ui, sans-serif` }}
+      data-branding-scope
     >
       {children}
     </div>

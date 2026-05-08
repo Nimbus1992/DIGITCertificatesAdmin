@@ -101,8 +101,13 @@ const CitizenScreenShell: React.FC<Props> = ({
 
       {/* Sticky footer */}
       {footer && (
-        <div className="shrink-0 bg-white border-t px-4 py-3" style={{ borderColor: "#E0E0E0" }}>
-          {footer}
+        <div className="shrink-0 bg-white border-t" style={{ borderColor: "#E0E0E0" }}>
+          <div className="px-4 py-3">{footer}</div>
+          {branding.copyright && (
+            <div className="px-4 pb-2 text-center text-[10px] text-muted-foreground">
+              {branding.copyright}
+            </div>
+          )}
         </div>
       )}
 

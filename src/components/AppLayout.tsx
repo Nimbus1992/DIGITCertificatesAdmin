@@ -6,7 +6,7 @@ import BrandingScope from "@/components/BrandingScope";
 
 const AppLayout: React.FC = () => {
   return (
-    <BrandingScope>
+    <BrandingScope applyToRoot>
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />

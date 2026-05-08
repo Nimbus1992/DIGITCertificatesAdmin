@@ -88,13 +88,13 @@ const ServicePreviewInner: React.FC = () => {
   }, [id, state.activeServiceId, setActiveService]);
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <BrandingScope className="h-screen flex flex-col bg-background">
       <PreviewTopBar onExit={() => navigate(`/service/${id}/configure`)} />
-      <BrandingScope className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
         <PreviewContent />
         <PreviewSidebar />
-      </BrandingScope>
-    </div>
+      </div>
+    </BrandingScope>
   );
 };
 
