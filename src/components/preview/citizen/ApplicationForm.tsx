@@ -174,12 +174,6 @@ const ApplicationForm: React.FC = () => {
     return m;
   }, [formSections]);
 
-  const sectionForField = useMemo(() => {
-    const m: Record<string, FormSectionConfig> = {};
-    formSections.forEach(s => s.fields.forEach(f => { m[f.id] = s; }));
-    return m;
-  }, [formSections]);
-
   // Restore draft
   useEffect(() => {
     if (initRef.current) return;
