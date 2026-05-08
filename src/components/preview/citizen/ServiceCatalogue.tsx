@@ -37,7 +37,7 @@ const ServiceCatalogue: React.FC = () => {
           Licenses &amp; Permits
         </h1>
         <p className="text-[12px] mt-1 leading-snug" style={{ color: "#363636" }}>
-          Browse services and apply, pay, or download from one place.
+          Browse services and apply, pay, or download from one place
         </p>
       </div>
 
