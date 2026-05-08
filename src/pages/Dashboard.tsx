@@ -136,11 +136,11 @@ const Dashboard: React.FC = () => {
       <div className="max-w-6xl mx-auto px-6 py-8 relative">
         {/* Welcome */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            Welcome back{state.orgName ? `, ${state.orgName}` : ""}
+          <h1 className="text-3xl font-bold text-foreground tracking-tight max-w-2xl">
+            Configure and Launch Licenses and Permits
           </h1>
-          <p className="text-sm text-muted-foreground mt-1.5 max-w-md">
-            Here's what's happening with your applications today.
+          <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+            Configure Licenses and Permits applications to manage end-to-end delivery of service to the citizen - start from a template and make it your own!
           </p>
         </div>
 
