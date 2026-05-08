@@ -4,6 +4,7 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { PreviewProvider, usePreview } from "./PreviewContext";
 import PreviewTopBar from "./PreviewTopBar";
 import PreviewSidebar from "./PreviewSidebar";
+import BrandingScope from "@/components/BrandingScope";
 import MobileFrame from "./MobileFrame";
 import CitizenHome from "./citizen/CitizenHome";
 import ApplicationForm from "./citizen/ApplicationForm";
@@ -84,10 +85,10 @@ const ServicePreviewInner: React.FC = () => {
   return (
     <div className="h-screen flex flex-col bg-background">
       <PreviewTopBar onExit={() => navigate(`/service/${id}/configure`)} />
-      <div className="flex-1 flex overflow-hidden">
+      <BrandingScope className="flex-1 flex overflow-hidden">
         <PreviewContent />
         <PreviewSidebar />
-      </div>
+      </BrandingScope>
     </div>
   );
 };
