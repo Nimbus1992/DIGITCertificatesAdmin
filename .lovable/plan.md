@@ -1,58 +1,66 @@
-## Goal
-When the user clicks **Use template** on a template (currently jumps straight to configure), open a small two-step dialog that captures:
-1. **Service name**
-2. **Modules** to enable
+# Fix: Branding & Theme not applying
 
-Then create a draft service via `addService()` and navigate to `/service/{id}/configure`.
+## Root causes found
 
-## Where this hooks in
-- `src/pages/Services.tsx` → `handleUse` (and the same trigger inside `TemplateIntroduction`).
-- Today `handleUse` just navigates. We replace it with: open dialog → on submit, create draft + navigate.
+1. **Studio shell theme tokens never change.** `AppLayout` wraps children in `BrandingScope`, but `BrandingScope` renders a `<div className="contents">`. CSS custom properties set via `style` on a `display: contents` element are NOT inherited by descendants in most browsers. So `--primary`, `--radius`, font family etc. are effectively dropped — sidebar/header colors, buttons, fonts never update.
+2. **No active service = no branding.** `useBranding` only falls back to global `state.logoUrl / orgName / themeColor` when there is no active service. The studio sidebar is rendered before any service is active (Dashboard, Templates, Setup pages), and `BrandingTheme` itself saves only to the active service. Result: when you open `/config/branding` from the sidebar with no active service, "Apply Theme" silently no-ops (it calls `updateActiveServiceBranding` which maps over services and finds nothing to update).
+3. **Footer/copyright never editable.** `BrandingTheme` doesn't expose copyright in the form (only seeded), and the citizen shell shows it only when there's no `footer` slot — so most screens never show it.
+4. **Preview surfaces miss tokens.** `PreviewTopBar` and other chrome use `bg-primary` but they sit OUTSIDE the inner `BrandingScope` only on some screens; the larger issue is again #1 (`contents` wrapper losing CSS vars).
+5. **Font radius/buttonRadius unused.** `cssVars` only sets `--radius` from `cardRadius`; `buttonRadius` is saved but never wired to any token, so buttons don't change shape.
+6. **No persistence to global defaults.** Logo uploaded in onboarding lands in `state.logoUrl`, but BrandingTheme writes only to the active service. If user is editing the platform default (no service), nothing saves.
 
-## New component
-`src/components/onboarding/UseTemplateDialog.tsx` — a shadcn `Dialog` with two steps:
+## What we'll change
 
-**Step 1 — Name your service**
-- Single `Input` prefilled with `template.name` (e.g. "Business License"), editable.
-- Helper text: "You can rename this later."
-- Primary button: **Next** (disabled if empty / duplicate of existing service name).
+### 1. `BrandingScope` — make it a real scope
+- Replace `className ?? "contents"` with a real block (`className ?? "flex flex-col min-h-0 flex-1"` for layout cases, plain `<div>` otherwise) so `style={cssVars}` actually cascades.
+- Add `--button-radius` to `cssVars` and apply both `--radius` (from `cardRadius`) and `--button-radius` (from `buttonRadius`).
+- Keep font-link injection.
 
-**Step 2 — Choose modules**
-- Checkbox list built from `template.modules`, normalized so the first item reads **Issuance** (mapped from the template's "Application" entry — see Notes).
-- Behavior:
-  - **Issuance** — checked, disabled (locked, always included). Small "Default" chip.
-  - **Renewal** — checked by default, user can uncheck.
-  - Any other modules in the template (e.g. Inspection, Plan Review) — unchecked by default, user can opt in.
-- Primary button: **Create draft** (disabled while submitting).
-- Secondary: **Back**.
+### 2. `useBranding` — always merge, never return nothing
+- Compute a merged branding: `{ ...DEFAULT_BRANDING, ...globalFallback, ...(activeService?.branding ?? {}) }` so partial saves still work and global theme always wins over defaults even when a service exists but has no logo.
+- Add an optional second source: a new global `state.platformBranding` (see below) so the studio shell has its own brand identity independent of any service.
 
-On **Create draft**:
-1. Build a new `ServiceItem`:
-   ```ts
-   {
-     id: `${template.id}-${Date.now().toString(36)}`, // unique per draft
-     name: <entered name>,
-     templateId: template.id,
-     status: "draft",
-     customModules: <selected module names, Issuance first>,
-     isPublished: false,
-     isLive: false,
-     deployment: { availabilityScope: "entire_state", selectedItems: [] },
-     teamMembers: [],
-     authMethod: "email",
-   }
-   ```
-2. `addService(newService)` (this also sets it as active).
-3. Close dialog, `navigate(`/service/${newService.id}/configure`)`.
+### 3. `OnboardingContext` — add platform-level branding
+- Add `platformBranding?: BrandingConfig` to `OnboardingState` (persisted in localStorage like the rest).
+- Add `updatePlatformBranding(branding)` action.
+- `useBranding` precedence: `override` → active service branding → platform branding → legacy `state.logoUrl/orgName/themeColor` → defaults.
 
-## Wiring
-- `Services.tsx`: replace `handleUse` body with `setPendingTemplate(template)`; render `<UseTemplateDialog template={pendingTemplate} onClose={...} />` when set. Pass the actual template object (not just `tradeTemplate`) so the same flow works for other templates later.
-- `TemplateIntroduction.tsx`: keep its `onUseTemplate` prop; `Services.tsx` passes a handler that opens the dialog with the current `introTemplate`.
-- `TemplateCard.tsx` `onSelect`: same — opens the dialog.
+### 4. `BrandingTheme` page — explicit scope + missing controls
+- Add a small toggle at top: **"Editing: This service"** vs **"Editing: Platform default"**. Default to active service if one exists, otherwise platform.
+- On Apply: route to `updateActiveServiceBranding` or `updatePlatformBranding` accordingly.
+- Add a **Copyright** input (already in state, just expose it).
+- Add an explicit **Logo upload + Remove** that writes directly into the saved branding (today the logo only saves through Apply Theme — confirm by also calling Apply on file change is unnecessary; just include `logoDataUrl` in the saved object, which we already do — but make sure global path works too).
+- Persist `buttonRadius`.
 
-## Notes / decisions baked in
-- **Issuance vs Application labeling**: the trade-license template currently lists modules as `["Application", "Renewal"]`. The dialog will display the first module as **Issuance** and store it as `"Issuance"` in `customModules`, so downstream `ServiceConfig` shows it as the Issuance flow. (We keep `serviceTemplates.ts` data file untouched; the rename is presentational + on save.)
-- **Trade-license preconfig still works**: `ServiceConfig.tsx` keys preconfigured tile statuses off `id === "trade-license" || templateId === "trade-license"`. Since the new draft's `templateId` is `"trade-license"`, the seeded "completed" tile statuses still apply. The `id` becomes a unique draft id (e.g. `trade-license-lx9k2a`), so multiple drafts of the same template can coexist.
-- **Existing direct trade-license id**: the old hardcoded `/service/trade-license/...` paths used in seeded data continue to resolve via `templateId` fallback.
-- **Preview button** on the template intro stays as-is (jumps to the static template preview, no draft created).
-- Out of scope: editing modules after creation (already possible from ServiceConfig), backend persistence (stays in OnboardingContext + localStorage).
+### 5. Surfaces that consume branding (verify only, no logic change beyond #1)
+- `AppSidebar` — already reads `branding?.logoDataUrl` & `portalName`. After fix #1 + #3 it will pick up platform branding too.
+- `EmployeeTopBar`, `CitizenScreenShell` — already read from `useBranding()`; after fix #1 the wrapper actually passes CSS vars down.
+- `PreviewTopBar` (uses `bg-primary` for active device button) — will inherit since it's rendered inside `ServicePreviewInner` and we'll move `BrandingScope` to wrap the entire `ServicePreviewInner` (not just inner content) so the top bar is themed too.
+- Citizen footer/copyright — render copyright always at the bottom of the shell (small line), even when a sticky footer is present; or render inside the sticky footer area as a secondary line.
+
+### 6. Tailwind/button radius wiring
+- In `tailwind.config.ts` (or via `index.css`), add a `--button-radius` consumer. Lightest-touch fix: in `useBranding.cssVars` set both `--radius` and override the `lg`/`md`/`sm` variants used by the `Button` component by emitting `--radius` from `buttonRadius` for buttons via a CSS rule scoped to `[data-branding-scope] .btn-brand` — simpler: just set `--radius: buttonRadius` and use `cardRadius` for cards via inline classes already present. Pick whichever is smallest; details in tech notes.
+
+## Acceptance criteria
+
+- Uploading a logo + applying theme on `/config/branding` updates: studio sidebar logo/name, the citizen preview header logo/name, the employee preview header logo/name — without a refresh.
+- Changing primary color updates: sidebar active state, primary buttons across studio AND inside the service preview, the citizen/employee header background.
+- Changing font updates the visible font across both studio and preview.
+- Refreshing the page keeps all branding (already persisted via localStorage; verify after switch to platform-level branding).
+- Copyright text appears in the citizen preview footer area on every screen.
+- Works with no active service (edits platform default) AND with an active service (edits per-service, falling back to platform default for any field not set).
+
+## Technical notes
+
+- `display: contents` + inline `style` does set the property on the element, but children inherit CSS custom properties through the cascade only if the property is on a real containing element in the layout tree. Modern browsers do inherit custom properties through `display: contents`, BUT some descendants (sidebar primitives, portals like dropdowns/toasts) escape the subtree entirely. Using a real `<div>` plus also injecting the vars on `:root` for the platform-level branding (so portals also inherit) is the robust fix. Plan: BrandingScope writes its vars on `documentElement.style` as a side effect (for platform branding) AND on its own div (for service-scoped overrides inside preview).
+- Files to touch:
+  - `src/components/BrandingScope.tsx` — real wrapper + optional `applyToRoot` prop; also write `--button-radius`.
+  - `src/hooks/useBranding.ts` — merge logic + read `state.platformBranding`.
+  - `src/contexts/OnboardingContext.tsx` — add `platformBranding`, `updatePlatformBranding`.
+  - `src/pages/BrandingTheme.tsx` — scope toggle, copyright field, route apply to platform/service.
+  - `src/components/AppLayout.tsx` — pass `applyToRoot` to BrandingScope.
+  - `src/components/preview/ServicePreview.tsx` — wrap whole `ServicePreviewInner` (incl. PreviewTopBar) with BrandingScope.
+  - `src/components/preview/citizen/_shell/CitizenScreenShell.tsx` — always render copyright line.
+
+## Out of scope
+- New theme presets, dark-mode toggle, per-role branding, exporting brand kit.
