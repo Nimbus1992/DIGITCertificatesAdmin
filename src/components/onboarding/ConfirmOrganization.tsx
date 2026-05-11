@@ -159,22 +159,6 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
 
       <Card className="border-border shadow-sm overflow-hidden">
         <div className="px-6 py-6 space-y-6">
-          <Section title="Department">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-foreground">Department</Label>
-                <Select value={state.department} onValueChange={(v) => updateState({ department: v })}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select department" /></SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Section>
-
-          <div className="border-t border-border" />
-
           <Section title="Regional Settings">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
