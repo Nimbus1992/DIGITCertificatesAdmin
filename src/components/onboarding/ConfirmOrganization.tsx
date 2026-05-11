@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowLeft, Camera, Copy } from "lucide-react";
+import { ArrowRight, ArrowLeft, Camera, Copy, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
@@ -34,15 +34,19 @@ const departments = [
   "Environment",
 ];
 
-const Section: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({
-  title,
-  children,
-  className,
-}) => (
+const Section: React.FC<{
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+  action?: React.ReactNode;
+}> = ({ title, children, className, action }) => (
   <section className={cn("space-y-3", className)}>
-    <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-      {title}
-    </h2>
+    <div className="flex items-center justify-between">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {title}
+      </h2>
+      {action}
+    </div>
     {children}
   </section>
 );
@@ -50,6 +54,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode; className?: 
 const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const { state, updateState } = useOnboarding();
   const [highlightAuto, setHighlightAuto] = useState(false);
+  const [regionalEditable, setRegionalEditable] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -159,11 +164,32 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
 
       <Card className="border-border shadow-sm overflow-hidden">
         <div className="px-6 py-6 space-y-6">
-          <Section title="Regional Settings">
+          <Section
+            title="Regional Settings"
+            action={
+              <button
+                type="button"
+                onClick={() => setRegionalEditable((v) => !v)}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={regionalEditable ? "Lock regional settings" : "Edit regional settings"}
+                title={regionalEditable ? "Done" : "Edit"}
+              >
+                {regionalEditable ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> Done
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-3 w-3" /> Edit
+                  </>
+                )}
+              </button>
+            }
+          >
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-foreground">Country</Label>
-                <Select value={state.country} onValueChange={handleCountryChange}>
+                <Select value={state.country} onValueChange={handleCountryChange} disabled={!regionalEditable}>
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select country" /></SelectTrigger>
                   <SelectContent>
                     {countries.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
@@ -174,7 +200,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-foreground">Currency</Label>
                 <div className={cn(highlightRing)}>
-                  <Select value={state.currency} onValueChange={handleCurrencyChange}>
+                  <Select value={state.currency} onValueChange={handleCurrencyChange} disabled={!regionalEditable}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Select currency" /></SelectTrigger>
                     <SelectContent>
                       {currencies.map((c) => (
@@ -190,7 +216,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-foreground">Country code</Label>
                 <div className={cn(highlightRing)}>
-                  <Select value={state.phoneCountryCode} onValueChange={(v) => updateState({ phoneCountryCode: v })}>
+                  <Select value={state.phoneCountryCode} onValueChange={(v) => updateState({ phoneCountryCode: v })} disabled={!regionalEditable}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Select code" /></SelectTrigger>
                     <SelectContent>
                       {phoneCodes.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -201,7 +227,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-foreground">Default language</Label>
-                <Select value={state.language} onValueChange={(v) => updateState({ language: v })}>
+                <Select value={state.language} onValueChange={(v) => updateState({ language: v })} disabled={!regionalEditable}>
                   <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="English">English</SelectItem>
