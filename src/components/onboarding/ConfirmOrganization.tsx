@@ -101,12 +101,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
   const canContinue = !!state.country && !!state.department;
 
   const workspaceUrl = useMemo(() => {
-    const slug = (state.orgName || "your-org")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "your-org";
-    return `www.digit.org/govt-lp-studio/${slug}`;
+    return `www.digit.org/lnp/goi`;
   }, [state.orgName]);
 
   const copyUrl = async () => {
