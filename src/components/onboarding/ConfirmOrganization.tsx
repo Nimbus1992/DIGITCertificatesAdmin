@@ -176,7 +176,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
               >
                 {regionalEditable ? (
                   <>
-                    <Check className="h-3.5 w-3.5" /> Done
+                    <Check className="h-3.5 w-3.5" /> Save Changes
                   </>
                 ) : (
                   <>
