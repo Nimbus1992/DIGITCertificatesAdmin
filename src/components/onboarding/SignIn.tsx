@@ -11,6 +11,7 @@ const TEMP_PASSWORD = "12345678";
 
 function deriveOrgFromEmail(email: string): string {
   const domain = email.split("@")[1] || "";
+  if (domain.toLowerCase() === "gmail.com") return "GOI";
   const root = domain.split(".")[0] || email.split("@")[0] || "";
   if (!root) return "";
   return root.charAt(0).toUpperCase() + root.slice(1);
