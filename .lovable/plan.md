@@ -1,21 +1,40 @@
 ## Goal
-On the workspace setup step (`ConfirmOrganization`), the **Regional Settings** section (Country, Currency, Country code, Default language) should be locked by default. Users must explicitly click an edit (pencil) icon to unlock the fields. This adds intentional friction so values aren't changed by accident.
 
-## Behavior
-- On load: all 4 Regional Settings selects are **disabled** and visually styled as read-only (muted background, no caret hover).
-- A small **pencil edit icon button** sits next to the section title ("Regional Settings"). Clicking it toggles the section into edit mode.
-- In edit mode: fields become enabled, the icon swaps to a **check/lock icon** (tooltip: "Done"), and clicking it locks the section again.
-- The existing auto-fill highlight ring (when country changes update currency/phone code) continues to work while unlocked.
-- No changes to data persistence — values are still written to `OnboardingContext` via `updateState`.
+Teal becomes the default brand color everywhere — including the dark sidebar nav on the main app screen — and the sidebar continues to follow whatever brand color is selected in Branding & Theme.
 
-## Scope of change
-Single file: `src/components/onboarding/ConfirmOrganization.tsx`
-- Add local `regionalEditable` boolean state (default `false`).
-- Extend the `Section` component (or inline at this one section) to accept an optional right-aligned action slot for the edit toggle button.
-- Pass `disabled={!regionalEditable}` to the four `Select` components in Regional Settings.
-- Use `Pencil` and `Check` icons from `lucide-react`.
+## Changes
+
+**1. Default brand → Teal**
+- `src/hooks/useBranding.ts` — update `DEFAULT_BRANDING`:
+  - `presetId: "teal"`
+  - `primaryColor: "#0D9488"` (matches the existing "Teal Modern" preset)
+  - `accentColor: "#0F766E"` (slightly deeper teal for hover/active states)
+  - Font and radii stay as they are today.
+
+**2. Sidebar adopts the brand color**
+
+Today `useBranding` only writes `--primary`, `--accent`, `--sidebar-primary`, `--ring`, and `--radius`. The sidebar's background (`--sidebar-background`), hover surface (`--sidebar-accent`), and border (`--sidebar-border`) come from `index.css` and are hard-coded dark blue, so they never change.
+
+- Extend `useBranding` to also derive and set, from the primary HSL:
+  - `--sidebar-background` — primary hue/sat at ~18% lightness (deep teal)
+  - `--sidebar-accent` — primary hue/sat at ~26% lightness (hover row)
+  - `--sidebar-border` — primary hue/sat at ~28% lightness
+  - `--sidebar-foreground` and `--sidebar-accent-foreground` — white
+  - `--sidebar-primary` stays the brand color (active item highlight)
+- These are applied via the existing `applyToRoot` path in `BrandingScope`, so portals/popovers stay in sync.
+
+**3. Update fallback tokens in `src/index.css`**
+
+So the sidebar renders teal on first paint (before React mounts) and any non-branded surface uses teal:
+- `:root` `--primary` → `174 58% 28%` (teal)
+- `:root` `--ring` → `174 58% 28%`
+- `:root` `--sidebar-background` → `180 55% 18%`
+- `:root` `--sidebar-accent` → `180 50% 26%`
+- `:root` `--sidebar-border` → `180 50% 30%`
+- `:root` `--sidebar-primary` → `174 58% 42%`
+- Matching adjustments in `.dark` block.
 
 ## Out of scope
-- Department section (already removed).
-- Workspace Access section (org name + URL stay read-only as today).
-- No confirmation dialog or password gate — just the icon toggle.
+
+- No changes to the Branding & Theme presets, color swatches, or per-service overrides — picking a different preset still works exactly as today and now also recolors the sidebar.
+- Logo, typography, and radius defaults are unchanged.
