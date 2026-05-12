@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { useOnboarding, BrandingConfig } from "@/contexts/OnboardingContext";
 
 const DEFAULT_BRANDING: BrandingConfig = {
-  presetId: "digit",
-  primaryColor: "#0B4B66",
-  accentColor: "#C84C0E",
+  presetId: "teal",
+  primaryColor: "#0D9488",
+  accentColor: "#0F766E",
   font: "Inter",
   buttonRadius: "0.5rem",
   cardRadius: "0.75rem",
@@ -72,13 +72,24 @@ export function useBranding(override?: BrandingConfig) {
     const primary = hexToHslTriplet(branding.primaryColor);
     const accent = branding.accentColor ? hexToHslTriplet(branding.accentColor) : primary;
     const radius = branding.cardRadius;
+    // Derive sidebar shades from primary hue/sat
+    const [pH, pS] = primary.split(" ");
+    const sidebarBg = `${pH} ${pS} 18%`;
+    const sidebarAccent = `${pH} ${pS} 26%`;
+    const sidebarBorder = `${pH} ${pS} 30%`;
     return {
       "--primary": primary,
       "--primary-foreground": contrastForeground(branding.primaryColor),
       "--ring": primary,
       "--accent": accent,
       "--accent-foreground": contrastForeground(branding.accentColor || branding.primaryColor),
+      "--sidebar-background": sidebarBg,
+      "--sidebar-foreground": "0 0% 100%",
+      "--sidebar-accent": sidebarAccent,
+      "--sidebar-accent-foreground": "0 0% 100%",
+      "--sidebar-border": sidebarBorder,
       "--sidebar-primary": primary,
+      "--sidebar-primary-foreground": contrastForeground(branding.primaryColor),
       "--sidebar-ring": primary,
       "--radius": radius,
       "--button-radius": branding.buttonRadius,
