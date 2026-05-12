@@ -31,7 +31,7 @@ const ApplicationIntro: React.FC = () => {
             className="w-full text-[11px] text-center"
             style={{ color: "#6B7280" }}
           >
-            Save and continue later
+            {"\u200B"}
           </button>
         </div>
       }
