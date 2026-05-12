@@ -297,14 +297,32 @@ const ApplicationForm: React.FC = () => {
   // Scroll-gating for declaration
   useEffect(() => {
     if (!isReview) { setScrolledToBottom(false); setDeclaration(false); return; }
-    const el = reviewScrollRef.current;
+    // Find the actual scroll container (a parent with overflow-y auto/scroll).
+    let el: HTMLElement | null = reviewScrollRef.current?.parentElement ?? null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === "auto" || oy === "scroll") break;
+      el = el.parentElement;
+    }
     if (!el) return;
-    const onScroll = () => {
-      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setScrolledToBottom(true);
+    const scroller = el;
+    const check = () => {
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 8) {
+        setScrolledToBottom(true);
+      }
     };
-    onScroll();
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+    const raf = requestAnimationFrame(check);
+    scroller.addEventListener("scroll", check);
+    window.addEventListener("resize", check);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
+    ro?.observe(scroller);
+    if (reviewScrollRef.current) ro?.observe(reviewScrollRef.current);
+    return () => {
+      cancelAnimationFrame(raf);
+      scroller.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+      ro?.disconnect();
+    };
   }, [isReview]);
 
   // ─── Render a single field ───
