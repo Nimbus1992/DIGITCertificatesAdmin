@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import AuthShell from "./AuthShell";
 
 const departments = [
-  "Revenue",
+  "\n",
   "Urban Development",
   "Public Works",
   "Health",
@@ -66,7 +66,7 @@ const ConfirmOrganization: React.FC<{ onComplete: () => void }> = ({ onComplete 
       updates.currencySymbol = d.currencySymbol;
       updates.phoneCountryCode = d.phoneCode;
     }
-    if (!state.department) updates.department = "Revenue";
+    if (!state.department) updates.department = "\n";
     if (!state.language) updates.language = "English";
     if (Object.keys(updates).length) updateState(updates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
