@@ -19,6 +19,46 @@ import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 
 type TileStatus = "not_started" | "in_progress" | "completed";
 
+const deploymentSections: { title: string; description: string }[] = [
+  { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
+  { title: "Active Modules", description: "Modules currently serving live traffic." },
+  { title: "Published Versions", description: "Released versions and rollback history." },
+  { title: "Operational Settings", description: "Runtime configuration for the live service." },
+  { title: "Monitoring", description: "Metrics, alerts, and performance signals." },
+  { title: "Integrations", description: "Connected systems and outbound services." },
+  { title: "Audit Logs", description: "Activity trail across operators and applicants." },
+  { title: "Environment Management", description: "Manage staging, production, and secrets." },
+];
+
+const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) => (
+  <div className="space-y-8">
+    <div>
+      <h2 className="text-xl font-semibold text-foreground">Deployment</h2>
+      <p className="text-sm text-muted-foreground mt-1">Operate and manage your live service.</p>
+    </div>
+    <div className="flex items-center gap-2 text-sm">
+      <span className="w-2 h-2 rounded-full bg-green-500" />
+      <span className="font-medium text-foreground">Live</span>
+      {serviceUrl && (
+        <a href={serviceUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline ml-2">
+          {serviceUrl}
+        </a>
+      )}
+    </div>
+    <div className="border-t border-border/60">
+      {deploymentSections.map((s) => (
+        <div key={s.title} className="flex items-center justify-between py-4 border-b border-border/60">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">{s.title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Coming soon</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const statusConfig: Record<TileStatus, { label: string; className: string }> = {
   not_started: { label: "Not Started", className: "bg-muted text-muted-foreground" },
   in_progress: { label: "In Progress", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
