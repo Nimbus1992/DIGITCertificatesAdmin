@@ -1,77 +1,24 @@
 ## Goal
-Replace the current text-heavy "View details" page for a template with a tight, infographic-style overview. Less prose, more visual structure, and every block populated from the actual template data so nothing on the page is generic filler.
+Add a Payments block to the template details infographic, sourced from real `tradeLicenseTemplate` data.
 
-## Layout (single scroll, ~one viewport on desktop)
+## Changes
 
-```text
-┌────────────────────────────────────────────────────────────┐
-│  [icon]  Business License                  [Use Template]  │
-│          One-line description                [Preview]      │
-│                                              [Back]         │
-├────────────────────────────────────────────────────────────┤
-│  AT A GLANCE  (4 stat tiles)                                │
-│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐               │
-│  │ 2 Flows│ │ 4 Roles│ │ 2 Forms│ │ 5 min  │               │
-│  └────────┘ └────────┘ └────────┘ └────────┘               │
-├────────────────────────────────────────────────────────────┤
-│  HOW IT WORKS  (horizontal stepper, icons + 1-word labels) │
-│  Apply → Review → Approve → Issue → Renew                   │
-├────────────────────────────────────────────────────────────┤
-│  FLOWS               │  ROLES                               │
-│  • Application  ▸ 5  │  Citizen · Reviewer ·                │
-│  • Renewal      ▸ 5  │  Approver · Admin                    │
-│  (collapsible chips) │  (avatar chips, hover = duties)      │
-├────────────────────────────────────────────────────────────┤
-│  FORMS                  │  NOTIFICATIONS                    │
-│  Application · Renewal  │  5 events (bell chips)            │
-│  (chips listing field   │                                   │
-│   groups)               │                                   │
-├────────────────────────────────────────────────────────────┤
-│  CUSTOMIZE  (single row of 6 small icon chips)              │
-└────────────────────────────────────────────────────────────┘
-```
+**`src/data/serviceTemplates.ts`**
+- Add optional field:
+  ```ts
+  payments?: {
+    stage: string;       // e.g. "Application Payment"
+    fees: string[];      // e.g. ["Application Fee"]
+  }[];
+  ```
+- Populate for `tradeTemplate` by importing `TRADE_PAYMENT_STAGES` + `TRADE_FEES` and mapping to `{ stage: name, fees: fees }`. Result:
+  - Application Payment → Application Fee
+  - License Payment → Inspection Fee, Hazard Surcharge, License Fee
+- Bump the "Forms" stat tile row to also surface payments count, and add a 5th stat — keep grid `md:grid-cols-5` (or keep 4 tiles and add Payments tile by replacing nothing; simpler: keep 4 stats unchanged, render Payments inside its own card).
 
-No "What is …" paragraphs, no "You Can Customize Everything" tagline, no "Watch demo" placeholder, no duplicate footer button row.
+**`src/components/onboarding/TemplateIntroduction.tsx`**
+- Add a new "Payments" card alongside Notifications (move layout to a 3-column `md:grid-cols-3` row containing Forms / Payments / Notifications, OR keep the current 2-col grid and place Payments on its own row above Customize). Use the latter for clarity at md width.
+- Card content: for each payment stage, render `stage name` as a small label + chip list of fee names, with a `CreditCard` icon header.
+- Hide card when `template.payments` is empty.
 
-## Section rules
-
-- **Header** — icon tile, name, one-line description, action row (`Use Template`, `Preview Application` outline, `Back to Templates` ghost). Action row sits on the right at desktop width, stacks under the title on mobile.
-- **At a glance** — 4 stat tiles auto-derived: `flows.length`, `roles.length`, `forms.length`, `estimatedSetupTime`. Each tile is one number + one label, no description.
-- **How it works** — single horizontal stepper. Steps come from a new `template.howItWorks` array (icon + 1–2 word label). Chevrons between, no card around it.
-- **Flows** — for each flow, a row: bold name + small count badge (number of steps). Steps render as inline pill chips beneath, wrapped. No paragraph descriptions.
-- **Roles** — horizontal row of role pills (icon + name). Tooltip on hover shows the role's responsibilities. Pulls from `getServiceRoles(template.id)`.
-- **Forms** — for each form, name + chip list of field groups. No checkmark bullets.
-- **Notifications** — single row of bell chips, one per notification event.
-- **Customize** — single row of 6 small icon-only chips with tooltip labels (Forms, Roles, Fields, Workflow, Notifications, Documents). Replaces the verbose "You Can Customize Everything" block.
-
-All sections hide automatically when their data is missing — Coming Soon templates collapse to header + "At a glance" only.
-
-## Data changes — `src/data/serviceTemplates.ts`
-
-Add optional, presentation-only fields:
-
-```ts
-howItWorks?: { icon: LucideIcon; label: string }[];   // 4–6 items max
-flows?:      { name: string; steps: string[] }[];     // step labels only
-forms?:      { name: string; groups: string[] }[];    // field-group names
-notifications?: string[];                             // event labels
-```
-
-Drop `workflows` and `capabilities` from the previous plan — `flows` already conveys the workflow, and capabilities were redundant with flow steps.
-
-Populate these for `tradeTemplate` only, using the screenshots' content but trimmed:
-- `howItWorks`: Apply, Review, Approve, Issue, Renew.
-- `flows`: Application (Submit, Upload docs, Review, Decision, Issue) and Renewal (Renew, Verify expiry, Review, Approve, Re-issue).
-- `forms`: Application (Business, Owner, Address, Documents), Renewal (License No., Updates, Documents).
-- `notifications`: Submitted, Approved, Rejected, Issued, Renewal due.
-
-`buildingPermitsTemplate` and `fireNocTemplate` stay data-light; they render header + stats only.
-
-Roles continue to come from `getServiceRoles(template.id)` — no duplication in template data.
-
-## File changes
-
-- `src/data/serviceTemplates.ts` — extend interface; populate `tradeTemplate`.
-- `src/components/onboarding/TemplateIntroduction.tsx` — rewrite as the infographic layout above. Widen container `max-w-2xl` → `max-w-4xl`. Use existing semantic tokens only (no hard-coded colors), Tooltip from `@/components/ui/tooltip` for role/customize chips.
-
-No routing, state, or backend changes. Existing handlers (`onUseTemplate`, `onPreview`, `onBack`) stay as-is.
+No routing, state, or backend changes. Coming-soon templates remain stats-only.
