@@ -1,11 +1,12 @@
 import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
-import { PreviewProvider, usePreview } from "./PreviewContext";
+import { PreviewProvider, usePreview, type DeviceMode } from "./PreviewContext";
 import PreviewTopBar from "./PreviewTopBar";
 import PreviewSidebar from "./PreviewSidebar";
 import BrandingScope from "@/components/BrandingScope";
 import MobileFrame from "./MobileFrame";
+import { Smartphone, Tablet, Monitor } from "lucide-react";
 import CitizenHome from "./citizen/CitizenHome";
 import ApplicationForm from "./citizen/ApplicationForm";
 import ApplicationIntro from "./citizen/ApplicationIntro";
@@ -22,6 +23,35 @@ import EmployeeHome from "./employee/EmployeeHome";
 import InboxView from "./employee/InboxView";
 import SearchApplications from "./employee/SearchApplications";
 import ApplicationReview from "./employee/ApplicationReview";
+
+const embeddedDevices: { mode: DeviceMode; icon: React.ElementType }[] = [
+  { mode: "mobile", icon: Smartphone },
+  { mode: "tablet", icon: Tablet },
+  { mode: "desktop", icon: Monitor },
+];
+
+const EmbeddedDeviceToggle: React.FC = () => {
+  const { deviceMode, setDeviceMode } = usePreview();
+  return (
+    <div className="flex items-center justify-center px-3 py-2 bg-card border-b">
+      <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+        {embeddedDevices.map(({ mode, icon: Icon }) => (
+          <button
+            key={mode}
+            onClick={() => setDeviceMode(mode)}
+            className={`p-1.5 rounded-md transition-colors ${
+              deviceMode === mode
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const PreviewContent: React.FC = () => {
   const { screen, deviceMode, role } = usePreview();
@@ -92,6 +122,7 @@ const ServicePreviewInner: React.FC<{ embedded?: boolean; onExit?: () => void }>
   return (
     <BrandingScope className={embedded ? "flex flex-col bg-background h-full" : "h-screen flex flex-col bg-background"}>
       {!embedded && <PreviewTopBar onExit={handleExit} />}
+      {embedded && <EmbeddedDeviceToggle />}
       <div className="flex-1 flex overflow-hidden">
         <PreviewContent />
         <PreviewSidebar />
