@@ -220,7 +220,7 @@ const ServiceConfig: React.FC = () => {
                   onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
                   className="gap-1.5"
                 >
-                  <Rocket className="h-4 w-4" /> Go Live
+                  Go Live
                 </Button>
               )}
             </div>
