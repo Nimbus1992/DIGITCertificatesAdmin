@@ -18,6 +18,7 @@ export interface ConfigTile {
   description: string;
   ctaLabel: string;
   required: boolean;
+  group: "core" | "additional";
 }
 
 export interface ServiceModule {
@@ -36,10 +37,11 @@ export const configTiles: ConfigTile[] = [
   {
     id: "forms",
     icon: FileText,
-    title: "Application Application Forms",
+    title: "Application Forms",
     description: "Edit form fields, configure logic, and manage application data.",
     ctaLabel: "Edit Form",
     required: true,
+    group: "core",
   },
   {
     id: "roles",
@@ -48,6 +50,7 @@ export const configTiles: ConfigTile[] = [
     description: "Manage roles and permissions for this flow.",
     ctaLabel: "Manage Roles",
     required: true,
+    group: "core",
   },
   {
     id: "workflow",
@@ -56,6 +59,7 @@ export const configTiles: ConfigTile[] = [
     description: "Design workflows to define how applications move through stages.",
     ctaLabel: "Define Workflow",
     required: true,
+    group: "core",
   },
   {
     id: "checklists",
@@ -64,6 +68,7 @@ export const configTiles: ConfigTile[] = [
     description: "Create stage-based checklists for approvals.",
     ctaLabel: "Manage Checklists",
     required: false,
+    group: "additional",
   },
   {
     id: "notifications",
@@ -72,6 +77,7 @@ export const configTiles: ConfigTile[] = [
     description: "Configure notifications for workflow events.",
     ctaLabel: "Manage Notifications",
     required: false,
+    group: "additional",
   },
   {
     id: "documents",
@@ -80,6 +86,7 @@ export const configTiles: ConfigTile[] = [
     description: "Design certificates, permits, and acknowledgement documents.",
     ctaLabel: "Design Documents",
     required: false,
+    group: "additional",
   },
   {
     id: "payments",
@@ -88,6 +95,7 @@ export const configTiles: ConfigTile[] = [
     description: "Enable and configure payment collection for this flow.",
     ctaLabel: "Setup Payments",
     required: false,
+    group: "additional",
   },
   {
     id: "billing",
@@ -96,6 +104,7 @@ export const configTiles: ConfigTile[] = [
     description: "Configure fee calculation and billing rules.",
     ctaLabel: "Configure Billing",
     required: false,
+    group: "additional",
   },
   {
     id: "plugins",
@@ -104,5 +113,6 @@ export const configTiles: ConfigTile[] = [
     description: "Add SLA tracking, escalation rules, audit logs, and more.",
     ctaLabel: "Manage Plugins",
     required: false,
+    group: "additional",
   },
 ];
