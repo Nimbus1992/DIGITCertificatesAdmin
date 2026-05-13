@@ -203,44 +203,28 @@ const ServiceConfig: React.FC = () => {
               </div>
               <p className="text-xs text-muted-foreground">Configure, preview, and operate your service</p>
             </div>
-            {!isLive && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
-                className="gap-1.5 text-muted-foreground hover:text-foreground"
-              >
-                <Rocket className="h-4 w-4" /> Go Live
-              </Button>
-            )}
-          </div>
-
-          {/* Master Template Configuration metadata strip */}
-          {service && (
-            <div className="mt-4 flex items-center gap-x-6 gap-y-1 flex-wrap text-xs text-muted-foreground border-t border-border/60 pt-3">
-              <span className="font-medium text-foreground uppercase tracking-wide text-[10px]">Template Setup</span>
-              <span>
-                <span className="text-foreground/70">Modules:</span>{" "}
-                <span className="text-foreground">{service.customModules.join(", ") || "Issuance"}</span>
-              </span>
-              <span>
-                <span className="text-foreground/70">Categories:</span>{" "}
-                <span className="text-foreground">{service.templateSetup?.hasCategories ? "Enabled" : "Disabled"}</span>
-              </span>
-              <span>
-                <span className="text-foreground/70">Subcategories:</span>{" "}
-                <span className="text-foreground">{service.templateSetup?.hasSubcategories ? "Enabled" : "Disabled"}</span>
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSetupOpen(true)}
-                className="ml-auto h-7 gap-1.5 text-xs"
-              >
-                <Settings2 className="h-3.5 w-3.5" /> Edit Setup
-              </Button>
+            <div className="flex items-center gap-2">
+              {service && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSetupOpen(true)}
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Settings2 className="h-4 w-4" /> Edit Setup
+                </Button>
+              )}
+              {!isLive && (
+                <Button
+                  size="sm"
+                  onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
+                  className="gap-1.5"
+                >
+                  <Rocket className="h-4 w-4" /> Go Live
+                </Button>
+              )}
             </div>
-          )}
+          </div>
 
           <TooltipProvider delayDuration={200}>
             <nav className="mt-5 flex items-center gap-1 -mb-px">
