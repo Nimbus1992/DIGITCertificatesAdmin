@@ -130,8 +130,8 @@ const ServiceConfig: React.FC = () => {
 
   // Main hub view
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
+    <div className={`bg-background ${mode === "preview" ? "h-screen flex flex-col" : "min-h-screen"}`}>
+      <header className="border-b bg-card shrink-0">
         <div className="max-w-6xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
@@ -259,9 +259,9 @@ const ServiceConfig: React.FC = () => {
           </section>
         </main>
       ) : (
-        <main className="max-w-6xl mx-auto px-6 py-4">
+        <main className="max-w-6xl w-full mx-auto px-6 py-4 flex-1 min-h-0 flex flex-col">
           {!service?.isLive && (
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 shrink-0">
               <p className="text-sm text-muted-foreground">Experience your generated service end-to-end.</p>
               <Button
                 onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
@@ -272,7 +272,7 @@ const ServiceConfig: React.FC = () => {
               </Button>
             </div>
           )}
-          <div className="rounded-xl border border-border overflow-hidden bg-background" style={{ height: "calc(100vh - 220px)" }}>
+          <div className="rounded-xl border border-border overflow-hidden bg-background flex-1 min-h-0">
             <ServicePreviewWorkspace />
           </div>
         </main>
