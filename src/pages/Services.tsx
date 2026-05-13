@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TemplateIntroduction from "@/components/onboarding/TemplateIntroduction";
 import TemplateCard from "@/components/onboarding/TemplateCard";
-import { allTemplates, tradeTemplate, type ServiceTemplate } from "@/data/serviceTemplates";
+import { allTemplates, type ServiceTemplate } from "@/data/serviceTemplates";
 
 const Services: React.FC = () => {
   const navigate = useNavigate();
