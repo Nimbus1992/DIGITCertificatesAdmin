@@ -1,22 +1,77 @@
-# Fix: Declaration checkbox stuck disabled on Review
+## Goal
+Replace the current text-heavy "View details" page for a template with a tight, infographic-style overview. Less prose, more visual structure, and every block populated from the actual template data so nothing on the page is generic filler.
 
-## Problem
-On the application Review screen, the "I confirm…" checkbox is disabled until the user scrolls to the bottom. Submit stays disabled because the checkbox can never be checked.
+## Layout (single scroll, ~one viewport on desktop)
 
-Root cause: the scroll listener is attached to `reviewScrollRef`, which is an inner `<div className="h-full">` that does not scroll. The actual scroll container is its parent inside `CitizenScreenShell` (`<div className="flex-1 overflow-y-auto …">`). So `scrollTop` stays 0, `scrolledToBottom` never flips to `true`, and the Checkbox stays `disabled`.
+```text
+┌────────────────────────────────────────────────────────────┐
+│  [icon]  Business License                  [Use Template]  │
+│          One-line description                [Preview]      │
+│                                              [Back]         │
+├────────────────────────────────────────────────────────────┤
+│  AT A GLANCE  (4 stat tiles)                                │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐               │
+│  │ 2 Flows│ │ 4 Roles│ │ 2 Forms│ │ 5 min  │               │
+│  └────────┘ └────────┘ └────────┘ └────────┘               │
+├────────────────────────────────────────────────────────────┤
+│  HOW IT WORKS  (horizontal stepper, icons + 1-word labels) │
+│  Apply → Review → Approve → Issue → Renew                   │
+├────────────────────────────────────────────────────────────┤
+│  FLOWS               │  ROLES                               │
+│  • Application  ▸ 5  │  Citizen · Reviewer ·                │
+│  • Renewal      ▸ 5  │  Approver · Admin                    │
+│  (collapsible chips) │  (avatar chips, hover = duties)      │
+├────────────────────────────────────────────────────────────┤
+│  FORMS                  │  NOTIFICATIONS                    │
+│  Application · Renewal  │  5 events (bell chips)            │
+│  (chips listing field   │                                   │
+│   groups)               │                                   │
+├────────────────────────────────────────────────────────────┤
+│  CUSTOMIZE  (single row of 6 small icon chips)              │
+└────────────────────────────────────────────────────────────┘
+```
 
-## Change (single file)
-`src/components/preview/citizen/ApplicationForm.tsx` — fix the scroll-gating effect so it watches the correct scroller.
+No "What is …" paragraphs, no "You Can Customize Everything" tagline, no "Watch demo" placeholder, no duplicate footer button row.
 
-In the `useEffect` at ~line 297:
-- Resolve the scrollable element as `reviewScrollRef.current?.parentElement` (the `overflow-y-auto` wrapper from `CitizenScreenShell`). Fall back to walking up parents until one has `overflowY: auto|scroll`, for safety.
-- Use that element for the `scroll` listener and the `scrollTop + clientHeight >= scrollHeight - 8` check.
-- Also call the check once via `requestAnimationFrame` after mount so that, when the review content is short enough to not require scrolling, `scrolledToBottom` immediately becomes `true`.
-- Add a `ResizeObserver` on the scroll element (and window `resize`) so the "fits without scrolling" case re-evaluates after layout.
+## Section rules
 
-No other files change. No business logic changes — gating behavior is preserved, it just works correctly now.
+- **Header** — icon tile, name, one-line description, action row (`Use Template`, `Preview Application` outline, `Back to Templates` ghost). Action row sits on the right at desktop width, stacks under the title on mobile.
+- **At a glance** — 4 stat tiles auto-derived: `flows.length`, `roles.length`, `forms.length`, `estimatedSetupTime`. Each tile is one number + one label, no description.
+- **How it works** — single horizontal stepper. Steps come from a new `template.howItWorks` array (icon + 1–2 word label). Chevrons between, no card around it.
+- **Flows** — for each flow, a row: bold name + small count badge (number of steps). Steps render as inline pill chips beneath, wrapped. No paragraph descriptions.
+- **Roles** — horizontal row of role pills (icon + name). Tooltip on hover shows the role's responsibilities. Pulls from `getServiceRoles(template.id)`.
+- **Forms** — for each form, name + chip list of field groups. No checkmark bullets.
+- **Notifications** — single row of bell chips, one per notification event.
+- **Customize** — single row of 6 small icon-only chips with tooltip labels (Forms, Roles, Fields, Workflow, Notifications, Documents). Replaces the verbose "You Can Customize Everything" block.
 
-## Out of scope
-- Removing the scroll-to-confirm UX entirely.
-- Restyling the footer / checkbox.
-- Any change to wizard steps before Review.
+All sections hide automatically when their data is missing — Coming Soon templates collapse to header + "At a glance" only.
+
+## Data changes — `src/data/serviceTemplates.ts`
+
+Add optional, presentation-only fields:
+
+```ts
+howItWorks?: { icon: LucideIcon; label: string }[];   // 4–6 items max
+flows?:      { name: string; steps: string[] }[];     // step labels only
+forms?:      { name: string; groups: string[] }[];    // field-group names
+notifications?: string[];                             // event labels
+```
+
+Drop `workflows` and `capabilities` from the previous plan — `flows` already conveys the workflow, and capabilities were redundant with flow steps.
+
+Populate these for `tradeTemplate` only, using the screenshots' content but trimmed:
+- `howItWorks`: Apply, Review, Approve, Issue, Renew.
+- `flows`: Application (Submit, Upload docs, Review, Decision, Issue) and Renewal (Renew, Verify expiry, Review, Approve, Re-issue).
+- `forms`: Application (Business, Owner, Address, Documents), Renewal (License No., Updates, Documents).
+- `notifications`: Submitted, Approved, Rejected, Issued, Renewal due.
+
+`buildingPermitsTemplate` and `fireNocTemplate` stay data-light; they render header + stats only.
+
+Roles continue to come from `getServiceRoles(template.id)` — no duplication in template data.
+
+## File changes
+
+- `src/data/serviceTemplates.ts` — extend interface; populate `tradeTemplate`.
+- `src/components/onboarding/TemplateIntroduction.tsx` — rewrite as the infographic layout above. Widen container `max-w-2xl` → `max-w-4xl`. Use existing semantic tokens only (no hard-coded colors), Tooltip from `@/components/ui/tooltip` for role/customize chips.
+
+No routing, state, or backend changes. Existing handlers (`onUseTemplate`, `onPreview`, `onBack`) stay as-is.

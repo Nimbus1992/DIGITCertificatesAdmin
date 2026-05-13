@@ -1,4 +1,14 @@
-import { Building2, Hammer, Flame } from "lucide-react";
+import {
+  Building2,
+  Hammer,
+  Flame,
+  FileText,
+  ShieldCheck,
+  CheckCircle2,
+  Award,
+  RefreshCw,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface ServiceTemplate {
   id: string;
@@ -9,6 +19,10 @@ export interface ServiceTemplate {
   features: string[];
   estimatedSetupTime: string;
   comingSoon?: boolean;
+  howItWorks?: { icon: LucideIcon; label: string }[];
+  flows?: { name: string; steps: string[] }[];
+  forms?: { name: string; groups: string[] }[];
+  notifications?: string[];
 }
 
 export const tradeTemplate: ServiceTemplate = {
@@ -20,6 +34,40 @@ export const tradeTemplate: ServiceTemplate = {
   modules: ["Application", "Renewal"],
   features: ["Application form", "Document upload", "Fee collection", "Inspection scheduling"],
   estimatedSetupTime: "5 min",
+  howItWorks: [
+    { icon: FileText, label: "Apply" },
+    { icon: ShieldCheck, label: "Review" },
+    { icon: CheckCircle2, label: "Approve" },
+    { icon: Award, label: "Issue" },
+    { icon: RefreshCw, label: "Renew" },
+  ],
+  flows: [
+    {
+      name: "New Application",
+      steps: ["Submit", "Upload docs", "Review", "Decision", "Issue license"],
+    },
+    {
+      name: "Renewal",
+      steps: ["Renew", "Verify expiry", "Review", "Approve", "Re-issue"],
+    },
+  ],
+  forms: [
+    {
+      name: "Application Form",
+      groups: ["Business details", "Owner info", "Address", "Documents"],
+    },
+    {
+      name: "Renewal Form",
+      groups: ["License No.", "Updates", "Documents"],
+    },
+  ],
+  notifications: [
+    "Application submitted",
+    "Application approved",
+    "Application rejected",
+    "License issued",
+    "Renewal due",
+  ],
 };
 
 export const buildingPermitsTemplate: ServiceTemplate = {
