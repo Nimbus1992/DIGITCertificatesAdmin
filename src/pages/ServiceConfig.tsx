@@ -4,7 +4,7 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ArrowLeft, Rocket, Check, AlertCircle } from "lucide-react";
 import { defaultModules, configTiles } from "@/data/serviceModules";
 import RolesDesigner from "@/components/service-config/RolesDesigner";
@@ -19,6 +19,46 @@ import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 
 type TileStatus = "not_started" | "in_progress" | "completed";
 
+const deploymentSections: { title: string; description: string }[] = [
+  { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
+  { title: "Active Modules", description: "Modules currently serving live traffic." },
+  { title: "Published Versions", description: "Released versions and rollback history." },
+  { title: "Operational Settings", description: "Runtime configuration for the live service." },
+  { title: "Monitoring", description: "Metrics, alerts, and performance signals." },
+  { title: "Integrations", description: "Connected systems and outbound services." },
+  { title: "Audit Logs", description: "Activity trail across operators and applicants." },
+  { title: "Environment Management", description: "Manage staging, production, and secrets." },
+];
+
+const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) => (
+  <div className="space-y-8">
+    <div>
+      <h2 className="text-xl font-semibold text-foreground">Deployment</h2>
+      <p className="text-sm text-muted-foreground mt-1">Operate and manage your live service.</p>
+    </div>
+    <div className="flex items-center gap-2 text-sm">
+      <span className="w-2 h-2 rounded-full bg-green-500" />
+      <span className="font-medium text-foreground">Live</span>
+      {serviceUrl && (
+        <a href={serviceUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline ml-2">
+          {serviceUrl}
+        </a>
+      )}
+    </div>
+    <div className="border-t border-border/60">
+      {deploymentSections.map((s) => (
+        <div key={s.title} className="flex items-center justify-between py-4 border-b border-border/60">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">{s.title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Coming soon</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const statusConfig: Record<TileStatus, { label: string; className: string }> = {
   not_started: { label: "Not Started", className: "bg-muted text-muted-foreground" },
   in_progress: { label: "In Progress", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
@@ -29,7 +69,7 @@ const ServiceConfig: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"configure" | "preview">("configure");
+  const [mode, setMode] = useState<"configure" | "preview" | "deployment">("configure");
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
@@ -72,6 +112,7 @@ const ServiceConfig: React.FC = () => {
   const activeTileData = activeTile ? configTiles.find((t) => t.id === activeTile) : null;
 
   const isPublished = service?.isPublished || state.isPublished;
+  const isLive = service?.isLive || state.isLive;
 
   const coreTiles = configTiles.filter((t) => t.group === "core");
   const additionalTiles = configTiles.filter((t) => t.group === "additional");
@@ -128,36 +169,87 @@ const ServiceConfig: React.FC = () => {
     );
   }
 
+  const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = [
+    { id: "configure", label: "Configure" },
+    { id: "preview", label: "Preview" },
+    {
+      id: "deployment",
+      label: "Deployment",
+      disabled: !isLive,
+      tooltip: !isLive ? "Available after publishing the service" : undefined,
+    },
+  ];
+
   // Main hub view
   return (
-    <div className={`bg-background ${mode === "preview" ? "h-screen flex flex-col" : "min-h-screen"}`}>
+    <div className="h-screen flex flex-col bg-background">
       <header className="border-b bg-card shrink-0">
         <div className="max-w-6xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="font-bold text-foreground text-lg">{serviceName}</h1>
-              <p className="text-xs text-muted-foreground">Configure flows, experiences, and operational setup</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-foreground text-lg truncate">{serviceName}</h1>
+                <Badge
+                  variant="secondary"
+                  className={`text-[10px] px-1.5 py-0 ${isLive ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}`}
+                >
+                  {isLive ? "Live" : "Draft"}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">Configure, preview, and operate your service</p>
             </div>
+            {!isLive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <Rocket className="h-4 w-4" /> Go Live
+              </Button>
+            )}
           </div>
-          <Tabs value={mode} onValueChange={(v) => setMode(v as "configure" | "preview")} className="mt-4">
-            <TabsList>
-              <TabsTrigger value="configure">Configure</TabsTrigger>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <TooltipProvider delayDuration={200}>
+            <nav className="mt-5 flex items-center gap-1 -mb-px">
+              {workspaceTabs.map((t) => {
+                const active = mode === t.id;
+                const btn = (
+                  <button
+                    key={t.id}
+                    onClick={() => !t.disabled && setMode(t.id)}
+                    disabled={t.disabled}
+                    className={`relative px-5 h-12 text-sm font-medium transition-colors border-b-2 ${
+                      active
+                        ? "border-accent text-foreground"
+                        : t.disabled
+                          ? "border-transparent text-muted-foreground/50 cursor-not-allowed"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+                return t.tooltip ? (
+                  <Tooltip key={t.id}>
+                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
+                    <TooltipContent>{t.tooltip}</TooltipContent>
+                  </Tooltip>
+                ) : btn;
+              })}
+            </nav>
+          </TooltipProvider>
         </div>
       </header>
 
       {mode === "configure" ? (
-        <main className="max-w-6xl mx-auto px-6 py-6 space-y-8">
+        <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
           {/* Modules row */}
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
-              {modules.map((m) => {
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
+            {modules.map((m) => {
                 const isActive = m.id === selectedModule;
                 const glyph = moduleStatusGlyph(m.id);
                 return (
@@ -179,17 +271,18 @@ const ServiceConfig: React.FC = () => {
                   </button>
                 );
               })}
-            </div>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {completedCount} of {configTiles.length} configured
-            </span>
           </div>
 
-          {/* Core Setup */}
+          {/* Setup Journey */}
           <section className="space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Core Setup</h2>
-              <p className="text-sm text-muted-foreground">Complete the foundational setup for your service journey.</p>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Setup Journey</h2>
+                <p className="text-sm text-muted-foreground">Complete the foundational setup for your service journey.</p>
+              </div>
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {completedCount} of {configTiles.length} configured
+              </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {coreTiles.map((tile) => {
@@ -201,7 +294,7 @@ const ServiceConfig: React.FC = () => {
                     className="relative group hover:shadow-md hover:border-accent/40 transition-all cursor-pointer"
                     onClick={() => setActiveTile(tile.id)}
                   >
-                    <CardContent className="p-6 space-y-4">
+                    <CardContent className="p-5 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
                           <tile.icon className="h-6 w-6 text-accent" />
@@ -212,14 +305,6 @@ const ServiceConfig: React.FC = () => {
                         <h3 className="font-semibold text-foreground text-base">{tile.title}</h3>
                         <p className="text-sm text-muted-foreground mt-1">{tile.description}</p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full group-hover:bg-accent group-hover:text-accent-foreground group-hover:border-accent transition-colors"
-                        onClick={(e) => { e.stopPropagation(); setActiveTile(tile.id); }}
-                      >
-                        {tile.ctaLabel}
-                      </Button>
                     </CardContent>
                   </Card>
                 );
@@ -258,23 +343,13 @@ const ServiceConfig: React.FC = () => {
             </div>
           </section>
         </main>
+      ) : mode === "preview" ? (
+        <main className="flex-1 min-h-0">
+          <ServicePreviewWorkspace />
+        </main>
       ) : (
-        <main className="max-w-6xl w-full mx-auto px-6 py-4 flex-1 min-h-0 flex flex-col">
-          {!service?.isLive && (
-            <div className="flex items-center justify-between mb-3 shrink-0">
-              <p className="text-sm text-muted-foreground">Experience your generated service end-to-end.</p>
-              <Button
-                onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
-                size="sm"
-                className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5"
-              >
-                <Rocket className="h-4 w-4" /> Go Live
-              </Button>
-            </div>
-          )}
-          <div className="rounded-xl border border-border overflow-hidden bg-background flex-1 min-h-0">
-            <ServicePreviewWorkspace />
-          </div>
+        <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1 min-h-0 overflow-auto">
+          <DeploymentWorkspace serviceUrl={(service as any)?.liveUrl} />
         </main>
       )}
     </div>
