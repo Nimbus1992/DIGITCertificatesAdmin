@@ -382,6 +382,9 @@ const ServiceConfig: React.FC = () => {
           <DeploymentWorkspace serviceUrl={(service as any)?.liveUrl} />
         </main>
       )}
+      {service && (
+        <MasterTemplateConfigurator open={setupOpen} onOpenChange={setSetupOpen} service={service} />
+      )}
     </div>
   );
 };
