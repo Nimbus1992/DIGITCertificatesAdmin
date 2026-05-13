@@ -59,6 +59,12 @@ const TemplateSetup: React.FC = () => {
       deployment: { availabilityScope: "entire_state", selectedItems: [] },
       teamMembers: [],
       authMethod: "email",
+      templateSetup: {
+        hasCategories: hasCategories === true,
+        hasSubcategories: hasSubcategories === true,
+        categoriesFileName: categoriesFile?.name,
+        subcategoriesFileName: subcategoriesFile?.name,
+      },
     };
     addService(newService);
     navigate(`/service/${newService.id}/configure`);
