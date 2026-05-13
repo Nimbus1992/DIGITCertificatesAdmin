@@ -261,6 +261,34 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
           )}
 
           {/* Customize */}
+          {template.payments && template.payments.length > 0 && (
+            <Card className="p-5 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Payments
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {template.payments.map((p) => (
+                  <div key={p.stage}>
+                    <div className="text-sm font-medium text-foreground mb-1.5">{p.stage}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {p.fees.map((f) => (
+                        <span
+                          key={f}
+                          className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground"
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <Card className="p-5">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 mr-2">
