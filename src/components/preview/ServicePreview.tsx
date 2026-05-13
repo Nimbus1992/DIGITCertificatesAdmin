@@ -78,7 +78,7 @@ const PreviewContent: React.FC = () => {
   );
 };
 
-const ServicePreviewInner: React.FC = () => {
+const ServicePreviewInner: React.FC<{ embedded?: boolean; onExit?: () => void }> = ({ embedded, onExit }) => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { setActiveService, state } = useOnboarding();
@@ -87,14 +87,26 @@ const ServicePreviewInner: React.FC = () => {
     if (id && state.activeServiceId !== id) setActiveService(id);
   }, [id, state.activeServiceId, setActiveService]);
 
+  const handleExit = onExit ?? (() => navigate(`/service/${id}/configure`));
+
   return (
-    <BrandingScope className="h-screen flex flex-col bg-background">
-      <PreviewTopBar onExit={() => navigate(`/service/${id}/configure`)} />
+    <BrandingScope className={embedded ? "flex flex-col bg-background h-full" : "h-screen flex flex-col bg-background"}>
+      {!embedded && <PreviewTopBar onExit={handleExit} />}
       <div className="flex-1 flex overflow-hidden">
         <PreviewContent />
         <PreviewSidebar />
       </div>
     </BrandingScope>
+  );
+};
+
+export const ServicePreviewWorkspace: React.FC = () => {
+  const { state } = useOnboarding();
+  const serviceName = state.serviceName || "Business License";
+  return (
+    <PreviewProvider serviceName={serviceName}>
+      <ServicePreviewInner embedded />
+    </PreviewProvider>
   );
 };
 
