@@ -265,7 +265,6 @@ const ServiceConfig: React.FC = () => {
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
             {modules.map((m) => {
                 const isActive = m.id === selectedModule;
-                const glyph = moduleStatusGlyph(m.id);
                 return (
                   <button
                     key={m.id}
@@ -276,11 +275,6 @@ const ServiceConfig: React.FC = () => {
                         : "bg-muted text-foreground hover:bg-muted/70"
                     }`}
                   >
-                    {glyph === "complete" ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <AlertCircle className="h-3.5 w-3.5" />
-                    )}
                     {m.name}
                   </button>
                 );
