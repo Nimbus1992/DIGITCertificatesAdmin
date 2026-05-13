@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Rocket, Check, AlertCircle, Plus } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { ArrowLeft, Rocket, Check, AlertCircle } from "lucide-react";
 import { defaultModules, configTiles } from "@/data/serviceModules";
 import RolesDesigner from "@/components/service-config/RolesDesigner";
 import NotificationsManager from "@/components/service-config/NotificationsManager";
@@ -180,12 +179,6 @@ const ServiceConfig: React.FC = () => {
                   </button>
                 );
               })}
-              <button
-                onClick={() => toast({ title: "Add Module", description: "Module creation coming soon." })}
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add Module
-              </button>
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {completedCount} of {configTiles.length} configured
