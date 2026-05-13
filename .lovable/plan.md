@@ -1,63 +1,74 @@
-## Goal
+# Forms Configuration — Issuance & Renewal
 
-Evolve `/service/:id/configure` from a page with small Configure/Preview pills into a service lifecycle workspace with three primary modes: **Configure**, **Preview**, **Deployment**. Restructure information architecture and visual hierarchy only — preserve all existing configuration, preview, and go-live functionality.
+Restructure the FormBuilder so it mirrors **exactly** the 5-step conversational wizard the citizen sees in the preview, and give Issuance and Renewal independent, fully editable form definitions.
 
-## Workspace Shell
+## What changes
 
-Refactor `src/pages/ServiceConfig.tsx` so the page is a full-height flex column:
+### 1. New shared step model
+Create `src/data/issuanceFormTemplate.ts` and `src/data/renewalFormTemplate.ts`. Both seed from the same 5 wizard steps the preview uses, but as independent copies so editing one does not affect the other.
 
-- Top: compact workspace header (back arrow, service name, lifecycle status badge: Draft / Live).
-- Below header: full-width **workspace navigation bar** with three large underline-style tabs spanning the header width — Configure · Preview · Deployment. Active tab uses a 2px bottom border in `accent`, inactive uses muted text with hover. No pill/segmented styling. Tabs are buttons ~48px tall with comfortable horizontal padding, left-aligned within a max-width container matching the page.
-- Body: the active workspace fills remaining height (`flex-1 min-h-0`).
+The 5 steps (matching `SUB_SCREENS` in `ApplicationForm.tsx`):
 
-Replace the current `Tabs` component usage with a custom underline tab bar (still driven by local `mode` state, default `"configure"`). Remove the inline "Go Live" button from the Preview body — Go Live is initiated from the Deployment workspace.
+```text
+Step 1  Applicant Details      → fullName, mobile, email, idType, idNumber
+Step 2  Business Details       → businessName, tradeType, businessCategory,
+                                 ownershipType, employees, turnover
+Step 3  Business Location      → [map sub-screen] + addr1, addr2, city, zone, pincode
+Step 4  Operational Details    → startDate, shopArea, isHazardous, hazardType
+Step 5  Documents              → docId, docAddr, docBusiness
+```
 
-## Configure Workspace
+Intra-step groupings (matching the preview's `splitGroups`) are preserved as named sub-screens within each step, e.g. Step 2 splits into "Who owns the business?" and "Add a few more details (optional)".
 
-Keep the existing Configure content (modules row, Core Setup, Additional Setup) but lower the visual noise:
+The Declaration checkbox stays out of the editable form — it's a fixed review-screen element in the preview, not a wizard step.
 
-- Rename the section heading "Core Setup" to **"Setup Journey"** with the same supporting copy.
-- Remove the small "{n} of {n} configured" inline counter from the modules row and instead show it as a subtle right-aligned caption under the Setup Journey heading.
-- Reduce card chrome: keep core tiles as cards but drop the inner CTA button (the whole card is already clickable) and tighten padding from `p-6` to `p-5`. Status badge stays.
-- Increase vertical spacing between sections (`space-y-10` instead of `space-y-8`) for a calmer rhythm.
-- No changes to the underlying tile click behavior or the specialized config screens.
+### 2. FormBuilder restructure
+Rework `src/components/service-config/FormBuilder.tsx`:
 
-## Preview Workspace
+- Replace the current 6 generic section tabs with **5 wizard step tabs** named exactly as the preview (`Applicant Details`, `Business Details`, `Business Location`, `Operational Details`, `Documents`).
+- Each step shows its **sub-screens** stacked on the canvas (mirroring how the citizen scrolls through one or more cards per step), with the same titles ("Let's start with your name", "How can we reach you?", "Who owns the business?", etc.).
+- The Business Location step shows the **map placeholder card** above the address fields, matching the preview.
+- Optional sub-screens are flagged with a subtle "Optional" pill (matches the preview's Skip behaviour).
+- Field palette, drag-to-add, validation editor, and Logic tab all remain unchanged.
 
-The Preview tab renders `ServicePreviewWorkspace` directly inside the workspace body — no intro strip, no "Go Live" button, no surrounding card border. The preview already provides its own immersive chrome (device toggle + sidebar + framed canvas), so we just give it the full pane:
+### 3. Module-aware seeding
+`FormBuilder` already receives `moduleName`. Use it to pick the seed:
 
-- Container: `flex-1 min-h-0` with no border/padding around it. The dark `#444` canvas of the preview reaches the edges of the workspace pane, reinforcing the "experiencing the generated app" feel and visually distinguishing it from Configure.
-- All existing functionality (citizen/employee role switch, screen navigation, device modes, notifications) is preserved via the existing `ServicePreviewWorkspace` component.
+```ts
+const seed = moduleName === "Renewal" ? RENEWAL_FORM_STEPS : ISSUANCE_FORM_STEPS;
+```
 
-## Deployment Workspace
+State is keyed per module so switching between Issuance and Renewal in the configurator preserves edits separately. Persist in `localStorage` under `formbuilder:<serviceId>:<module>` so refresh keeps both definitions independently.
 
-New workspace shown as the third tab. Behavior:
+### 4. Renewal defaults
+Renewal seeds with the same 5 steps and the same fields as Issuance, but is fully editable from the start — the user can delete fields, add new ones (e.g. "Reason for renewal"), or restructure steps without affecting the Issuance form. No fields are forced read-only.
 
-- Tab is **always visible** but **disabled** until the service is live (`service?.isLive` or `state.isLive`). When disabled: muted color, `cursor-not-allowed`, and a tooltip "Available after publishing the service".
-- When the service is **not live**, clicking does nothing. The Configure / Preview tabs continue to function as today, and Go Live remains reachable from `/go-live` (entered via the existing dashboard / publishing flow). To preserve the previous in-page Go Live affordance, surface a single small "Go Live" link in the workspace header (right side) when the service is in Draft — neutral text button, no longer a primary CTA in the Preview body.
-- When the service **is live**, the Deployment tab is enabled and renders a placeholder workspace (no functional changes yet):
-  - Heading: "Deployment" + subtitle "Operate and manage your live service."
-  - Live status row (status dot + "Live" + service URL link if available from `service`).
-  - A flat list (not boxed cards) of upcoming sections, each as a typography-led row with title + one-line description, marked "Coming soon": Production Status, Active Modules, Published Versions, Operational Settings, Monitoring, Integrations, Audit Logs, Environment Management.
-  - No nested cards; use dividers (`border-b border-border/60`) between rows.
+### 5. Preview decoupling (no changes to preview)
+The citizen `ApplicationForm.tsx` and `PreviewContext.DEFAULT_SECTIONS` are **not** touched. The builder remains a configuration surface that visually matches the preview but does not feed it (per "Keep them separate"). A small note in the builder header clarifies: "Changes here will apply to the live service. Preview reflects the default template."
 
-## Visual Hierarchy Pass
+## Technical details
 
-Apply across the workspace shell:
+- New files
+  - `src/data/issuanceFormTemplate.ts` — exports `ISSUANCE_FORM_STEPS: WizardStep[]`
+  - `src/data/renewalFormTemplate.ts` — exports `RENEWAL_FORM_STEPS: WizardStep[]` (initially identical to issuance)
+  - Shared `WizardStep` / `WizardSubScreen` / `WizardField` types in `src/data/wizardForm.ts`
 
-- Use typography-led section headers (no boxed section containers).
-- Reduce reliance on `Card` for grouping in Configure's Additional Setup and Deployment list — use simple bordered rows or plain rows with dividers.
-- Increase whitespace between major regions; remove redundant sub-borders.
-- Keep all colors on existing semantic tokens (`accent`, `muted`, `foreground`, `border`).
+- Modified
+  - `src/components/service-config/FormBuilder.tsx`
+    - Replace `FormSection` with `WizardStep` (step → sub-screens → fields)
+    - Replace section tabs with step tabs
+    - Render one card per sub-screen on the canvas, each with its own title/subtitle
+    - Render map placeholder card for `isMap: true` sub-screens
+    - Section-level "Add Section" becomes "Add sub-screen" within the active step
+    - `localStorage` key includes `moduleName`
 
-## Files Touched
+- Unchanged
+  - `src/components/preview/citizen/ApplicationForm.tsx`
+  - `src/components/preview/PreviewContext.tsx`
+  - `src/data/tradeLicenseTemplate.ts` (kept for other configurators that already consume it — Roles, Workflow, Checklists, Notifications, Documents, Fees)
 
-- `src/pages/ServiceConfig.tsx` — workspace shell, new tab bar, three-mode rendering, Configure visual cleanup, Deployment placeholder, removal of in-Preview Go Live CTA, header-level Go Live link for Draft.
+## Out of scope
 
-No other files require changes. `ServicePreviewWorkspace`, all `service-config/*` editors, and the `/go-live` route are reused as-is.
-
-## Out of Scope
-
-- No changes to preview internals, form/workflow/document editors, branding, routing, or data model.
-- No real Deployment functionality — placeholder only.
-- No changes to `/go-live` or publishing logic.
+- Other configuration tiles (Workflow, Roles, Checklists, Notifications, Documents, Fees, Payments) — addressed in follow-up requests.
+- Changes to the citizen-side preview rendering.
+- Wiring builder edits back into the live preview (explicitly opted out).
