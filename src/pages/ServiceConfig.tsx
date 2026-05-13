@@ -4,15 +4,9 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ArrowLeft, Eye, Rocket, Check, Info } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ArrowLeft, Rocket, Check, AlertCircle, Plus } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { defaultModules, configTiles } from "@/data/serviceModules";
 import RolesDesigner from "@/components/service-config/RolesDesigner";
 import NotificationsManager from "@/components/service-config/NotificationsManager";
@@ -22,6 +16,7 @@ import DocumentDesigner from "@/components/service-config/DocumentDesigner";
 import WorkflowDesigner from "@/components/service-config/WorkflowDesigner";
 import FeesConfigurator from "@/components/service-config/FeesConfigurator";
 import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurator";
+import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 
 type TileStatus = "not_started" | "in_progress" | "completed";
 
@@ -35,6 +30,7 @@ const ServiceConfig: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"configure" | "preview">("configure");
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
@@ -73,11 +69,21 @@ const ServiceConfig: React.FC = () => {
   const currentModule = modules.find((m) => m.id === selectedModule) || modules[0];
   const currentStatuses = tileStatuses[selectedModule] || {};
   const completedCount = Object.values(currentStatuses).filter((s) => s === "completed").length;
-  const progressPercent = (completedCount / configTiles.length) * 100;
 
   const activeTileData = activeTile ? configTiles.find((t) => t.id === activeTile) : null;
 
   const isPublished = service?.isPublished || state.isPublished;
+
+  const coreTiles = configTiles.filter((t) => t.group === "core");
+  const additionalTiles = configTiles.filter((t) => t.group === "additional");
+
+  const moduleStatusGlyph = (modId: string) => {
+    const statuses = tileStatuses[modId] || {};
+    const allRequiredComplete = configTiles
+      .filter((t) => t.required)
+      .every((t) => statuses[t.id] === "completed");
+    return allRequiredComplete ? "complete" : "incomplete";
+  };
 
   // Specialized config screens
   if (activeTile === "forms") return <FormBuilder moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
@@ -127,93 +133,157 @@ const ServiceConfig: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
               <h1 className="font-bold text-foreground text-lg">{serviceName}</h1>
-              <p className="text-xs text-muted-foreground">Configure flows and settings</p>
+              <p className="text-xs text-muted-foreground">Configure flows, experiences, and operational setup</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Select value={selectedModule} onValueChange={(v) => { setSelectedModule(v); setActiveTile(null); }}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {modules.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate(`/service/${id}/preview`)}>
-              <Eye className="h-4 w-4" /> Preview
-            </Button>
-            {!service?.isLive && (
-              <Button onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5">
-                <Rocket className="h-4 w-4" /> Go Live
-              </Button>
-            )}
-          </div>
+          <Tabs value={mode} onValueChange={(v) => setMode(v as "configure" | "preview")} className="mt-4">
+            <TabsList>
+              <TabsTrigger value="configure">Configure</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6 space-y-6">
-        <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-start gap-3">
-          <Info className="h-4 w-4 text-accent mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <p className="text-foreground">
-              You're configuring the <span className="font-semibold">{currentModule.name}</span> module. Switch modules using the dropdown above.
-            </p>
-            <p className="text-muted-foreground text-xs mt-1">
-              Each module has its own configuration. Complete these steps for each module before going live.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Progress value={progressPercent} className="h-2 flex-1" />
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {completedCount} of {configTiles.length} configured
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {configTiles.map((tile) => {
-            const status = currentStatuses[tile.id] || "not_started";
-            const cfg = statusConfig[status];
-            return (
-              <Card key={tile.id} className="relative group hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTile(tile.id)}>
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                      <tile.icon className="h-5 w-5 text-accent" />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {tile.required && <span className="w-1.5 h-1.5 rounded-full bg-destructive" title="Required" />}
-                      <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${cfg.className}`}>{cfg.label}</Badge>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-sm">{tile.title}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{tile.description}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs group-hover:bg-accent group-hover:text-accent-foreground group-hover:border-accent transition-colors"
-                    onClick={(e) => { e.stopPropagation(); setActiveTile(tile.id); }}
+      {mode === "configure" ? (
+        <main className="max-w-6xl mx-auto px-6 py-6 space-y-8">
+          {/* Modules row */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
+              {modules.map((m) => {
+                const isActive = m.id === selectedModule;
+                const glyph = moduleStatusGlyph(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedModule(m.id); setActiveTile(null); }}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+                      isActive
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-muted text-foreground hover:bg-muted/70"
+                    }`}
                   >
-                    {tile.ctaLabel}
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </main>
+                    {glyph === "complete" ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    )}
+                    {m.name}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => toast({ title: "Add Module", description: "Module creation coming soon." })}
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Module
+              </button>
+            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {completedCount} of {configTiles.length} configured
+            </span>
+          </div>
+
+          {/* Core Setup */}
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Core Setup</h2>
+              <p className="text-sm text-muted-foreground">Complete the foundational setup for your service journey.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {coreTiles.map((tile) => {
+                const status = currentStatuses[tile.id] || "not_started";
+                const cfg = statusConfig[status];
+                return (
+                  <Card
+                    key={tile.id}
+                    className="relative group hover:shadow-md hover:border-accent/40 transition-all cursor-pointer"
+                    onClick={() => setActiveTile(tile.id)}
+                  >
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                          <tile.icon className="h-6 w-6 text-accent" />
+                        </div>
+                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${cfg.className}`}>{cfg.label}</Badge>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground text-base">{tile.title}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">{tile.description}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full group-hover:bg-accent group-hover:text-accent-foreground group-hover:border-accent transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setActiveTile(tile.id); }}
+                      >
+                        {tile.ctaLabel}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Additional Setup */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Setup</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {additionalTiles.map((tile) => {
+                const status = currentStatuses[tile.id] || "not_started";
+                const dotClass =
+                  status === "completed"
+                    ? "bg-green-500"
+                    : status === "in_progress"
+                      ? "bg-yellow-500"
+                      : "bg-muted-foreground/30";
+                return (
+                  <button
+                    key={tile.id}
+                    onClick={() => setActiveTile(tile.id)}
+                    className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:border-accent/40 hover:bg-accent/5 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center shrink-0">
+                      <tile.icon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <span className="flex-1 text-sm font-medium text-foreground">{tile.title}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} title={statusConfig[status].label} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </main>
+      ) : (
+        <main className="max-w-6xl mx-auto px-6 py-4">
+          {!service?.isLive && (
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Experience your generated service end-to-end.</p>
+              <Button
+                onClick={() => { if (service) setActiveService(service.id); navigate("/go-live"); }}
+                size="sm"
+                className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5"
+              >
+                <Rocket className="h-4 w-4" /> Go Live
+              </Button>
+            </div>
+          )}
+          <div className="rounded-xl border border-border overflow-hidden bg-background" style={{ height: "calc(100vh - 220px)" }}>
+            <ServicePreviewWorkspace />
+          </div>
+        </main>
+      )}
     </div>
   );
 };
