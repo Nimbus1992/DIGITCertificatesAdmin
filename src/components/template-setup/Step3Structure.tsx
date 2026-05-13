@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight, Upload, FileSpreadsheet, X } from "lucide-react";
+import { ArrowRight, Upload, FileSpreadsheet, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,24 @@ interface Props {
 
   onContinue: () => void;
 }
+
+const CATEGORIES_SAMPLE_CSV =
+  "Category Name,Code,Description\nRetail,RTL,Shops selling goods directly to consumers\nManufacturing,MFG,Production of goods from raw materials\nHospitality,HSP,Hotels, restaurants and food services\n";
+
+const SUBCATEGORIES_SAMPLE_CSV =
+  "Subcategory Name,Parent Category,Code,Description\nRestaurant,Hospitality,HSP-RST,Dine-in food service establishments\nBakery,Retail,RTL-BKY,Shops selling baked goods\nGarment Factory,Manufacturing,MFG-GRM,Apparel and textile production units\n";
+
+const downloadSample = (filename: string, csv: string) => {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 const YesNo: React.FC<{
   value: boolean | null;
@@ -48,7 +66,9 @@ const Dropzone: React.FC<{
   file: File | null;
   onChange: (f: File | null) => void;
   id: string;
-}> = ({ file, onChange, id }) => (
+  sampleFilename: string;
+  sampleCsv: string;
+}> = ({ file, onChange, id, sampleFilename, sampleCsv }) => (
   <div className="mt-4 animate-accordion-down overflow-hidden">
     {file ? (
       <div className="flex items-center gap-3 p-3 rounded-md border border-accent/30 bg-accent/5">
@@ -83,9 +103,19 @@ const Dropzone: React.FC<{
       </label>
     )}
     {!file && (
-      <p className="text-xs text-muted-foreground mt-2">
-        Skip for now and add it later from the configurator.
-      </p>
+      <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
+        <p className="text-xs text-muted-foreground">
+          Skip for now and add it later from the configurator.
+        </p>
+        <button
+          type="button"
+          onClick={() => downloadSample(sampleFilename, sampleCsv)}
+          className="inline-flex items-center gap-1 text-xs text-accent underline-offset-2 hover:underline"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download sample file
+        </button>
+      </div>
     )}
   </div>
 );
@@ -101,6 +131,18 @@ const Step3Structure: React.FC<Props> = ({
   setSubcategoriesFile,
   onContinue,
 }) => {
+  const handleCategoriesChange = (v: boolean) => {
+    setHasCategories(v);
+    if (!v) {
+      setHasSubcategories(false);
+      setSubcategoriesFile(null);
+    }
+  };
+
+  const canContinue =
+    hasCategories !== null &&
+    (hasCategories === false || hasSubcategories !== null);
+
   return (
     <div className="space-y-8">
       <div>
@@ -123,29 +165,45 @@ const Step3Structure: React.FC<Props> = ({
                 For example: Retail, Manufacturing, Hospitality.
               </div>
             </div>
-            <YesNo value={hasCategories} onChange={setHasCategories} />
+            <YesNo value={hasCategories} onChange={handleCategoriesChange} />
           </div>
           {hasCategories === true && (
-            <Dropzone id="cat-upload" file={categoriesFile} onChange={setCategoriesFile} />
+            <Dropzone
+              id="cat-upload"
+              file={categoriesFile}
+              onChange={setCategoriesFile}
+              sampleFilename="license-categories-sample.csv"
+              sampleCsv={CATEGORIES_SAMPLE_CSV}
+            />
           )}
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <div className="text-base font-medium text-foreground">
-                Do you have license subcategories?
+        {hasCategories === true && (
+          <div className="animate-accordion-down overflow-hidden">
+            <Card className="p-5">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-base font-medium text-foreground">
+                    Do you have license subcategories?
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-0.5">
+                    For example: Restaurant under Hospitality, Bakery under Retail.
+                  </div>
+                </div>
+                <YesNo value={hasSubcategories} onChange={setHasSubcategories} />
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                For example: Restaurant under Hospitality, Bakery under Retail.
-              </div>
-            </div>
-            <YesNo value={hasSubcategories} onChange={setHasSubcategories} />
+              {hasSubcategories === true && (
+                <Dropzone
+                  id="sub-upload"
+                  file={subcategoriesFile}
+                  onChange={setSubcategoriesFile}
+                  sampleFilename="license-subcategories-sample.csv"
+                  sampleCsv={SUBCATEGORIES_SAMPLE_CSV}
+                />
+              )}
+            </Card>
           </div>
-          {hasSubcategories === true && (
-            <Dropzone id="sub-upload" file={subcategoriesFile} onChange={setSubcategoriesFile} />
-          )}
-        </Card>
+        )}
       </div>
 
       <div className="flex justify-end">
@@ -153,7 +211,7 @@ const Step3Structure: React.FC<Props> = ({
           onClick={onContinue}
           size="lg"
           className="gap-1.5"
-          disabled={hasCategories === null || hasSubcategories === null}
+          disabled={!canContinue}
         >
           Continue <ArrowRight className="h-4 w-4" />
         </Button>
