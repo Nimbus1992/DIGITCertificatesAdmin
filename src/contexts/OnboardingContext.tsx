@@ -40,6 +40,13 @@ export interface BrandingConfig {
   copyright: string;
 }
 
+export interface TemplateSetup {
+  hasCategories: boolean;
+  hasSubcategories: boolean;
+  categoriesFileName?: string;
+  subcategoriesFileName?: string;
+}
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -57,6 +64,7 @@ export interface ServiceItem {
   roleAccess?: RoleAccessConfig[];
   subdomain?: string;
   branding?: BrandingConfig;
+  templateSetup?: TemplateSetup;
 }
 
 export interface OnboardingState {
