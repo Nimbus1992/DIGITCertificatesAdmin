@@ -180,12 +180,6 @@ const ServiceConfig: React.FC = () => {
                   </button>
                 );
               })}
-              <button
-                onClick={() => toast({ title: "Add Module", description: "Module creation coming soon." })}
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add Module
-              </button>
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {completedCount} of {configTiles.length} configured
