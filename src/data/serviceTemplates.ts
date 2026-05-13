@@ -9,6 +9,7 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
+import { TRADE_PAYMENT_STAGES } from "./tradeLicenseTemplate";
 
 export interface ServiceTemplate {
   id: string;
@@ -23,6 +24,7 @@ export interface ServiceTemplate {
   flows?: { name: string; steps: string[] }[];
   forms?: { name: string; groups: string[] }[];
   notifications?: string[];
+  payments?: { stage: string; fees: string[] }[];
 }
 
 export const tradeTemplate: ServiceTemplate = {
@@ -68,6 +70,7 @@ export const tradeTemplate: ServiceTemplate = {
     "License issued",
     "Renewal due",
   ],
+  payments: TRADE_PAYMENT_STAGES.map((p) => ({ stage: p.name, fees: p.fees })),
 };
 
 export const buildingPermitsTemplate: ServiceTemplate = {
