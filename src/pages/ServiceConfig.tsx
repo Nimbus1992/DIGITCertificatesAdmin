@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowLeft, Rocket, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, Rocket, Check, AlertCircle, Settings2 } from "lucide-react";
 import { defaultModules, configTiles } from "@/data/serviceModules";
 import RolesDesigner from "@/components/service-config/RolesDesigner";
 import NotificationsManager from "@/components/service-config/NotificationsManager";
@@ -16,6 +16,7 @@ import WorkflowDesigner from "@/components/service-config/WorkflowDesigner";
 import FeesConfigurator from "@/components/service-config/FeesConfigurator";
 import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurator";
 import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
+import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 
 type TileStatus = "not_started" | "in_progress" | "completed";
 
@@ -70,6 +71,7 @@ const ServiceConfig: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"configure" | "preview" | "deployment">("configure");
+  const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
@@ -212,6 +214,34 @@ const ServiceConfig: React.FC = () => {
               </Button>
             )}
           </div>
+
+          {/* Master Template Configuration metadata strip */}
+          {service && (
+            <div className="mt-4 flex items-center gap-x-6 gap-y-1 flex-wrap text-xs text-muted-foreground border-t border-border/60 pt-3">
+              <span className="font-medium text-foreground uppercase tracking-wide text-[10px]">Template Setup</span>
+              <span>
+                <span className="text-foreground/70">Modules:</span>{" "}
+                <span className="text-foreground">{service.customModules.join(", ") || "Issuance"}</span>
+              </span>
+              <span>
+                <span className="text-foreground/70">Categories:</span>{" "}
+                <span className="text-foreground">{service.templateSetup?.hasCategories ? "Enabled" : "Disabled"}</span>
+              </span>
+              <span>
+                <span className="text-foreground/70">Subcategories:</span>{" "}
+                <span className="text-foreground">{service.templateSetup?.hasSubcategories ? "Enabled" : "Disabled"}</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSetupOpen(true)}
+                className="ml-auto h-7 gap-1.5 text-xs"
+              >
+                <Settings2 className="h-3.5 w-3.5" /> Edit Setup
+              </Button>
+            </div>
+          )}
+
           <TooltipProvider delayDuration={200}>
             <nav className="mt-5 flex items-center gap-1 -mb-px">
               {workspaceTabs.map((t) => {
