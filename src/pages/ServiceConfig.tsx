@@ -211,7 +211,7 @@ const ServiceConfig: React.FC = () => {
                   onClick={() => setSetupOpen(true)}
                   className="gap-1.5 text-muted-foreground hover:text-foreground"
                 >
-                  <Settings2 className="h-4 w-4" /> Edit Setup
+                  <Settings2 className="h-4 w-4" /> Template Setup
                 </Button>
               )}
               {!isLive && (
