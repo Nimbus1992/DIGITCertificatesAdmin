@@ -2,16 +2,14 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TemplateIntroduction from "@/components/onboarding/TemplateIntroduction";
 import TemplateCard from "@/components/onboarding/TemplateCard";
-import UseTemplateDialog from "@/components/onboarding/UseTemplateDialog";
-import { allTemplates, tradeTemplate, type ServiceTemplate } from "@/data/serviceTemplates";
+import { allTemplates, type ServiceTemplate } from "@/data/serviceTemplates";
 
 const Services: React.FC = () => {
   const navigate = useNavigate();
   const [introTemplate, setIntroTemplate] = useState<ServiceTemplate | null>(null);
-  const [pendingTemplate, setPendingTemplate] = useState<ServiceTemplate | null>(null);
 
   const handleUse = (t: ServiceTemplate) => {
-    setPendingTemplate(t);
+    navigate(`/templates/${t.id}/setup`);
   };
 
   const handlePreview = (t: ServiceTemplate) => {
@@ -20,15 +18,12 @@ const Services: React.FC = () => {
 
   if (introTemplate) {
     return (
-      <>
-        <TemplateIntroduction
-          template={introTemplate}
-          onUseTemplate={introTemplate.comingSoon ? undefined : () => handleUse(introTemplate)}
-          onPreview={introTemplate.comingSoon ? undefined : () => handlePreview(introTemplate)}
-          onBack={() => setIntroTemplate(null)}
-        />
-        <UseTemplateDialog template={pendingTemplate} onClose={() => setPendingTemplate(null)} />
-      </>
+      <TemplateIntroduction
+        template={introTemplate}
+        onUseTemplate={introTemplate.comingSoon ? undefined : () => handleUse(introTemplate)}
+        onPreview={introTemplate.comingSoon ? undefined : () => handlePreview(introTemplate)}
+        onBack={() => setIntroTemplate(null)}
+      />
     );
   }
 
@@ -52,7 +47,6 @@ const Services: React.FC = () => {
           />
         ))}
       </div>
-      <UseTemplateDialog template={pendingTemplate} onClose={() => setPendingTemplate(null)} />
     </div>
   );
 };

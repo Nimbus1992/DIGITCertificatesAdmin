@@ -16,6 +16,7 @@ import AppLayout from "./components/AppLayout";
 import PlaceholderPage from "./pages/placeholder/PlaceholderPage";
 import BrandingTheme from "./pages/BrandingTheme";
 import Services from "./pages/Services";
+import TemplateSetup from "./pages/TemplateSetup";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/services" element={<Services />} />
+              <Route path="/templates/:templateId/setup" element={<TemplateSetup />} />
               <Route path="/service/:id/configure" element={<ServiceConfig />} />
               <Route path="/service/:id/preview" element={<ServicePreview />} />
               <Route path="/service/:id/manage" element={<ServiceManage />} />
