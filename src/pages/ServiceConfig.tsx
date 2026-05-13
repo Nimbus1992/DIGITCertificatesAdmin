@@ -260,25 +260,32 @@ const ServiceConfig: React.FC = () => {
 
       {mode === "configure" ? (
         <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
-          {/* Module navigation */}
-          <nav className="flex items-center gap-6 border-b border-border/60">
+          {/* Modules row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
             {modules.map((m) => {
-              const isActive = m.id === selectedModule;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => { setSelectedModule(m.id); setActiveTile(null); }}
-                  className={`-mb-px border-b-2 px-1 py-3 text-sm transition-colors ${
-                    isActive
-                      ? "border-primary text-foreground font-medium"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {m.name}
-                </button>
-              );
-            })}
-          </nav>
+                const isActive = m.id === selectedModule;
+                const glyph = moduleStatusGlyph(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedModule(m.id); setActiveTile(null); }}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
+                      isActive
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-muted text-foreground hover:bg-muted/70"
+                    }`}
+                  >
+                    {glyph === "complete" ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    )}
+                    {m.name}
+                  </button>
+                );
+              })}
+          </div>
 
           {/* Setup Journey */}
           <section className="space-y-4">
