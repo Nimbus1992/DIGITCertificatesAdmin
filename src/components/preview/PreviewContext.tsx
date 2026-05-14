@@ -384,6 +384,7 @@ interface PreviewProviderProps {
 }
 
 export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serviceName }) => {
+  const { id: routeServiceId = "service" } = useParams();
   const [role, setRole] = useState<PreviewRole>("citizen");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("mobile");
   const [screen, setScreen] = useState<PreviewScreen>({ type: "catalogue" });
@@ -394,6 +395,76 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   const [messages, setMessages] = useState<SimulatedMessage[]>([]);
   const [messagesReadAt, setMessagesReadAt] = useState<number>(0);
   const [messagesDrawerOpen, setMessagesDrawerOpen] = useState(false);
+
+  // ── Form schema (per service, per module) ────────────────────────
+  const [issuanceSteps, setIssuanceSteps] = useState<WizardStep[]>(
+    () => loadFormSteps(routeServiceId, "Issuance"),
+  );
+  const [renewalSteps, setRenewalSteps] = useState<WizardStep[]>(
+    () => loadFormSteps(routeServiceId, "Renewal"),
+  );
+
+  useEffect(() => {
+    setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance"));
+    setRenewalSteps(loadFormSteps(routeServiceId, "Renewal"));
+  }, [routeServiceId]);
+
+  useEffect(() => {
+    const reload = () => {
+      setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance"));
+      setRenewalSteps(loadFormSteps(routeServiceId, "Renewal"));
+    };
+    const onCustom = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { serviceId?: string } | undefined;
+      if (!detail || !detail.serviceId || detail.serviceId === routeServiceId) reload();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.startsWith(`formbuilder:${routeServiceId}:`)) reload();
+    };
+    window.addEventListener(FORM_UPDATED_EVENT, onCustom as EventListener);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(FORM_UPDATED_EVENT, onCustom as EventListener);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [routeServiceId]);
+
+  const getFormSteps = useCallback(
+    (type: ApplicationType) => (type === "RENEWAL" ? renewalSteps : issuanceSteps),
+    [issuanceSteps, renewalSteps],
+  );
+
+  // Derive a flat list of FormSectionConfig (one section per step) so
+  // existing consumers (review screens, PDF export, etc.) keep working.
+  const formSections = useMemo<FormSectionConfig[]>(() => {
+    return issuanceSteps.map((step, i) => {
+      const fields: FormFieldConfig[] = [];
+      step.subScreens.forEach((sub) => {
+        sub.fields.forEach((f: WizardField) => {
+          fields.push({
+            id: f.id,
+            type: f.type,
+            label: f.label,
+            placeholder: f.placeholder ?? "",
+            required: !!f.required,
+            options: f.options,
+            helpText: f.helpText,
+            validation: f.validation,
+            dependsOn: f.dependsOn,
+            dependsValueMap: f.dependsValueMap,
+            showIf: f.showIf,
+          });
+        });
+      });
+      return {
+        id: `sec-${i + 1}`,
+        name: step.name,
+        description: "",
+        fields,
+      };
+    });
+  }, [issuanceSteps]);
 
   const roleRef = useRef<PreviewRole>(role);
   roleRef.current = role;
@@ -825,7 +896,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       applications, notifications, unreadCount, markNotificationsRead,
       messages, unreadMessagesCount, markMessagesRead,
       messagesDrawerOpen, setMessagesDrawerOpen,
-      formSections: DEFAULT_SECTIONS,
+      formSections,
+      getFormSteps,
       workflowStates: DEFAULT_WORKFLOW_STATES,
       workflowTransitions: DEFAULT_TRANSITIONS,
       serviceName,
