@@ -35,11 +35,11 @@ export const defaultModules: ServiceModule[] = [
 
 export const configTiles: ConfigTile[] = [
   {
-    id: "forms",
-    icon: FileText,
-    title: "Application Forms",
-    description: "Edit form fields, configure logic, and manage application data.",
-    ctaLabel: "Edit Form",
+     id: "forms",
+     icon: FileText,
+     title: "Forms",
+     description: "Design workflows to define how forms and data move through stages.",
+     ctaLabel: "Edit Form",
     required: true,
     group: "core",
   },
