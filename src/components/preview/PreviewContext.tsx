@@ -3,6 +3,10 @@ import { toast } from "sonner";
 import { Smartphone, Mail, X } from "lucide-react";
 import { NOTIFICATION_MATRIX, type RecipientRole } from "./notifications/notificationMatrix";
 import { resolveTemplate, type SimulatedMessage } from "./notifications/templateEngine";
+import { useEffect } from "react";
+import { useParams } from "react-router-dom";
+import type { WizardStep, WizardField } from "@/data/wizardForm";
+import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
 
 // ─── Types ───────────────────────────────────────────────
 export type PreviewRole = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
@@ -197,6 +201,8 @@ interface PreviewContextValue {
   messagesDrawerOpen: boolean;
   setMessagesDrawerOpen: (o: boolean) => void;
   formSections: FormSectionConfig[];
+  /** Canonical wizard steps for the active application type. */
+  getFormSteps: (type: ApplicationType) => WizardStep[];
   workflowStates: WorkflowStateConfig[];
   workflowTransitions: WorkflowTransitionConfig[];
   serviceName: string;
