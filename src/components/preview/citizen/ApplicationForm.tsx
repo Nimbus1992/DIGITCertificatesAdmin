@@ -521,14 +521,16 @@ const ApplicationForm: React.FC = () => {
   if (isReview) {
     // Map field ids to first sub-screen index for "Edit"
     const fieldToSub: Record<string, number> = {};
-    SUB_SCREENS.forEach((s, i) => s.fieldIds.forEach(id => { if (!(id in fieldToSub)) fieldToSub[id] = i; }));
+    subScreens.forEach((s, i) =>
+      s.fields.forEach((f) => { if (!(f.id in fieldToSub)) fieldToSub[f.id] = i; }),
+    );
 
     return (
       <>
         <CitizenScreenShell
           onBack={handleBack}
           backLabel="Back"
-          progress={<WizardProgress step={5} total={5} stepName="Review" />}
+          progress={<WizardProgress step={totalSteps} total={totalSteps} stepName="Review" />}
           footer={reviewFooter}
         >
           <div ref={reviewScrollRef} className="h-full">
@@ -680,25 +682,11 @@ const ApplicationForm: React.FC = () => {
                 Confirm Location
               </Button>
             </div>
-          ) : sub.splitGroups ? (
-            <div className="space-y-4">
-              {sub.splitGroups.map((g, gi) => (
-                <div key={gi} className="space-y-3">
-                  {g.heading && (
-                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#6B7280" }}>
-                      {g.heading}
-                    </p>
-                  )}
-                  {g.fieldIds
-                    .map(id => fieldsById[id])
-                    .filter(f => f && isFieldVisible(f, formData))
-                    .map(renderField)}
-                </div>
-              ))}
-            </div>
           ) : (
             <div className="space-y-3.5">
-              {visibleFieldIds.map(id => renderField(fieldsById[id])).filter(Boolean)}
+              {visibleFields
+                .map((wf) => fieldsById[wf.id] ?? (wf as unknown as FormFieldConfig))
+                .map(renderField)}
             </div>
           )}
         </div>
