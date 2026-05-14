@@ -560,13 +560,42 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           {view === "visual" ? (
             <div
               ref={canvasRef}
-              className="relative min-h-[600px] min-w-[1200px]"
+              className="relative w-full h-full min-h-[600px] overflow-hidden"
               style={{
                 backgroundImage: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)",
-                backgroundSize: "20px 20px",
+                backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+                backgroundPosition: `${pan.x}px ${pan.y}px`,
+                cursor: panDragRef.current ? "grabbing" : "default",
               }}
               onClick={() => setSelection(null)}
+              onMouseDown={onCanvasBgMouseDown}
+              onWheel={onCanvasWheel}
             >
+              {/* Zoom controls */}
+              <div className="absolute top-3 right-3 z-30 flex flex-col gap-1 bg-card border rounded-md shadow-sm p-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); zoomIn(); }} title="Zoom in">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); zoomOut(); }} title="Zoom out">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); resetView(); }} title="Reset view">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <div className="text-[10px] text-center text-muted-foreground px-1">{Math.round(zoom * 100)}%</div>
+              </div>
+              <div className="absolute bottom-3 left-3 z-30 text-[10px] text-muted-foreground bg-card/80 border rounded px-2 py-1 pointer-events-none">
+                Drag empty area to pan • Ctrl/⌘ + scroll to zoom
+              </div>
+              <div
+                className="absolute top-0 left-0 origin-top-left"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  width: 4000,
+                  height: 2000,
+                  pointerEvents: "none",
+                }}
+              >
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
                 <defs>
                   <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
@@ -601,7 +630,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <button
                     key={`label-${t.id}`}
-                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5
+                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5 pointer-events-auto
                       ${isSelected
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-card text-foreground border-border hover:border-accent"}`}
@@ -630,7 +659,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <div
                     key={s.id}
-                    className={`absolute z-20 rounded-lg border-l-4 bg-card border shadow-sm cursor-grab select-none transition-shadow
+                    className={`absolute z-20 rounded-lg border-l-4 bg-card border shadow-sm cursor-grab select-none transition-shadow pointer-events-auto
                       ${cfg.borderColor}
                       ${isSelected ? "ring-2 ring-accent shadow-md" : "hover:shadow-md"}`}
                     style={{ left: s.x, top: s.y, width: NODE_W }}
@@ -661,6 +690,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                   </div>
                 );
               })}
+              </div>
             </div>
           ) : (
             /* TABLE VIEW */
