@@ -17,8 +17,7 @@ import FeesConfigurator from "@/components/service-config/FeesConfigurator";
 import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurator";
 import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
-
-type TileStatus = "not_started" | "in_progress" | "completed";
+import ModuleTabs from "@/components/service-config/ModuleTabs";
 
 const deploymentSections: { title: string; description: string }[] = [
   { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
@@ -60,12 +59,6 @@ const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) 
   </div>
 );
 
-const statusConfig: Record<TileStatus, { label: string; className: string }> = {
-  not_started: { label: "Not Started", className: "bg-muted text-muted-foreground" },
-  in_progress: { label: "In Progress", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
-};
-
 const ServiceConfig: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
@@ -87,29 +80,33 @@ const ServiceConfig: React.FC = () => {
       ? service.customModules.map((name) => ({ id: name.toLowerCase().replace(/\s+/g, "-"), name }))
       : defaultModules;
 
-  const [selectedModule, setSelectedModule] = useState(modules[0].id);
   const [activeTile, setActiveTile] = useState<string | null>(null);
-  const [tileStatuses, setTileStatuses] = useState<Record<string, Record<string, TileStatus>>>(() => {
-    const initial: Record<string, Record<string, TileStatus>> = {};
-    // Business License template ships fully pre-configured: every required tile is
-    // already wired up with seed data that matches what the preview runs on.
-    const isTradeLicense = id === "trade-license" || service?.templateId === "trade-license";
-    modules.forEach((m) => {
-      initial[m.id] = {};
-      configTiles.forEach((t) => {
-        if (isTradeLicense && t.id !== "plugins") {
-          initial[m.id][t.id] = "completed";
-        } else {
-          initial[m.id][t.id] = "not_started";
-        }
-      });
-    });
-    return initial;
-  });
+  const moduleNames = modules.map((m) => m.name);
 
-  const currentModule = modules.find((m) => m.id === selectedModule) || modules[0];
-  const currentStatuses = tileStatuses[selectedModule] || {};
-  const completedCount = Object.values(currentStatuses).filter((s) => s === "completed").length;
+  // Active module is owned per-tile and persisted so re-entering a configurator
+  // restores the last module the user was working on.
+  const moduleStorageKey = (tileId: string) =>
+    `serviceconfig:${id ?? "service"}:${tileId}:activeModule`;
+
+  const [activeModule, setActiveModule] = useState<string>(moduleNames[0]);
+
+  useEffect(() => {
+    if (!activeTile) return;
+    let next = moduleNames[0];
+    try {
+      const stored = localStorage.getItem(moduleStorageKey(activeTile));
+      if (stored && moduleNames.includes(stored)) next = stored;
+    } catch { /* ignore */ }
+    setActiveModule(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTile]);
+
+  const handleModuleChange = (m: string) => {
+    setActiveModule(m);
+    if (activeTile) {
+      try { localStorage.setItem(moduleStorageKey(activeTile), m); } catch { /* ignore */ }
+    }
+  };
 
   const activeTileData = activeTile ? configTiles.find((t) => t.id === activeTile) : null;
 
@@ -119,35 +116,39 @@ const ServiceConfig: React.FC = () => {
   const coreTiles = configTiles.filter((t) => t.group === "core");
   const additionalTiles = configTiles.filter((t) => t.group === "additional");
 
-  const moduleStatusGlyph = (modId: string) => {
-    const statuses = tileStatuses[modId] || {};
-    const allRequiredComplete = configTiles
-      .filter((t) => t.required)
-      .every((t) => statuses[t.id] === "completed");
-    return allRequiredComplete ? "complete" : "incomplete";
-  };
+  // Specialized config screens — wrapped with ModuleTabs so each configurator
+  // owns its own module switcher at the top.
+  const onBack = () => setActiveTile(null);
+  const renderConfigurator = (node: React.ReactNode) => (
+    <div className="flex flex-col h-screen bg-background">
+      <ModuleTabs modules={moduleNames} active={activeModule} onChange={handleModuleChange} />
+      <div key={activeModule} className="flex-1 min-h-0 overflow-hidden">
+        {node}
+      </div>
+    </div>
+  );
 
-  // Specialized config screens
-  if (activeTile === "forms") return <FormBuilder moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "roles") return <RolesDesigner moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "notifications") return <NotificationsManager moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "checklists") return <ChecklistBuilder moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "documents") return <DocumentDesigner moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "billing") return <FeesConfigurator moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "workflow") return <WorkflowDesigner moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
-  if (activeTile === "payments") return <PaymentsConfigurator moduleName={currentModule.name} onBack={() => setActiveTile(null)} />;
+  if (activeTile === "forms") return renderConfigurator(<FormBuilder moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "roles") return renderConfigurator(<RolesDesigner moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "notifications") return renderConfigurator(<NotificationsManager moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "checklists") return renderConfigurator(<ChecklistBuilder moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "documents") return renderConfigurator(<DocumentDesigner moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "billing") return renderConfigurator(<FeesConfigurator moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "workflow") return renderConfigurator(<WorkflowDesigner moduleName={activeModule} onBack={onBack} />);
+  if (activeTile === "payments") return renderConfigurator(<PaymentsConfigurator moduleName={activeModule} onBack={onBack} />);
 
   // Generic tile placeholder
   if (activeTileData) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-background">
+        <ModuleTabs modules={moduleNames} active={activeModule} onChange={handleModuleChange} />
         <header className="border-b bg-card">
           <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => setActiveTile(null)}>
+            <Button variant="ghost" size="icon" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="font-bold text-foreground">{currentModule.name} — {activeTileData.title}</h1>
+              <h1 className="font-bold text-foreground">{activeModule} — {activeTileData.title}</h1>
               <p className="text-xs text-muted-foreground">Flow configuration</p>
             </div>
           </div>
@@ -160,9 +161,9 @@ const ServiceConfig: React.FC = () => {
             <h2 className="text-xl font-semibold text-foreground mb-2">{activeTileData.title}</h2>
             <p className="text-muted-foreground max-w-md mb-8">
               This is where you configure {activeTileData.title.toLowerCase()} for the{" "}
-              <span className="font-medium text-foreground">{currentModule.name}</span> flow.
+              <span className="font-medium text-foreground">{activeModule}</span> flow.
             </p>
-            <Button variant="outline" onClick={() => setActiveTile(null)} className="gap-2">
+            <Button variant="outline" onClick={onBack} className="gap-2">
               <ArrowLeft className="h-4 w-4" /> Back to Module Configuration
             </Button>
           </div>
@@ -260,42 +261,14 @@ const ServiceConfig: React.FC = () => {
 
       {mode === "configure" ? (
         <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
-          {/* Modules row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-2">Modules</span>
-            {modules.map((m) => {
-                const isActive = m.id === selectedModule;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => { setSelectedModule(m.id); setActiveTile(null); }}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors ${
-                      isActive
-                        ? "bg-accent text-accent-foreground"
-                        : "bg-muted text-foreground hover:bg-muted/70"
-                    }`}
-                  >
-                    {m.name}
-                  </button>
-                );
-              })}
-          </div>
-
           {/* Setup Journey */}
           <section className="space-y-4">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-base font-semibold text-foreground">Setup Journey</h2>
-                <p className="text-sm text-muted-foreground">Complete the foundational setup for your service journey.</p>
-              </div>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {completedCount} of {configTiles.length} configured
-              </span>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Setup Journey</h2>
+              <p className="text-sm text-muted-foreground">Complete the foundational setup for your service journey.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {coreTiles.map((tile) => {
-                const status = currentStatuses[tile.id] || "not_started";
-                const cfg = statusConfig[status];
                 return (
                   <Card
                     key={tile.id}
@@ -303,11 +276,8 @@ const ServiceConfig: React.FC = () => {
                     onClick={() => setActiveTile(tile.id)}
                   >
                     <CardContent className="p-5 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                          <tile.icon className="h-6 w-6 text-accent" />
-                        </div>
-                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${cfg.className}`}>{cfg.label}</Badge>
+                      <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                        <tile.icon className="h-6 w-6 text-accent" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-foreground text-base">{tile.title}</h3>
@@ -327,13 +297,6 @@ const ServiceConfig: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {additionalTiles.map((tile) => {
-                const status = currentStatuses[tile.id] || "not_started";
-                const dotClass =
-                  status === "completed"
-                    ? "bg-green-500"
-                    : status === "in_progress"
-                      ? "bg-yellow-500"
-                      : "bg-muted-foreground/30";
                 return (
                   <button
                     key={tile.id}
@@ -344,7 +307,6 @@ const ServiceConfig: React.FC = () => {
                       <tile.icon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <span className="flex-1 text-sm font-medium text-foreground">{tile.title}</span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} title={statusConfig[status].label} />
                   </button>
                 );
               })}
