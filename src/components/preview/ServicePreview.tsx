@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { PreviewProvider, usePreview, type DeviceMode } from "./PreviewContext";
 import PreviewTopBar from "./PreviewTopBar";
@@ -111,13 +111,22 @@ const PreviewContent: React.FC = () => {
 const ServicePreviewInner: React.FC<{ embedded?: boolean; onExit?: () => void }> = ({ embedded, onExit }) => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const { setActiveService, state } = useOnboarding();
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
   }, [id, state.activeServiceId, setActiveService]);
 
-  const handleExit = onExit ?? (() => navigate(`/service/${id}/configure`));
+  const handleExit =
+    onExit ??
+    (() => {
+      if (location.key === "default") {
+        navigate(`/service/${id}/configure`);
+      } else {
+        navigate(-1);
+      }
+    });
 
   return (
     <BrandingScope className={embedded ? "flex flex-col bg-background h-full" : "h-screen flex flex-col bg-background"}>
