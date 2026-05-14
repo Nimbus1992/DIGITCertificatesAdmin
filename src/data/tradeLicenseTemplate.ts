@@ -205,6 +205,11 @@ export const TRADE_WORKFLOW_TRANSITIONS: TradeWorkflowTransition[] = [
     { id: "crj1", text: "Rejection reason documented" },
   ]},
   { id: "t_resubmit",     name: "Resubmit",                    fromStateId: "s7",   toStateId: "s1",   role: "citizen",         checklist: [] },
+  { id: "t_pay",          name: "Mark Paid",                   fromStateId: "s4",   toStateId: "s5",   role: "citizen",         checklist: [] },
+  { id: "t_issue",        name: "Issue License",               fromStateId: "s5",   toStateId: "s6",   role: "approver",        checklist: [
+    { id: "cis1", text: "Certificate generated" },
+    { id: "cis2", text: "Citizen notified" },
+  ]},
 ];
 
 // State name → tag color used by NotificationsManager / Checklists

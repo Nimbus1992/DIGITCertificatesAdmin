@@ -1,86 +1,86 @@
-# Workflow Designer Overhaul
 
-The Workflow Designer becomes the canonical place where every state and every action is captured and configured end-to-end. Forms are removed from the workflow (one form per module lives only in the Form Builder). Roles move onto actions. Notifications, Payment requirement, and Checklists are first-class properties of the right place (state vs. action). The right-hand inspector becomes collapsible.
+# Workflow: complete the path & wire to existing configurations
 
-## What changes for the user
+## 1) Why workflow ends at "Payment Pending"
 
-1. **States** capture lifecycle status only.
-   - Editable: name, type (Start / In Progress / End), description, **notifications fired on entry**, **"Payment required at this state"** toggle.
-   - Removed: Forms section (form lives in Form Builder).
+The Issuance seed (`TRADE_WORKFLOW_TRANSITIONS` in `src/data/tradeLicenseTemplate.ts`) only goes:
+`Submitted → Under Doc Verification → Inspection → Under Approval → Approve → Payment Pending`. There is no transition out of `s4 (Payment Pending)`, `s5 (Paid)` or into `s6 (License Issued)`. Renewal already has `Mark Paid` and `Issue Renewal`, Issuance does not.
 
-2. **Actions (transitions)** capture who acts and what they must complete.
-   - Editable: action name, From state, To state, **Role allowed to perform action** (single-select from project roles), **Checklist** items (existing builder), Conditions toggle.
-   - Visible on canvas labels, table view, and inspector.
+**Fix:** add two seed transitions to `TRADE_WORKFLOW_TRANSITIONS`:
+- `t_pay`   `Mark Paid`        s4 → s5  role: `citizen`   (no checklist)
+- `t_issue` `Issue License`    s5 → s6  role: `approver`  (checklist: "Certificate generated", "Citizen notified")
 
-3. **Full edit** across both views.
-   - Visual canvas: drag nodes, click to edit, delete state/transition (new trash button in inspector), add state, add transition.
-   - Table view: every row's From / To / Action / Role / Checklist count is clickable to open the inspector for that transition; states get their own table tab so all states are also editable in tabular form.
+Bump workflow storage prefix to `workflow-states-v3` / `workflow-transitions-v3` so existing localStorage seeds get re-hydrated with the new transitions (otherwise users on v2 still see the broken flow).
 
-4. **Collapsible inspector sidebar.**
-   - A chevron button on the inspector's left edge collapses it to a thin rail (icon-only) and re-expands. Selection state is preserved.
-   - Default: expanded. Persisted per service in `localStorage`.
+## 2) Attach existing Notifications / Checklists / Payments / Fees from configured lists
 
-5. **Notifications, Payments, Checklists clarification (placement contract):**
-   - **Notifications** → attached to a **state** (fired when workflow enters that state). Existing seed already maps notifications by state name.
-   - **Checklists** → attached to an **action** (must be completed before the transition is taken). Already modelled per transition.
-   - **Payments** → a boolean flag on a **state** ("Payment is collected at this state"). Used by the Payments configurator and citizen preview to know which state triggers the pay screen. Seeded `true` for the existing "Payment Pending" state.
+Today the workflow inspector only reads notifications baked into the seed and shows checklist items as free text. Each configurator already persists its own canonical list via `useModuleState`:
+
+| Resource      | Storage key                                  | Lives in                    |
+|---------------|----------------------------------------------|-----------------------------|
+| Notifications | `notifications:{serviceId}:{moduleName}`     | NotificationsManager        |
+| Checklists    | `checklists:{serviceId}:{moduleName}`        | ChecklistBuilder            |
+| Payments      | `payments:{serviceId}:{moduleName}`          | PaymentsConfigurator        |
+| Fees          | `fees:{serviceId}:{moduleName}`              | FeesConfigurator            |
+
+The Workflow Designer should treat these as the **source lists** and only store *attachments* (arrays of ids) on each state/action.
+
+### State-level attachments
+A `WorkflowState` gains:
+- `notificationIds: string[]`  — fired on entry. Replaces the embedded `notifications` array.
+- `paymentStageId: string | null` — replaces the bare `paymentRequired` boolean. When set, the citizen pays at this state using that configured payment stage; the canvas `₹` chip shows the stage name on hover.
+
+Seed mapping: for each seed state, attach all notifications whose `workflowState === state.name`; for `Payment Pending`, attach the first payment stage whose `workflowState === "Payment Pending"`.
+
+### Action-level attachments
+A `WorkflowTransition` gains:
+- `checklistIds: string[]`     — must be completed before transition. Replaces inline `checklist` items.
+- (existing `roleId` and `conditionsEnabled` stay.)
+
+Seed mapping: for each seed transition with checklist items, find the configured `Checklist` whose `workflowState === transition.toStateId`'s state name (or by id match where possible) and attach it.
+
+### Inspector UI
+**State inspector** — replace current Notifications block and Payment switch with two pickers:
+- **Notifications fired on entry** — multi-select list of notification subjects from the source. Each row: checkbox to attach, "Edit" button (opens existing notification edit dialog inline), channel badges. "Add new" button opens the same dialog with a fresh notification (saved into the source list and auto-attached). Empty source state: link "No notifications yet — create one" opens the dialog.
+- **Payment stage** — single Select listing payment stages from the source + "Manage stage" pencil button → opens stage edit dialog. "Create new stage" option at bottom of the Select.
+
+**Action inspector** — replace inline checklist editor with:
+- **Checklist** — multi-select of configured checklists. Each attached row shows name + question count + "Edit" pencil → opens the checklist edit dialog (questions, required, field types). "Create new checklist" button at bottom.
+
+### Edit-in-popup dialogs
+Extract the edit forms used by the four configurators into reusable dialog components so the workflow designer can mount them:
+- `NotificationEditDialog` (subject, message + variable chips, channels, workflow state, tag)
+- `ChecklistEditDialog` (name, workflow state, questions list with field type, required, options)
+- `PaymentStageEditDialog` (name, workflow state, fees, payment type, methods, gateway, receipt template)
+
+Each dialog accepts `value`, `onSave`, `open`, `onOpenChange`. Used both inside their owning configurator and inside the workflow inspector. Saving writes back to the same `useModuleState` key so the existing configurator screens immediately reflect changes (no duplicate state). The workflow designer reads source lists by calling `useModuleState` with the same keys — the hook already returns the latest value from localStorage on mount.
+
+### Canvas updates
+- Replace the `₹` icon with a small pill showing the attached payment stage's name when `paymentStageId` is set.
+- Bell icon shows count: `🔔 ×n` when `notificationIds.length > 0`.
+- Action label keeps role chip; add tiny `✓ ×n` chip when `checklistIds.length > 0`.
+
+### Table view updates
+- States table: replace "Payment" Y/— with stage name (or "—"); "Notifications" cell shows count linking to source.
+- Actions table: "Checklist" cell shows attached checklist names (truncated) instead of free-text count.
+
+## 3) Migration / cleanup
+
+- Remove `paymentRequired`, embedded `notifications`, and inline `checklist` from `WorkflowState` / `WorkflowTransition` types.
+- Bump storage prefix to `v3` (states + transitions) so the new shape is seeded freshly without merging stale v2 data.
+- Delete unused checklist add/update/remove handlers in `WorkflowDesigner.tsx`.
+
+## Files touched
+
+- `src/data/tradeLicenseTemplate.ts` — add `t_pay`, `t_issue` to `TRADE_WORKFLOW_TRANSITIONS`.
+- `src/components/service-config/WorkflowDesigner.tsx` — type changes, seed mapping, inspector rewrite, canvas/table updates, mount edit dialogs.
+- New `src/components/service-config/dialogs/NotificationEditDialog.tsx`
+- New `src/components/service-config/dialogs/ChecklistEditDialog.tsx`
+- New `src/components/service-config/dialogs/PaymentStageEditDialog.tsx`
+- `NotificationsManager.tsx`, `ChecklistBuilder.tsx`, `PaymentsConfigurator.tsx` — refactor existing inline edit forms to use the new dialog components (no behavior change for those screens).
 
 ## Out of scope
 
-- No backend changes. All persistence stays in `localStorage` via existing `useModuleState`.
-- No changes to Form Builder, Notifications Manager, Checklist Builder, Fees, Payments, Roles screens beyond reading the new role/payment fields where already supported.
-- No new visual theme / animation work.
-
-## Technical changes
-
-All changes confined to `src/components/service-config/WorkflowDesigner.tsx` plus tiny seed additions.
-
-### Types
-- `WorkflowState`: drop `forms`. Add `paymentRequired: boolean`.
-- `WorkflowTransition`: add `roleId: string` (one of the project's role ids; default from seed `role` field on `TRADE_WORKFLOW_TRANSITIONS` / `RENEWAL_WORKFLOW_TRANSITIONS`).
-- Add `ROLE_OPTIONS` derived from `TRADE_ROLES` (id + name) — imported from `@/data/tradeLicenseTemplate`.
-
-### Seed
-- `buildSeedStates`: stop attaching `forms`; set `paymentRequired = (state.name === "Payment Pending")`.
-- `buildSeedTransitions`: copy `role` from source data into `roleId`.
-- Bump storage prefix to `workflow-states-v2` / `workflow-transitions-v2` so old localStorage records don't collide with the new shape.
-
-### Inspector — State panel
-- Remove the entire Forms block.
-- Keep Notifications block as-is.
-- Add a single `Switch` row: "Payment collected at this state" bound to `paymentRequired`.
-- Add destructive "Delete State" button at the bottom (guards against deleting the only Start state and against deleting a state referenced by a transition; show toast).
-
-### Inspector — Transition panel
-- Add a `Select` for "Role" listing `ROLE_OPTIONS`, bound to `roleId`.
-- Add From / To `Select`s so the transition endpoints are editable here too.
-- Add destructive "Delete Transition" button.
-
-### Canvas
-- Replace the `FileText` form indicator on each state node with a small `Wallet`/`IndianRupee` icon when `paymentRequired`.
-- On each transition's pill label, append a tiny role chip (e.g. "Approver") next to the action name.
-
-### Table view
-- Add a top tabs control "States | Actions". Existing transition table goes under "Actions" with a new **Role** column (shows role name; click row to edit).
-- New "States" table: Name, Type, Payment, Notifications count, with row click selecting that state.
-
-### Collapsible right panel
-- Wrap the right inspector in a div whose width toggles between `w-[320px]` and `w-10`.
-- Collapse button is a vertical strip with a `ChevronRight` / `ChevronLeft` icon at the top-left of the panel.
-- Persist `workflow-inspector-collapsed:{serviceId}` in `localStorage`.
-
-### Cleanup
-- Remove `showAddForm`, `newFormName`, `addFormToState`, `removeFormFromState` and the Add-Form dialog.
-
-```text
-Header
-ScopeBar
-┌──────────────────────────── flex-1 ────────────────────────────┬─ inspector ─┐
-│ Visual canvas / Table (States | Actions tabs)                  │ collapsible │
-│   nodes show: type · name · 💰 if paymentRequired · 🔔 if any  │  state /    │
-│   labels show: action name · role chip                         │  transition │
-└────────────────────────────────────────────────────────────────┴─────────────┘
-```
-
-## Files touched
-- `src/components/service-config/WorkflowDesigner.tsx` (single-file refactor)
+- No backend / database changes.
+- No new visual/animation work; reuse existing dialog & form styling.
+- Fees stay edited only inside FeesConfigurator (the workflow only references fees indirectly through a payment stage).
