@@ -1024,7 +1024,13 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
           <Button variant="outline" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <Button size="sm" onClick={() => toast({ title: `${moduleName} form saved` })}>
+          <Button
+            size="sm"
+            onClick={() => {
+              saveFormSteps(routeServiceId, moduleName, steps);
+              toast({ title: `${moduleName} form saved`, description: "Preview will reflect your changes." });
+            }}
+          >
             <Save className="h-4 w-4 mr-1" /> Save Form
           </Button>
         </div>
