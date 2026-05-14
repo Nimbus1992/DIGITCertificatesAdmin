@@ -101,15 +101,23 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const currentService = state.services.find((s) => s.id === routeServiceId);
   const isSingleModule = (currentService?.customModules?.length ?? 0) <= 1;
 
+  const seedSetup = useMemo(
+    () => ({
+      categoriesList: currentService?.templateSetup?.categoriesList,
+      subcategoriesList: currentService?.templateSetup?.subcategoriesList,
+    }),
+    [currentService?.templateSetup?.categoriesList, currentService?.templateSetup?.subcategoriesList],
+  );
+
   const [steps, setSteps] = useState<WizardStep[]>(
-    () => loadFormSteps(routeServiceId, moduleName),
+    () => loadFormSteps(routeServiceId, moduleName, seedSetup),
   );
 
   // Reload when the active module changes (Issuance ↔ Renewal switch).
   useEffect(() => {
-    setSteps(loadFormSteps(routeServiceId, moduleName));
+    setSteps(loadFormSteps(routeServiceId, moduleName, seedSetup));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeServiceId, moduleName]);
+  }, [routeServiceId, moduleName, seedSetup]);
 
   const [activeStepId, setActiveStepId] = useState(steps[0]?.id ?? "");
   const [activeSubScreenId, setActiveSubScreenId] = useState<string>(
