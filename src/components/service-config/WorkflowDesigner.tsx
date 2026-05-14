@@ -87,6 +87,15 @@ import {
   isRenewalModule,
 } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
+import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
+import ScopeSelector from "@/components/service-config/ScopeSelector";
+import {
+  Select as CatSelect,
+  SelectContent as CatSelectContent,
+  SelectItem as CatSelectItem,
+  SelectTrigger as CatSelectTrigger,
+  SelectValue as CatSelectValue,
+} from "@/components/ui/select";
 
 // Auto-layout: lay issuance states out in 2 rows, left-to-right.
 const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
@@ -175,11 +184,26 @@ interface Props {
 
 const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
+  const cfg = useServiceConfigOptional();
+  const scope = cfg?.workflowScope ?? "shared";
+  const categories = cfg?.categories ?? [];
+  const showCategoryPicker = scope === "by_category" && categories.length > 0;
+  const [activeCategory, setActiveCategory] = useState<string>(() => categories[0] ?? "");
+  useEffect(() => {
+    if (showCategoryPicker && !categories.includes(activeCategory)) {
+      setActiveCategory(categories[0] ?? "");
+    }
+  }, [showCategoryPicker, categories, activeCategory]);
+
+  const storageSuffix = showCategoryPicker
+    ? `${moduleName}::cat::${activeCategory || "__"}`
+    : moduleName;
+
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states", serviceId, moduleName, () => buildSeedStates(moduleName),
+    "workflow-states", serviceId, storageSuffix, () => buildSeedStates(moduleName),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions", serviceId, moduleName, () => buildSeedTransitions(moduleName),
+    "workflow-transitions", serviceId, storageSuffix, () => buildSeedTransitions(moduleName),
   );
   const [view, setView] = useState<"visual" | "table">("visual");
   const [selection, setSelection] = useState<Selection>(null);
