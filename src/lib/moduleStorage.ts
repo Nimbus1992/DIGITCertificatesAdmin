@@ -21,7 +21,14 @@ export function useModuleState<T>(
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed != null) return parsed as T;
+        if (parsed != null) {
+          // Defensive: drop null/undefined entries from array-shaped state
+          // so a single corrupt item from an older schema can't crash render.
+          if (Array.isArray(parsed)) {
+            return parsed.filter((x) => x != null) as unknown as T;
+          }
+          return parsed as T;
+        }
       }
     } catch { /* ignore */ }
     return seedRef.current();
