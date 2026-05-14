@@ -5,6 +5,7 @@ import {
   type FormFieldConfig,
   ID_VALIDATION,
 } from "../PreviewContext";
+import type { WizardStep, WizardField } from "@/data/wizardForm";
 import CitizenScreenShell from "./_shell/CitizenScreenShell";
 import WizardProgress from "./_shell/WizardProgress";
 import { Input } from "@/components/ui/input";
@@ -81,65 +82,38 @@ const validateField = (
   return null;
 };
 
-// ─── Sub-screen plan ────────────────────────────
-// Each sub-screen lives within one of the 5 wizard steps.
+// ─── Runtime sub-screen shape ──────────────────
+// One entry per wizard sub-screen, derived from the canonical form steps
+// edited in the FormBuilder.
 interface SubScreen {
-  step: number;          // 1..5
-  stepName: string;      // shown in WizardProgress
-  title: string;         // question card title
+  step: number;          // 1-based step index used by WizardProgress
+  stepName: string;
+  title: string;
   subtitle?: string;
-  fieldIds: string[];    // field ids from formSections
-  optional?: boolean;    // shows inline Skip link in footer
-  isMap?: boolean;       // step 3.1 map placeholder
-  helperBanner?: string; // shown above fields
-  splitGroups?: { heading?: string; fieldIds: string[] }[]; // optional intra-screen grouping
+  fields: WizardField[];
+  optional?: boolean;
+  isMap?: boolean;
+  helperBanner?: string;
 }
 
-const STEP_NAMES = [
-  "Applicant Details",
-  "Business Details",
-  "Business Location",
-  "Operational Details",
-  "Documents",
-];
-
-const SUB_SCREENS: SubScreen[] = [
-  // Step 1
-  { step: 1, stepName: STEP_NAMES[0], title: "Let's start with your name", fieldIds: ["fullName"] },
-  { step: 1, stepName: STEP_NAMES[0], title: "How can we reach you?", fieldIds: ["mobile", "email"] },
-  { step: 1, stepName: STEP_NAMES[0], title: "Add your ID details", subtitle: "Helper text changes based on the selected ID type", fieldIds: ["idType", "idNumber"] },
-  // Step 2
-  { step: 2, stepName: STEP_NAMES[1], title: "What kind of business are you running?", fieldIds: ["businessName", "tradeType", "businessCategory"] },
-  {
-    step: 2, stepName: STEP_NAMES[1], title: "Who owns the business?",
-    fieldIds: ["ownershipType", "employees", "turnover"], optional: true,
-    splitGroups: [
-      { fieldIds: ["ownershipType"] },
-      { heading: "Add a few more details (optional)", fieldIds: ["employees", "turnover"] },
-    ],
-  },
-  // Step 3
-  { step: 3, stepName: STEP_NAMES[2], title: "Where is your business located?", subtitle: "Long press to drop a pin, or search by pincode/area.", fieldIds: [], isMap: true, optional: true },
-  {
-    step: 3, stepName: STEP_NAMES[2], title: "Is this your business address?",
-    helperBanner: "We've filled this based on your location. You can edit if needed.",
-    fieldIds: ["addr1", "addr2", "city", "zone", "pincode"],
-  },
-  // Step 4
-  { step: 4, stepName: STEP_NAMES[3], title: "When did your business start?", fieldIds: ["startDate"] },
-  {
-    step: 4, stepName: STEP_NAMES[3], title: "Tell us a bit about your operations",
-    fieldIds: ["shopArea", "isHazardous", "hazardType"],
-    splitGroups: [
-      { heading: "What is the size of your shop (in sq ft)?", fieldIds: ["shopArea"] },
-      { heading: "Does your business involve any safety risks?", fieldIds: ["isHazardous", "hazardType"] },
-    ],
-  },
-  // Step 5
-  { step: 5, stepName: STEP_NAMES[4], title: "Upload documents to complete your application", fieldIds: ["docId", "docAddr", "docBusiness"] },
-];
-
-const REVIEW_INDEX = SUB_SCREENS.length;
+const buildSubScreens = (steps: WizardStep[]): SubScreen[] => {
+  const out: SubScreen[] = [];
+  steps.forEach((step, sIdx) => {
+    step.subScreens.forEach((sub) => {
+      out.push({
+        step: sIdx + 1,
+        stepName: step.name,
+        title: sub.title,
+        subtitle: sub.subtitle,
+        fields: sub.fields,
+        optional: sub.optional,
+        isMap: sub.isMap,
+        helperBanner: sub.helperBanner,
+      });
+    });
+  });
+  return out;
+};
 
 // ─── Component ──────────────────────────────────
 const ApplicationForm: React.FC = () => {
