@@ -76,8 +76,10 @@ interface Props {
 
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
+  // Roles are shared across all modules of a service so renaming/removing a
+  // role propagates to workflow assignments and checklist ownership.
   const [roles, setRoles] = useModuleState<Role[]>(
-    "roles", serviceId, moduleName, () => buildDefaultRoles(moduleName),
+    "roles", serviceId, "__shared__", () => buildDefaultRoles(moduleName),
   );
   const [search, setSearch] = useState("");
   const [showDialog, setShowDialog] = useState(false);
