@@ -20,6 +20,7 @@ import {
   ArrowLeft, Plus, Bell, Check, Circle, Play,
   Square, Save, ChevronRight, ChevronLeft,
   Info, Trash2, IndianRupee, UserCog, Pencil, ClipboardCheck, CreditCard,
+  ZoomIn, ZoomOut, Maximize2,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
