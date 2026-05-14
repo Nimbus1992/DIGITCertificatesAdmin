@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,8 +97,8 @@ const DYNAMIC_VARS = [
 ];
 
 import { TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
-
-const GENERATE_WHEN_OPTIONS = [...TRADE_STATE_NAMES, "Workflow State Selection"];
+import { RENEWAL_STATE_NAMES, isRenewalModule } from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 const CREDENTIAL_ID_OPTIONS = ["License Number", "Application Number", "Custom Field"];
 
@@ -223,8 +224,17 @@ interface Props {
 }
 
 const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [documents, setDocuments] = useState<DesignDocument[]>(createTemplateDocuments);
-  const [activeDocId, setActiveDocId] = useState(documents[0].id);
+  const { id: serviceId = "service" } = useParams();
+  const renewal = isRenewalModule(moduleName);
+  const GENERATE_WHEN_OPTIONS = [
+    ...(renewal ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES),
+    "Workflow State Selection",
+  ];
+  const [documents, setDocuments] = useModuleState<DesignDocument[]>(
+    "documents", serviceId, moduleName,
+    () => (renewal ? createRenewalDocuments() : createTemplateDocuments()),
+  );
+  const [activeDocId, setActiveDocId] = useState(documents[0]?.id ?? "");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
