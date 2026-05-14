@@ -624,7 +624,7 @@ const ApplicationForm: React.FC = () => {
       <CitizenScreenShell
         onBack={handleBack}
         backLabel="Back"
-        progress={<WizardProgress step={sub.step} total={5} stepName={sub.stepName} />}
+        progress={<WizardProgress step={sub.step} total={totalSteps} stepName={sub.stepName} />}
         footer={wizardFooter}
       >
         {draftRestored && !isRenewal && (
