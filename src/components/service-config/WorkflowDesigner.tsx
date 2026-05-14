@@ -20,6 +20,7 @@ import {
   ArrowLeft, Plus, Bell, Check, Circle, Play,
   Square, Save, ChevronRight, ChevronLeft,
   Info, Trash2, IndianRupee, UserCog, Pencil, ClipboardCheck, CreditCard,
+  ZoomIn, ZoomOut, Maximize2,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -313,6 +314,39 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number; moved: boolean } | null>(null);
 
+  /* ---- Zoom & Pan ---- */
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  const panDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const clampZoom = (z: number) => Math.min(2, Math.max(0.3, z));
+  const zoomIn = () => setZoom(z => clampZoom(z * 1.2));
+  const zoomOut = () => setZoom(z => clampZoom(z / 1.2));
+  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
+  const onCanvasWheel = useCallback((e: React.WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const newZoom = clampZoom(zoomRef.current * factor);
+    // zoom toward cursor
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const ratio = newZoom / zoomRef.current;
+    setPan(p => ({ x: cx - (cx - p.x) * ratio, y: cy - (cy - p.y) * ratio }));
+    setZoom(newZoom);
+  }, []);
+
+  const onCanvasBgMouseDown = (e: React.MouseEvent) => {
+    if (e.target !== e.currentTarget) return;
+    panDragRef.current = { startX: e.clientX, startY: e.clientY, origX: panRef.current.x, origY: panRef.current.y };
+  };
+
   const WORKFLOW_STATE_NAMES = useMemo(
     () => Array.from(new Set(states.map(s => s.name))),
     [states],
@@ -323,20 +357,33 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     e.stopPropagation();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    dragRef.current = { id: stateId, offsetX: e.clientX - rect.left - sx, offsetY: e.clientY - rect.top - sy, moved: false };
+    const z = zoomRef.current; const p = panRef.current;
+    dragRef.current = {
+      id: stateId,
+      offsetX: e.clientX - rect.left - (sx * z + p.x),
+      offsetY: e.clientY - rect.top - (sy * z + p.y),
+      moved: false,
+    };
     setSelection({ kind: "state", id: stateId });
   }, []);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
+      if (panDragRef.current) {
+        const dx = e.clientX - panDragRef.current.startX;
+        const dy = e.clientY - panDragRef.current.startY;
+        setPan({ x: panDragRef.current.origX + dx, y: panDragRef.current.origY + dy });
+        return;
+      }
       if (!dragRef.current || !canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const nx = Math.max(0, e.clientX - rect.left - dragRef.current.offsetX);
-      const ny = Math.max(0, e.clientY - rect.top - dragRef.current.offsetY);
+      const z = zoomRef.current; const p = panRef.current;
+      const nx = Math.max(0, (e.clientX - rect.left - p.x - dragRef.current.offsetX) / z);
+      const ny = Math.max(0, (e.clientY - rect.top - p.y - dragRef.current.offsetY) / z);
       dragRef.current.moved = true;
       setStates(prev => prev.map(s => s.id === dragRef.current!.id ? { ...s, x: nx, y: ny } : s));
     };
-    const onUp = () => { dragRef.current = null; };
+    const onUp = () => { dragRef.current = null; panDragRef.current = null; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
@@ -513,13 +560,42 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           {view === "visual" ? (
             <div
               ref={canvasRef}
-              className="relative min-h-[600px] min-w-[1200px]"
+              className="relative w-full h-full min-h-[600px] overflow-hidden"
               style={{
                 backgroundImage: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)",
-                backgroundSize: "20px 20px",
+                backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+                backgroundPosition: `${pan.x}px ${pan.y}px`,
+                cursor: panDragRef.current ? "grabbing" : "default",
               }}
               onClick={() => setSelection(null)}
+              onMouseDown={onCanvasBgMouseDown}
+              onWheel={onCanvasWheel}
             >
+              {/* Zoom controls */}
+              <div className="absolute top-3 right-3 z-30 flex flex-col gap-1 bg-card border rounded-md shadow-sm p-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); zoomIn(); }} title="Zoom in">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); zoomOut(); }} title="Zoom out">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); resetView(); }} title="Reset view">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+                <div className="text-[10px] text-center text-muted-foreground px-1">{Math.round(zoom * 100)}%</div>
+              </div>
+              <div className="absolute bottom-3 left-3 z-30 text-[10px] text-muted-foreground bg-card/80 border rounded px-2 py-1 pointer-events-none">
+                Drag empty area to pan • Ctrl/⌘ + scroll to zoom
+              </div>
+              <div
+                className="absolute top-0 left-0 origin-top-left"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  width: 4000,
+                  height: 2000,
+                  pointerEvents: "none",
+                }}
+              >
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
                 <defs>
                   <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
@@ -554,7 +630,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <button
                     key={`label-${t.id}`}
-                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5
+                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5 pointer-events-auto
                       ${isSelected
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-card text-foreground border-border hover:border-accent"}`}
@@ -583,7 +659,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <div
                     key={s.id}
-                    className={`absolute z-20 rounded-lg border-l-4 bg-card border shadow-sm cursor-grab select-none transition-shadow
+                    className={`absolute z-20 rounded-lg border-l-4 bg-card border shadow-sm cursor-grab select-none transition-shadow pointer-events-auto
                       ${cfg.borderColor}
                       ${isSelected ? "ring-2 ring-accent shadow-md" : "hover:shadow-md"}`}
                     style={{ left: s.x, top: s.y, width: NODE_W }}
@@ -614,6 +690,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                   </div>
                 );
               })}
+              </div>
             </div>
           ) : (
             /* TABLE VIEW */
