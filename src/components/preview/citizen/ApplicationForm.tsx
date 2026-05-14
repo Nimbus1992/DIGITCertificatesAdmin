@@ -185,38 +185,39 @@ const ApplicationForm: React.FC = () => {
     return () => clearTimeout(handle);
   }, [stepIndex, formData, docs, draftKey]);
 
-  const isReview = stepIndex === REVIEW_INDEX;
-  const sub = !isReview ? SUB_SCREENS[stepIndex] : null;
+  const isReview = stepIndex >= reviewIndex;
+  const sub = !isReview ? subScreens[stepIndex] : null;
 
-  const visibleFieldIds = useMemo(() => {
-    if (!sub) return [] as string[];
-    return sub.fieldIds.filter(id => {
-      const f = fieldsById[id];
-      return f && isFieldVisible(f, formData);
-    });
-  }, [sub, fieldsById, formData]);
+  const visibleFields = useMemo(() => {
+    if (!sub) return [] as WizardField[];
+    return sub.fields.filter((f) => isFieldVisible(f as unknown as FormFieldConfig, formData));
+  }, [sub, formData]);
+  const visibleFieldIds = useMemo(() => visibleFields.map((f) => f.id), [visibleFields]);
 
   const errors = useMemo(() => {
     if (!sub) return {} as Record<string, string>;
     const out: Record<string, string> = {};
-    visibleFieldIds.forEach(id => {
-      const f = fieldsById[id];
-      if (!f) return;
+    visibleFields.forEach((wf) => {
+      const f = fieldsById[wf.id] ?? (wf as unknown as FormFieldConfig);
       const err = validateField(f, formData, docs);
-      if (err) out[id] = err;
+      if (err) out[wf.id] = err;
     });
     return out;
-  }, [sub, visibleFieldIds, fieldsById, formData, docs]);
+  }, [sub, visibleFields, fieldsById, formData, docs]);
 
   const subValid = Object.keys(errors).length === 0;
 
   const updateField = (fieldId: string, value: string) => {
     setFormData((prev) => {
       const next = { ...prev, [fieldId]: value };
-      formSections.forEach(sec => sec.fields.forEach(f => {
-        if (f.dependsOn === fieldId) next[f.id] = "";
-        if (f.showIf?.field === fieldId && f.showIf.equals !== value) next[f.id] = "";
-      }));
+      steps.forEach((st) =>
+        st.subScreens.forEach((s) =>
+          s.fields.forEach((f) => {
+            if (f.dependsOn === fieldId) next[f.id] = "";
+            if (f.showIf?.field === fieldId && f.showIf.equals !== value) next[f.id] = "";
+          }),
+        ),
+      );
       return next;
     });
   };
