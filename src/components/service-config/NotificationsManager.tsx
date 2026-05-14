@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,8 +38,13 @@ import {
   TRADE_STATE_NAMES,
   TRADE_STATE_TAG_COLORS,
 } from "@/data/tradeLicenseTemplate";
-
-const WORKFLOW_STATES = TRADE_STATE_NAMES;
+import {
+  RENEWAL_NOTIFICATIONS,
+  RENEWAL_STATE_NAMES,
+  RENEWAL_STATE_TAG_COLORS,
+  isRenewalModule,
+} from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 const VARIABLES = [
   "{applicationNumber}",
@@ -47,17 +53,20 @@ const VARIABLES = [
   "{applicationStatus}",
 ];
 
-const tagColors: Record<string, string> = TRADE_STATE_TAG_COLORS;
-
-const defaultNotifications: Notification[] = TRADE_NOTIFICATIONS.map((n) => ({
-  id: n.id,
-  workflowState: n.workflowState,
-  subject: n.subject,
-  message: n.message,
-  channels: n.channels,
-  tag: n.tag,
-  tagColor: tagColors[n.tag] ?? "bg-muted text-muted-foreground",
-}));
+const buildDefaultNotifications = (moduleName: string): Notification[] => {
+  const renewal = isRenewalModule(moduleName);
+  const src = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
+  const colors = renewal ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+  return src.map((n) => ({
+    id: n.id,
+    workflowState: n.workflowState,
+    subject: n.subject,
+    message: n.message,
+    channels: [...n.channels],
+    tag: n.tag,
+    tagColor: colors[n.tag] ?? "bg-muted text-muted-foreground",
+  }));
+};
 
 interface Props {
   moduleName: string;
@@ -65,7 +74,13 @@ interface Props {
 }
 
 const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [notifications, setNotifications] = useState<Notification[]>(defaultNotifications);
+  const { id: serviceId = "service" } = useParams();
+  const renewal = isRenewalModule(moduleName);
+  const WORKFLOW_STATES = renewal ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES;
+  const tagColors: Record<string, string> = renewal ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+  const [notifications, setNotifications] = useModuleState<Notification[]>(
+    "notifications", serviceId, moduleName, () => buildDefaultNotifications(moduleName),
+  );
   const [showDialog, setShowDialog] = useState(false);
   const [form, setForm] = useState({ workflowState: "", subject: "", message: "" });
 

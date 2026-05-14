@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,8 +48,12 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
 ];
 
 import { TRADE_CHECKLISTS, TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
-
-const WORKFLOW_STATES = TRADE_STATE_NAMES;
+import {
+  RENEWAL_CHECKLISTS,
+  RENEWAL_STATE_NAMES,
+  isRenewalModule,
+} from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 const fieldTypeBadgeColor: Record<FieldType, string> = {
   text: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
@@ -58,18 +63,21 @@ const fieldTypeBadgeColor: Record<FieldType, string> = {
   file_upload: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 };
 
-const defaultChecklists: Checklist[] = TRADE_CHECKLISTS.map((c) => ({
-  id: c.id,
-  name: c.name,
-  workflowState: c.workflowState,
-  questions: c.questions.map((q) => ({
-    id: q.id,
-    text: q.text,
-    fieldType: q.fieldType,
-    required: q.required,
-    options: q.options,
-  })),
-}));
+const buildDefaultChecklists = (moduleName: string): Checklist[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_CHECKLISTS : TRADE_CHECKLISTS;
+  return src.map((c) => ({
+    id: c.id,
+    name: c.name,
+    workflowState: c.workflowState,
+    questions: c.questions.map((q) => ({
+      id: q.id,
+      text: q.text,
+      fieldType: q.fieldType,
+      required: q.required,
+      options: q.options ? [...q.options] : undefined,
+    })),
+  }));
+};
 
 interface Props {
   moduleName: string;
@@ -77,7 +85,11 @@ interface Props {
 }
 
 const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [checklists, setChecklists] = useState<Checklist[]>(defaultChecklists);
+  const { id: serviceId = "service" } = useParams();
+  const WORKFLOW_STATES = isRenewalModule(moduleName) ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES;
+  const [checklists, setChecklists] = useModuleState<Checklist[]>(
+    "checklists", serviceId, moduleName, () => buildDefaultChecklists(moduleName),
+  );
   const [showDialog, setShowDialog] = useState(false);
   const [newChecklist, setNewChecklist] = useState({ name: "", workflowState: "" });
   const [editingChecklistId, setEditingChecklistId] = useState<string | null>(null);

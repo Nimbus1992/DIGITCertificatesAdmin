@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,8 +74,8 @@ interface Fee {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 import { TRADE_FEES, TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
-
-const WORKFLOW_STAGES = TRADE_STATE_NAMES;
+import { RENEWAL_FEES, RENEWAL_STATE_NAMES, isRenewalModule } from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 const FEE_TYPE_META: Record<FeeType, { label: string; icon: React.ElementType; description: string }> = {
   fixed: { label: "Fixed Fee", icon: DollarSign, description: "A flat amount charged every time" },
@@ -87,25 +88,28 @@ const CONDITION_FIELDS = ["Business Type", "Area (sq ft)", "No. of Employees", "
 const OPERATORS = ["=", "!=", ">", "<", ">=", "<="];
 const FORMULA_VARIABLES = ["Area", "Rate", "BusinessType", "Employees", "Zone"];
 
-const defaultFees: Fee[] = TRADE_FEES.map((f) => ({
-  id: f.id,
-  name: f.name,
-  code: f.code,
-  type: f.type,
-  amount: f.amount,
-  currency: f.currency,
-  slabs: f.slabs ? f.slabs.map((s) => ({ id: s.id, conditionLabel: s.conditionLabel, amount: s.amount })) : undefined,
-  conditionField: f.conditionField,
-  conditionOperator: f.conditionOperator,
-  conditionValue: f.conditionValue,
-  conditionAmount: f.conditionAmount,
-  formula: f.formula,
-  applicableStage: f.applicableStage,
-  mandatory: f.mandatory,
-  status: f.status,
-}));
+const buildDefaultFees = (moduleName: string): Fee[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_FEES : TRADE_FEES;
+  return src.map((f) => ({
+    id: f.id,
+    name: f.name,
+    code: f.code,
+    type: f.type,
+    amount: f.amount,
+    currency: f.currency,
+    slabs: f.slabs ? f.slabs.map((s) => ({ id: s.id, conditionLabel: s.conditionLabel, amount: s.amount })) : undefined,
+    conditionField: f.conditionField,
+    conditionOperator: f.conditionOperator,
+    conditionValue: f.conditionValue,
+    conditionAmount: f.conditionAmount,
+    formula: f.formula,
+    applicableStage: f.applicableStage,
+    mandatory: f.mandatory,
+    status: f.status,
+  }));
+};
 
-const emptyFee = (): Fee => ({
+const emptyFee = (stages: string[]): Fee => ({
   id: uid(),
   name: "",
   code: "",
@@ -118,7 +122,7 @@ const emptyFee = (): Fee => ({
   conditionValue: "",
   conditionAmount: 0,
   formula: "",
-  applicableStage: WORKFLOW_STAGES[0],
+  applicableStage: stages[0],
   mandatory: false,
   status: "draft",
 });
@@ -138,16 +142,20 @@ interface Props {
 }
 
 const FeesConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [fees, setFees] = useState<Fee[]>(defaultFees);
+  const { id: serviceId = "service" } = useParams();
+  const WORKFLOW_STAGES = isRenewalModule(moduleName) ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES;
+  const [fees, setFees] = useModuleState<Fee[]>(
+    "fees", serviceId, moduleName, () => buildDefaultFees(moduleName),
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingFee, setEditingFee] = useState<Fee | null>(null);
-  const [draft, setDraft] = useState<Fee>(emptyFee());
+  const [draft, setDraft] = useState<Fee>(() => emptyFee(WORKFLOW_STAGES));
 
   // ── Handlers ──
 
   const openCreate = () => {
     setEditingFee(null);
-    setDraft(emptyFee());
+    setDraft(emptyFee(WORKFLOW_STAGES));
     setSheetOpen(true);
   };
 
