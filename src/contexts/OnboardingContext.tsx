@@ -58,6 +58,8 @@ export interface RenewalPolicy {
   perSubcategory: Record<string, number>;
 }
 
+export type WorkflowScope = "shared" | "by_category" | "by_subcategory";
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -77,6 +79,7 @@ export interface ServiceItem {
   branding?: BrandingConfig;
   templateSetup?: TemplateSetup;
   renewalPolicy?: RenewalPolicy;
+  workflowScope?: WorkflowScope;
 }
 
 export interface OnboardingState {
