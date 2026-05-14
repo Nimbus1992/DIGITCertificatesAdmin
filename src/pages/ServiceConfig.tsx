@@ -18,6 +18,7 @@ import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurat
 import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 import ModuleTabs from "@/components/service-config/ModuleTabs";
+import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 
 const deploymentSections: { title: string; description: string }[] = [
   { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
@@ -59,7 +60,7 @@ const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) 
   </div>
 );
 
-const ServiceConfig: React.FC = () => {
+const ServiceConfigInner: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
@@ -326,6 +327,15 @@ const ServiceConfig: React.FC = () => {
         <MasterTemplateConfigurator open={setupOpen} onOpenChange={setSetupOpen} service={service} />
       )}
     </div>
+  );
+};
+
+const ServiceConfig: React.FC = () => {
+  const { id } = useParams();
+  return (
+    <ServiceConfigProvider serviceId={id ?? ""}>
+      <ServiceConfigInner />
+    </ServiceConfigProvider>
   );
 };
 
