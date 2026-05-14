@@ -25,10 +25,8 @@ import {
   type WizardFieldType,
   type WizardStep,
   type WizardSubScreen,
-  cloneSteps,
 } from "@/data/wizardForm";
-import { ISSUANCE_FORM_STEPS } from "@/data/issuanceFormTemplate";
-import { RENEWAL_FORM_STEPS } from "@/data/renewalFormTemplate";
+import { loadFormSteps, saveFormSteps } from "@/lib/formStorage";
 
 /* ─── Field palette ─────────────────────────────────────── */
 
@@ -98,29 +96,20 @@ interface FormBuilderProps {
 }
 
 const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
-  const { serviceId = "service" } = useParams();
-  const { id: routeServiceId } = useParams();
+  const { id: routeServiceId = "service" } = useParams();
   const { state } = useOnboarding();
   const currentService = state.services.find((s) => s.id === routeServiceId);
   const isSingleModule = (currentService?.customModules?.length ?? 0) <= 1;
-  const isRenewal = moduleName.toLowerCase().includes("renew");
-  const storageKey = `formbuilder:${serviceId}:${moduleName}`;
 
-  const seed = useMemo<WizardStep[]>(
-    () => cloneSteps(isRenewal ? RENEWAL_FORM_STEPS : ISSUANCE_FORM_STEPS),
-    [isRenewal],
+  const [steps, setSteps] = useState<WizardStep[]>(
+    () => loadFormSteps(routeServiceId, moduleName),
   );
 
-  const [steps, setSteps] = useState<WizardStep[]>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed as WizardStep[];
-      }
-    } catch { /* ignore */ }
-    return seed;
-  });
+  // Reload when the active module changes (Issuance ↔ Renewal switch).
+  useEffect(() => {
+    setSteps(loadFormSteps(routeServiceId, moduleName));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeServiceId, moduleName]);
 
   const [activeStepId, setActiveStepId] = useState(steps[0]?.id ?? "");
   const [activeSubScreenId, setActiveSubScreenId] = useState<string>(
@@ -130,10 +119,10 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const [paletteSearch, setPaletteSearch] = useState("");
   const [rightTab, setRightTab] = useState<"elements" | "logic">("elements");
 
-  // Persist
+  // Persist on every change so preview & builder stay in sync.
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(steps)); } catch { /* ignore */ }
-  }, [steps, storageKey]);
+    saveFormSteps(routeServiceId, moduleName, steps);
+  }, [steps, routeServiceId, moduleName]);
 
   const activeStep = steps.find((s) => s.id === activeStepId) ?? steps[0];
   const activeStepIndex = steps.findIndex((s) => s.id === activeStep?.id);
