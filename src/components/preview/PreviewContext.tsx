@@ -6,6 +6,7 @@ import { resolveTemplate, type SimulatedMessage } from "./notifications/template
 import { useParams } from "react-router-dom";
 import type { WizardStep, WizardField } from "@/data/wizardForm";
 import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 // ─── Types ───────────────────────────────────────────────
 export type PreviewRole = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
@@ -384,6 +385,15 @@ interface PreviewProviderProps {
 
 export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serviceName }) => {
   const { id: routeServiceId = "service" } = useParams();
+  const { state: onboardingState } = useOnboarding();
+  const currentService = onboardingState.services.find((s) => s.id === routeServiceId);
+  const seedSetup = useMemo(
+    () => ({
+      categoriesList: currentService?.templateSetup?.categoriesList,
+      subcategoriesList: currentService?.templateSetup?.subcategoriesList,
+    }),
+    [currentService?.templateSetup?.categoriesList, currentService?.templateSetup?.subcategoriesList],
+  );
   const [role, setRole] = useState<PreviewRole>("citizen");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("mobile");
   const [screen, setScreen] = useState<PreviewScreen>({ type: "catalogue" });
@@ -397,21 +407,21 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   // ── Form schema (per service, per module) ────────────────────────
   const [issuanceSteps, setIssuanceSteps] = useState<WizardStep[]>(
-    () => loadFormSteps(routeServiceId, "Issuance"),
+    () => loadFormSteps(routeServiceId, "Issuance", seedSetup),
   );
   const [renewalSteps, setRenewalSteps] = useState<WizardStep[]>(
-    () => loadFormSteps(routeServiceId, "Renewal"),
+    () => loadFormSteps(routeServiceId, "Renewal", seedSetup),
   );
 
   useEffect(() => {
-    setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance"));
-    setRenewalSteps(loadFormSteps(routeServiceId, "Renewal"));
-  }, [routeServiceId]);
+    setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance", seedSetup));
+    setRenewalSteps(loadFormSteps(routeServiceId, "Renewal", seedSetup));
+  }, [routeServiceId, seedSetup]);
 
   useEffect(() => {
     const reload = () => {
-      setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance"));
-      setRenewalSteps(loadFormSteps(routeServiceId, "Renewal"));
+      setIssuanceSteps(loadFormSteps(routeServiceId, "Issuance", seedSetup));
+      setRenewalSteps(loadFormSteps(routeServiceId, "Renewal", seedSetup));
     };
     const onCustom = (e: Event) => {
       const detail = (e as CustomEvent).detail as { serviceId?: string } | undefined;
@@ -427,7 +437,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       window.removeEventListener(FORM_UPDATED_EVENT, onCustom as EventListener);
       window.removeEventListener("storage", onStorage);
     };
-  }, [routeServiceId]);
+  }, [routeServiceId, seedSetup]);
 
   const getFormSteps = useCallback(
     (type: ApplicationType) => (type === "RENEWAL" ? renewalSteps : issuanceSteps),
