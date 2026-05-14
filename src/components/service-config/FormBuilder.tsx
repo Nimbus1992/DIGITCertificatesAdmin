@@ -25,10 +25,8 @@ import {
   type WizardFieldType,
   type WizardStep,
   type WizardSubScreen,
-  cloneSteps,
 } from "@/data/wizardForm";
-import { ISSUANCE_FORM_STEPS } from "@/data/issuanceFormTemplate";
-import { RENEWAL_FORM_STEPS } from "@/data/renewalFormTemplate";
+import { loadFormSteps, saveFormSteps } from "@/lib/formStorage";
 
 /* ─── Field palette ─────────────────────────────────────── */
 
@@ -98,29 +96,20 @@ interface FormBuilderProps {
 }
 
 const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
-  const { serviceId = "service" } = useParams();
-  const { id: routeServiceId } = useParams();
+  const { id: routeServiceId = "service" } = useParams();
   const { state } = useOnboarding();
   const currentService = state.services.find((s) => s.id === routeServiceId);
   const isSingleModule = (currentService?.customModules?.length ?? 0) <= 1;
-  const isRenewal = moduleName.toLowerCase().includes("renew");
-  const storageKey = `formbuilder:${serviceId}:${moduleName}`;
 
-  const seed = useMemo<WizardStep[]>(
-    () => cloneSteps(isRenewal ? RENEWAL_FORM_STEPS : ISSUANCE_FORM_STEPS),
-    [isRenewal],
+  const [steps, setSteps] = useState<WizardStep[]>(
+    () => loadFormSteps(routeServiceId, moduleName),
   );
 
-  const [steps, setSteps] = useState<WizardStep[]>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed as WizardStep[];
-      }
-    } catch { /* ignore */ }
-    return seed;
-  });
+  // Reload when the active module changes (Issuance ↔ Renewal switch).
+  useEffect(() => {
+    setSteps(loadFormSteps(routeServiceId, moduleName));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeServiceId, moduleName]);
 
   const [activeStepId, setActiveStepId] = useState(steps[0]?.id ?? "");
   const [activeSubScreenId, setActiveSubScreenId] = useState<string>(
@@ -130,10 +119,10 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const [paletteSearch, setPaletteSearch] = useState("");
   const [rightTab, setRightTab] = useState<"elements" | "logic">("elements");
 
-  // Persist
+  // Persist on every change so preview & builder stay in sync.
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(steps)); } catch { /* ignore */ }
-  }, [steps, storageKey]);
+    saveFormSteps(routeServiceId, moduleName, steps);
+  }, [steps, routeServiceId, moduleName]);
 
   const activeStep = steps.find((s) => s.id === activeStepId) ?? steps[0];
   const activeStepIndex = steps.findIndex((s) => s.id === activeStep?.id);
@@ -403,24 +392,20 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b bg-card">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Service Dashboard
-          </button>
-          {!isSingleModule && (
-            <>
-              <Separator orientation="vertical" className="h-5" />
-              <div className="text-sm">
-                <span className="text-muted-foreground">Form for </span>
-                <span className="font-semibold text-foreground">{moduleName}</span>
-              </div>
-            </>
-          )}
+      {/* Header — matches other configurators (icon-only back + title) */}
+      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b bg-card">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="font-bold text-foreground text-sm truncate">
+              {isSingleModule ? "Form" : `${moduleName} — Form`}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Design the citizen application form for this flow
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <HelpCircle className="h-4 w-4" /> Help
@@ -1039,7 +1024,13 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
           <Button variant="outline" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <Button size="sm" onClick={() => toast({ title: `${moduleName} form saved` })}>
+          <Button
+            size="sm"
+            onClick={() => {
+              saveFormSteps(routeServiceId, moduleName, steps);
+              toast({ title: `${moduleName} form saved`, description: "Preview will reflect your changes." });
+            }}
+          >
             <Save className="h-4 w-4 mr-1" /> Save Form
           </Button>
         </div>

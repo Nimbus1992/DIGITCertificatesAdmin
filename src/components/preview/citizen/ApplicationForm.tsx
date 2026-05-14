@@ -5,6 +5,7 @@ import {
   type FormFieldConfig,
   ID_VALIDATION,
 } from "../PreviewContext";
+import type { WizardStep, WizardField } from "@/data/wizardForm";
 import CitizenScreenShell from "./_shell/CitizenScreenShell";
 import WizardProgress from "./_shell/WizardProgress";
 import { Input } from "@/components/ui/input";
@@ -81,70 +82,43 @@ const validateField = (
   return null;
 };
 
-// ─── Sub-screen plan ────────────────────────────
-// Each sub-screen lives within one of the 5 wizard steps.
+// ─── Runtime sub-screen shape ──────────────────
+// One entry per wizard sub-screen, derived from the canonical form steps
+// edited in the FormBuilder.
 interface SubScreen {
-  step: number;          // 1..5
-  stepName: string;      // shown in WizardProgress
-  title: string;         // question card title
+  step: number;          // 1-based step index used by WizardProgress
+  stepName: string;
+  title: string;
   subtitle?: string;
-  fieldIds: string[];    // field ids from formSections
-  optional?: boolean;    // shows inline Skip link in footer
-  isMap?: boolean;       // step 3.1 map placeholder
-  helperBanner?: string; // shown above fields
-  splitGroups?: { heading?: string; fieldIds: string[] }[]; // optional intra-screen grouping
+  fields: WizardField[];
+  optional?: boolean;
+  isMap?: boolean;
+  helperBanner?: string;
 }
 
-const STEP_NAMES = [
-  "Applicant Details",
-  "Business Details",
-  "Business Location",
-  "Operational Details",
-  "Documents",
-];
-
-const SUB_SCREENS: SubScreen[] = [
-  // Step 1
-  { step: 1, stepName: STEP_NAMES[0], title: "Let's start with your name", fieldIds: ["fullName"] },
-  { step: 1, stepName: STEP_NAMES[0], title: "How can we reach you?", fieldIds: ["mobile", "email"] },
-  { step: 1, stepName: STEP_NAMES[0], title: "Add your ID details", subtitle: "Helper text changes based on the selected ID type", fieldIds: ["idType", "idNumber"] },
-  // Step 2
-  { step: 2, stepName: STEP_NAMES[1], title: "What kind of business are you running?", fieldIds: ["businessName", "tradeType", "businessCategory"] },
-  {
-    step: 2, stepName: STEP_NAMES[1], title: "Who owns the business?",
-    fieldIds: ["ownershipType", "employees", "turnover"], optional: true,
-    splitGroups: [
-      { fieldIds: ["ownershipType"] },
-      { heading: "Add a few more details (optional)", fieldIds: ["employees", "turnover"] },
-    ],
-  },
-  // Step 3
-  { step: 3, stepName: STEP_NAMES[2], title: "Where is your business located?", subtitle: "Long press to drop a pin, or search by pincode/area.", fieldIds: [], isMap: true, optional: true },
-  {
-    step: 3, stepName: STEP_NAMES[2], title: "Is this your business address?",
-    helperBanner: "We've filled this based on your location. You can edit if needed.",
-    fieldIds: ["addr1", "addr2", "city", "zone", "pincode"],
-  },
-  // Step 4
-  { step: 4, stepName: STEP_NAMES[3], title: "When did your business start?", fieldIds: ["startDate"] },
-  {
-    step: 4, stepName: STEP_NAMES[3], title: "Tell us a bit about your operations",
-    fieldIds: ["shopArea", "isHazardous", "hazardType"],
-    splitGroups: [
-      { heading: "What is the size of your shop (in sq ft)?", fieldIds: ["shopArea"] },
-      { heading: "Does your business involve any safety risks?", fieldIds: ["isHazardous", "hazardType"] },
-    ],
-  },
-  // Step 5
-  { step: 5, stepName: STEP_NAMES[4], title: "Upload documents to complete your application", fieldIds: ["docId", "docAddr", "docBusiness"] },
-];
-
-const REVIEW_INDEX = SUB_SCREENS.length;
+const buildSubScreens = (steps: WizardStep[]): SubScreen[] => {
+  const out: SubScreen[] = [];
+  steps.forEach((step, sIdx) => {
+    step.subScreens.forEach((sub) => {
+      out.push({
+        step: sIdx + 1,
+        stepName: step.name,
+        title: sub.title,
+        subtitle: sub.subtitle,
+        fields: sub.fields,
+        optional: sub.optional,
+        isMap: sub.isMap,
+        helperBanner: sub.helperBanner,
+      });
+    });
+  });
+  return out;
+};
 
 // ─── Component ──────────────────────────────────
 const ApplicationForm: React.FC = () => {
   const {
-    formSections, serviceName, submitApplication, submitRenewal,
+    formSections, serviceName, submitApplication, submitRenewal, getFormSteps,
     setScreen, screen, applications, userDocuments,
   } = usePreview();
 
@@ -154,6 +128,15 @@ const ApplicationForm: React.FC = () => {
     : undefined;
 
   const draftKey = `tl-draft-${parentApp?.id ?? "new"}`;
+
+  const steps = useMemo(
+    () => getFormSteps(isRenewal ? "RENEWAL" : "NEW"),
+    [getFormSteps, isRenewal],
+  );
+  const subScreens = useMemo(() => buildSubScreens(steps), [steps]);
+  const stepNames = useMemo(() => steps.map((s) => s.name), [steps]);
+  const totalSteps = stepNames.length || 1;
+  const reviewIndex = subScreens.length;
 
   const [stepIndex, setStepIndex] = useState(0); // 0..SUB_SCREENS.length (last = review)
   const [formData, setFormData] = useState<Record<string, string>>(parentApp ? { ...parentApp.formData } : {});
@@ -202,38 +185,39 @@ const ApplicationForm: React.FC = () => {
     return () => clearTimeout(handle);
   }, [stepIndex, formData, docs, draftKey]);
 
-  const isReview = stepIndex === REVIEW_INDEX;
-  const sub = !isReview ? SUB_SCREENS[stepIndex] : null;
+  const isReview = stepIndex >= reviewIndex;
+  const sub = !isReview ? subScreens[stepIndex] : null;
 
-  const visibleFieldIds = useMemo(() => {
-    if (!sub) return [] as string[];
-    return sub.fieldIds.filter(id => {
-      const f = fieldsById[id];
-      return f && isFieldVisible(f, formData);
-    });
-  }, [sub, fieldsById, formData]);
+  const visibleFields = useMemo(() => {
+    if (!sub) return [] as WizardField[];
+    return sub.fields.filter((f) => isFieldVisible(f as unknown as FormFieldConfig, formData));
+  }, [sub, formData]);
+  const visibleFieldIds = useMemo(() => visibleFields.map((f) => f.id), [visibleFields]);
 
   const errors = useMemo(() => {
     if (!sub) return {} as Record<string, string>;
     const out: Record<string, string> = {};
-    visibleFieldIds.forEach(id => {
-      const f = fieldsById[id];
-      if (!f) return;
+    visibleFields.forEach((wf) => {
+      const f = fieldsById[wf.id] ?? (wf as unknown as FormFieldConfig);
       const err = validateField(f, formData, docs);
-      if (err) out[id] = err;
+      if (err) out[wf.id] = err;
     });
     return out;
-  }, [sub, visibleFieldIds, fieldsById, formData, docs]);
+  }, [sub, visibleFields, fieldsById, formData, docs]);
 
   const subValid = Object.keys(errors).length === 0;
 
   const updateField = (fieldId: string, value: string) => {
     setFormData((prev) => {
       const next = { ...prev, [fieldId]: value };
-      formSections.forEach(sec => sec.fields.forEach(f => {
-        if (f.dependsOn === fieldId) next[f.id] = "";
-        if (f.showIf?.field === fieldId && f.showIf.equals !== value) next[f.id] = "";
-      }));
+      steps.forEach((st) =>
+        st.subScreens.forEach((s) =>
+          s.fields.forEach((f) => {
+            if (f.dependsOn === fieldId) next[f.id] = "";
+            if (f.showIf?.field === fieldId && f.showIf.equals !== value) next[f.id] = "";
+          }),
+        ),
+      );
       return next;
     });
   };
@@ -537,14 +521,16 @@ const ApplicationForm: React.FC = () => {
   if (isReview) {
     // Map field ids to first sub-screen index for "Edit"
     const fieldToSub: Record<string, number> = {};
-    SUB_SCREENS.forEach((s, i) => s.fieldIds.forEach(id => { if (!(id in fieldToSub)) fieldToSub[id] = i; }));
+    subScreens.forEach((s, i) =>
+      s.fields.forEach((f) => { if (!(f.id in fieldToSub)) fieldToSub[f.id] = i; }),
+    );
 
     return (
       <>
         <CitizenScreenShell
           onBack={handleBack}
           backLabel="Back"
-          progress={<WizardProgress step={5} total={5} stepName="Review" />}
+          progress={<WizardProgress step={totalSteps} total={totalSteps} stepName="Review" />}
           footer={reviewFooter}
         >
           <div ref={reviewScrollRef} className="h-full">
@@ -638,7 +624,7 @@ const ApplicationForm: React.FC = () => {
       <CitizenScreenShell
         onBack={handleBack}
         backLabel="Back"
-        progress={<WizardProgress step={sub.step} total={5} stepName={sub.stepName} />}
+        progress={<WizardProgress step={sub.step} total={totalSteps} stepName={sub.stepName} />}
         footer={wizardFooter}
       >
         {draftRestored && !isRenewal && (
@@ -696,25 +682,11 @@ const ApplicationForm: React.FC = () => {
                 Confirm Location
               </Button>
             </div>
-          ) : sub.splitGroups ? (
-            <div className="space-y-4">
-              {sub.splitGroups.map((g, gi) => (
-                <div key={gi} className="space-y-3">
-                  {g.heading && (
-                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#6B7280" }}>
-                      {g.heading}
-                    </p>
-                  )}
-                  {g.fieldIds
-                    .map(id => fieldsById[id])
-                    .filter(f => f && isFieldVisible(f, formData))
-                    .map(renderField)}
-                </div>
-              ))}
-            </div>
           ) : (
             <div className="space-y-3.5">
-              {visibleFieldIds.map(id => renderField(fieldsById[id])).filter(Boolean)}
+              {visibleFields
+                .map((wf) => fieldsById[wf.id] ?? (wf as unknown as FormFieldConfig))
+                .map(renderField)}
             </div>
           )}
         </div>
