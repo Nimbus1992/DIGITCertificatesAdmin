@@ -850,6 +850,49 @@ const Header: React.FC<{
   </header>
 );
 
+/* ------------------------------------------------------------------ */
+/*  Scope bar — workflow scope + category context switcher             */
+/* ------------------------------------------------------------------ */
+
+const ScopeBar: React.FC<{
+  cfg: ReturnType<typeof useServiceConfigOptional>;
+  scope: "shared" | "by_category" | "by_subcategory";
+  categories: string[];
+  activeCategory: string;
+  setActiveCategory: (c: string) => void;
+}> = ({ cfg, scope, categories, activeCategory, setActiveCategory }) => {
+  if (!cfg || !cfg.hasCategories) return null;
+  return (
+    <div className="border-b bg-muted/20 px-4 py-2 flex items-center gap-3 flex-wrap">
+      <span className="text-xs font-medium text-muted-foreground">Apply to:</span>
+      <ScopeSelector
+        size="sm"
+        value={scope}
+        onChange={(s) => cfg.setWorkflowScope(s)}
+        available={{ by_category: cfg.hasCategories, by_subcategory: false }}
+      />
+      {scope === "by_category" && categories.length > 0 && (
+        <>
+          <span className="text-xs text-muted-foreground ml-2">Editing:</span>
+          <CatSelect value={activeCategory} onValueChange={setActiveCategory}>
+            <CatSelectTrigger className="h-8 w-48 text-xs">
+              <CatSelectValue placeholder="Pick a category" />
+            </CatSelectTrigger>
+            <CatSelectContent>
+              {categories.map((c) => (
+                <CatSelectItem key={c} value={c}>{c}</CatSelectItem>
+              ))}
+            </CatSelectContent>
+          </CatSelect>
+          <span className="text-[11px] text-muted-foreground italic ml-1">
+            Changes apply only to this category's workflow.
+          </span>
+        </>
+      )}
+    </div>
+  );
+};
+
 const AddStateDialog: React.FC<{
   open: boolean;
   onOpenChange: (v: boolean) => void;
