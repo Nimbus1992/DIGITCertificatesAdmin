@@ -118,7 +118,7 @@ const buildSubScreens = (steps: WizardStep[]): SubScreen[] => {
 // ─── Component ──────────────────────────────────
 const ApplicationForm: React.FC = () => {
   const {
-    formSections, serviceName, submitApplication, submitRenewal,
+    formSections, serviceName, submitApplication, submitRenewal, getFormSteps,
     setScreen, screen, applications, userDocuments,
   } = usePreview();
 
@@ -128,6 +128,15 @@ const ApplicationForm: React.FC = () => {
     : undefined;
 
   const draftKey = `tl-draft-${parentApp?.id ?? "new"}`;
+
+  const steps = useMemo(
+    () => getFormSteps(isRenewal ? "RENEWAL" : "NEW"),
+    [getFormSteps, isRenewal],
+  );
+  const subScreens = useMemo(() => buildSubScreens(steps), [steps]);
+  const stepNames = useMemo(() => steps.map((s) => s.name), [steps]);
+  const totalSteps = stepNames.length || 1;
+  const reviewIndex = subScreens.length;
 
   const [stepIndex, setStepIndex] = useState(0); // 0..SUB_SCREENS.length (last = review)
   const [formData, setFormData] = useState<Record<string, string>>(parentApp ? { ...parentApp.formData } : {});
