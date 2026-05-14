@@ -392,24 +392,20 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b bg-card">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Service Dashboard
-          </button>
-          {!isSingleModule && (
-            <>
-              <Separator orientation="vertical" className="h-5" />
-              <div className="text-sm">
-                <span className="text-muted-foreground">Form for </span>
-                <span className="font-semibold text-foreground">{moduleName}</span>
-              </div>
-            </>
-          )}
+      {/* Header — matches other configurators (icon-only back + title) */}
+      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b bg-card">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="font-bold text-foreground text-sm truncate">
+              {isSingleModule ? "Form" : `${moduleName} — Form`}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Design the citizen application form for this flow
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <HelpCircle className="h-4 w-4" /> Help
