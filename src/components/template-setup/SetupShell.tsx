@@ -3,12 +3,18 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type SetupStepKey = "identity" | "modules" | "structure" | "initialize";
+export type SetupStepKey =
+  | "identity"
+  | "structure"
+  | "modules"
+  | "renewal"
+  | "initialize";
 
-const STEPS: { key: SetupStepKey; label: string }[] = [
+const ALL_STEPS: { key: SetupStepKey; label: string }[] = [
   { key: "identity", label: "Identity" },
-  { key: "modules", label: "Modules" },
   { key: "structure", label: "Structure" },
+  { key: "modules", label: "Modules" },
+  { key: "renewal", label: "Renewal" },
   { key: "initialize", label: "Initializing" },
 ];
 
@@ -16,11 +22,15 @@ interface Props {
   current: SetupStepKey;
   onBack?: () => void;
   backLabel?: string;
+  visibleSteps?: SetupStepKey[];
   children: React.ReactNode;
 }
 
-const SetupShell: React.FC<Props> = ({ current, onBack, backLabel = "Back", children }) => {
-  const currentIdx = STEPS.findIndex((s) => s.key === current);
+const SetupShell: React.FC<Props> = ({ current, onBack, backLabel = "Back", visibleSteps, children }) => {
+  const steps = visibleSteps
+    ? ALL_STEPS.filter((s) => visibleSteps.includes(s.key))
+    : ALL_STEPS;
+  const currentIdx = steps.findIndex((s) => s.key === current);
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
@@ -33,7 +43,7 @@ const SetupShell: React.FC<Props> = ({ current, onBack, backLabel = "Back", chil
 
         {/* Progress */}
         <div className="flex items-center gap-2 mb-10">
-          {STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const done = i < currentIdx;
             const active = i === currentIdx;
             return (
@@ -56,7 +66,7 @@ const SetupShell: React.FC<Props> = ({ current, onBack, backLabel = "Back", chil
                     {s.label}
                   </span>
                 </div>
-                {i < STEPS.length - 1 && (
+                {i < steps.length - 1 && (
                   <div className="flex-1 h-px bg-border" />
                 )}
               </React.Fragment>

@@ -4,6 +4,9 @@ import SetupShell, { type SetupStepKey } from "@/components/template-setup/Setup
 import Step1Identity from "@/components/template-setup/Step1Identity";
 import Step2Modules from "@/components/template-setup/Step2Modules";
 import Step3Structure from "@/components/template-setup/Step3Structure";
+import Step4RenewalPolicy, {
+  type RenewalPolicyState,
+} from "@/components/template-setup/Step4RenewalPolicy";
 import Step4Initializing from "@/components/template-setup/Step4Initializing";
 import { allTemplates } from "@/data/serviceTemplates";
 import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
@@ -31,6 +34,16 @@ const TemplateSetup: React.FC = () => {
   const [categoriesFile, setCategoriesFile] = useState<File | null>(null);
   const [hasSubcategories, setHasSubcategories] = useState<boolean | null>(null);
   const [subcategoriesFile, setSubcategoriesFile] = useState<File | null>(null);
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
+  const [subcategoriesList, setSubcategoriesList] = useState<
+    { name: string; parent: string }[]
+  >([]);
+  const [renewalPolicy, setRenewalPolicy] = useState<RenewalPolicyState>({
+    mode: "global",
+    globalMonths: 12,
+    perCategory: {},
+    perSubcategory: {},
+  });
 
   if (!template) return null;
 
@@ -39,11 +52,24 @@ const TemplateSetup: React.FC = () => {
     (s) => s.name.trim().toLowerCase() === trimmed.toLowerCase(),
   );
 
+  const visibleSteps: SetupStepKey[] = useMemo(() => {
+    const base: SetupStepKey[] = ["identity", "structure", "modules"];
+    if (renewalEnabled) base.push("renewal");
+    base.push("initialize");
+    return base;
+  }, [renewalEnabled]);
+
   const handleBack = () => {
     if (step === "identity") navigate("/services");
-    else if (step === "modules") setStep("identity");
-    else if (step === "structure") setStep("modules");
+    else if (step === "structure") setStep("identity");
+    else if (step === "modules") setStep("structure");
+    else if (step === "renewal") setStep("modules");
     // initializing has no back
+  };
+
+  const goAfterModules = () => {
+    if (renewalEnabled) setStep("renewal");
+    else setStep("initialize");
   };
 
   const finalize = () => {
@@ -64,7 +90,10 @@ const TemplateSetup: React.FC = () => {
         hasSubcategories: hasSubcategories === true,
         categoriesFileName: categoriesFile?.name,
         subcategoriesFileName: subcategoriesFile?.name,
+        categoriesList,
+        subcategoriesList,
       },
+      renewalPolicy: renewalEnabled ? renewalPolicy : undefined,
     };
     addService(newService);
     navigate(`/service/${newService.id}/configure`);
@@ -75,6 +104,7 @@ const TemplateSetup: React.FC = () => {
       current={step}
       onBack={step === "initialize" ? undefined : handleBack}
       backLabel={step === "identity" ? "Back to templates" : "Back"}
+      visibleSteps={visibleSteps}
     >
       {step === "identity" && (
         <Step1Identity
@@ -82,13 +112,6 @@ const TemplateSetup: React.FC = () => {
           value={name}
           onChange={setName}
           duplicate={duplicate}
-          onContinue={() => setStep("modules")}
-        />
-      )}
-      {step === "modules" && (
-        <Step2Modules
-          renewalEnabled={renewalEnabled}
-          onRenewalChange={setRenewalEnabled}
           onContinue={() => setStep("structure")}
         />
       )}
@@ -102,6 +125,24 @@ const TemplateSetup: React.FC = () => {
           setHasSubcategories={setHasSubcategories}
           subcategoriesFile={subcategoriesFile}
           setSubcategoriesFile={setSubcategoriesFile}
+          setCategoriesList={setCategoriesList}
+          setSubcategoriesList={setSubcategoriesList}
+          onContinue={() => setStep("modules")}
+        />
+      )}
+      {step === "modules" && (
+        <Step2Modules
+          renewalEnabled={renewalEnabled}
+          onRenewalChange={setRenewalEnabled}
+          onContinue={goAfterModules}
+        />
+      )}
+      {step === "renewal" && (
+        <Step4RenewalPolicy
+          categories={categoriesList}
+          subcategories={subcategoriesList}
+          policy={renewalPolicy}
+          setPolicy={setRenewalPolicy}
           onContinue={() => setStep("initialize")}
         />
       )}

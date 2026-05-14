@@ -77,6 +77,11 @@ const Step2Modules: React.FC<Props> = ({ renewalEnabled, onRenewalChange, onCont
               <p className="text-sm text-muted-foreground mt-1">
                 Allow citizens to renew existing licenses before expiry.
               </p>
+              {renewalEnabled && (
+                <p className="text-xs text-muted-foreground mt-2 italic">
+                  Renewal policies can later be configured separately for categories and subcategories.
+                </p>
+              )}
             </div>
           </div>
         </Card>
