@@ -3,19 +3,27 @@
  * Both the FormBuilder and the citizen-facing Preview form read/write
  * through these helpers so changes propagate immediately.
  */
-import { cloneSteps, type WizardStep } from "@/data/wizardForm";
-import { ISSUANCE_FORM_STEPS } from "@/data/issuanceFormTemplate";
+import { type WizardStep } from "@/data/wizardForm";
+import { buildIssuanceFormSteps, type FormSeedSetup } from "@/data/issuanceFormTemplate";
+import { buildRenewalFormSteps } from "@/data/renewalFormTemplate";
 
 export const FORM_UPDATED_EVENT = "formbuilder:updated";
 
 export const formStorageKey = (serviceId: string, moduleName: string) =>
   `formbuilder:${serviceId || "service"}:${moduleName}`;
 
-export const seedFormSteps = (): WizardStep[] => cloneSteps(ISSUANCE_FORM_STEPS);
+export const seedFormSteps = (
+  moduleName: string,
+  setup: FormSeedSetup = {},
+): WizardStep[] =>
+  moduleName === "Renewal"
+    ? buildRenewalFormSteps(setup)
+    : buildIssuanceFormSteps(setup);
 
 export const loadFormSteps = (
   serviceId: string,
   moduleName: string,
+  setup: FormSeedSetup = {},
 ): WizardStep[] => {
   try {
     const raw = localStorage.getItem(formStorageKey(serviceId, moduleName));
@@ -24,7 +32,7 @@ export const loadFormSteps = (
       if (Array.isArray(parsed) && parsed.length > 0) return parsed as WizardStep[];
     }
   } catch { /* ignore */ }
-  return seedFormSteps();
+  return seedFormSteps(moduleName, setup);
 };
 
 export const saveFormSteps = (

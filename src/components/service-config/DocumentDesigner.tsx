@@ -92,7 +92,9 @@ const DYNAMIC_VARS = [
   { value: "expiryDate", label: "Expiry Date" },
   { value: "applicationNumber", label: "Application Number" },
   { value: "wardNumber", label: "Ward Number" },
-  { value: "tradeType", label: "Trade Type" },
+  { value: "businessCategory", label: "Business Category" },
+  { value: "subCategory", label: "Sub Category" },
+  { value: "tradeType", label: "Trade Type (legacy)" },
   { value: "inspectorName", label: "Inspector Name" },
 ];
 

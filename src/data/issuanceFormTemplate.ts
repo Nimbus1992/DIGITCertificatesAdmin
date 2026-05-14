@@ -1,11 +1,55 @@
 /**
  * Issuance form seed — mirrors the 5 wizard steps and sub-screens
  * shown in the citizen preview (`ApplicationForm.tsx` SUB_SCREENS).
+ *
+ * The "Business Category" / "Sub Category" fields in step 2 are derived from
+ * the categories/subcategories the user uploaded during template setup.
+ * If nothing was uploaded, those fields are omitted entirely.
  */
-import type { WizardStep } from "./wizardForm";
-import { TRADE_CATEGORY_MAP, CITY_ZONE_MAP } from "./tradeLicenseTemplate";
+import type { WizardField, WizardStep } from "./wizardForm";
+import { CITY_ZONE_MAP } from "./tradeLicenseTemplate";
 
-export const ISSUANCE_FORM_STEPS: WizardStep[] = [
+export interface FormSeedSetup {
+  categoriesList?: string[];
+  subcategoriesList?: { name: string; parent: string }[];
+}
+
+const buildCategoryFields = (setup: FormSeedSetup): WizardField[] => {
+  const cats = (setup.categoriesList ?? []).filter(Boolean);
+  const subs = (setup.subcategoriesList ?? []).filter((s) => s && s.name);
+  const fields: WizardField[] = [];
+  if (cats.length > 0) {
+    fields.push({
+      id: "businessCategory",
+      type: "dropdown",
+      label: "Business Category",
+      placeholder: "Select business category",
+      helpText: "",
+      required: true,
+      options: [...cats],
+    });
+  }
+  if (cats.length > 0 && subs.length > 0) {
+    const map: Record<string, string[]> = {};
+    for (const s of subs) {
+      if (!map[s.parent]) map[s.parent] = [];
+      map[s.parent].push(s.name);
+    }
+    fields.push({
+      id: "subCategory",
+      type: "dropdown",
+      label: "Sub Category",
+      placeholder: "Select a business category first",
+      helpText: "",
+      required: true,
+      dependsOn: "businessCategory",
+      dependsValueMap: map,
+    });
+  }
+  return fields;
+};
+
+export const buildIssuanceFormSteps = (setup: FormSeedSetup = {}): WizardStep[] => [
   {
     id: "step-1",
     name: "Applicant Details",
@@ -69,16 +113,7 @@ export const ISSUANCE_FORM_STEPS: WizardStep[] = [
             placeholder: "Registered business name", helpText: "", required: true,
             validation: { minLength: 3 },
           },
-          {
-            id: "tradeType", type: "dropdown", label: "Trade Type",
-            placeholder: "Select trade type", helpText: "", required: true,
-            options: ["Retail Shop", "Restaurant", "Manufacturing", "Application Business"],
-          },
-          {
-            id: "businessCategory", type: "dropdown", label: "Business Category",
-            placeholder: "Select a trade type first", helpText: "", required: true,
-            dependsOn: "tradeType", dependsValueMap: TRADE_CATEGORY_MAP,
-          },
+          ...buildCategoryFields(setup),
         ],
       },
       {
@@ -211,3 +246,6 @@ export const ISSUANCE_FORM_STEPS: WizardStep[] = [
     ],
   },
 ];
+
+/** @deprecated Prefer `buildIssuanceFormSteps(setup)` so category fields reflect template-setup uploads. */
+export const ISSUANCE_FORM_STEPS: WizardStep[] = buildIssuanceFormSteps();

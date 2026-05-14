@@ -1,86 +1,42 @@
+# Align "Trade Type / Business Category" with template-setup uploads
 
-# Workflow: complete the path & wire to existing configurations
+Today the issuance form ships with two hardcoded dropdowns (`tradeType`, `businessCategory`) backed by `TRADE_CATEGORY_MAP`. They have nothing to do with the categories/subcategories the user uploads in Step 3 of template setup. We'll fix this so:
 
-## 1) Why workflow ends at "Payment Pending"
+- "Trade Type" becomes **Business Category** (the parent — values come from uploaded `categoriesList`).
+- "Business Category" becomes **Sub Category** (the child — values come from uploaded `subcategoriesList`, filtered by the chosen parent).
+- If categories were **not** uploaded, both fields are removed from the seeded form entirely.
+- If categories were uploaded but subcategories were not, only the parent field is seeded.
 
-The Issuance seed (`TRADE_WORKFLOW_TRANSITIONS` in `src/data/tradeLicenseTemplate.ts`) only goes:
-`Submitted → Under Doc Verification → Inspection → Under Approval → Approve → Payment Pending`. There is no transition out of `s4 (Payment Pending)`, `s5 (Paid)` or into `s6 (License Issued)`. Renewal already has `Mark Paid` and `Issue Renewal`, Issuance does not.
+## Changes
 
-**Fix:** add two seed transitions to `TRADE_WORKFLOW_TRANSITIONS`:
-- `t_pay`   `Mark Paid`        s4 → s5  role: `citizen`   (no checklist)
-- `t_issue` `Issue License`    s5 → s6  role: `approver`  (checklist: "Certificate generated", "Citizen notified")
+1. **`src/data/issuanceFormTemplate.ts`**
+   - Stop importing `TRADE_CATEGORY_MAP`.
+   - Export a builder `buildIssuanceFormSteps({ categories, subcategories })` instead of a static const. It returns the same 5 wizard steps, but in step 2 / sub‑screen `s2-1` it conditionally inserts:
+     - `businessCategory` (label "Business Category", options = `categories`) when `categories.length > 0`.
+     - `subCategory` (label "Sub Category", `dependsOn: "businessCategory"`, `dependsValueMap` built from `subcategoriesList` grouped by `parent`) when `subcategories.length > 0`.
+   - When neither is provided, sub‑screen `s2-1` falls back to just `businessName` (and we drop the screen's category fields). If that leaves the screen with only `businessName`, keep the screen — it's still meaningful.
+   - Keep the existing `ISSUANCE_FORM_STEPS` export as `buildIssuanceFormSteps({categories: [], subcategories: []})` for any legacy import, but mark deprecated.
 
-Bump workflow storage prefix to `workflow-states-v3` / `workflow-transitions-v3` so existing localStorage seeds get re-hydrated with the new transitions (otherwise users on v2 still see the broken flow).
+2. **`src/data/renewalFormTemplate.ts`**
+   - Mirror: export `buildRenewalFormSteps(setup)` that clones `buildIssuanceFormSteps(setup)`.
 
-## 2) Attach existing Notifications / Checklists / Payments / Fees from configured lists
+3. **`src/lib/formStorage.ts`**
+   - `seedFormSteps` and `loadFormSteps` take a new `setup: { categoriesList?: string[]; subcategoriesList?: { name: string; parent: string }[] }` arg and pass it to the builder.
+   - Existing localStorage payloads remain untouched (only seeding changes); when nothing is stored, the seed reflects the uploaded data.
 
-Today the workflow inspector only reads notifications baked into the seed and shows checklist items as free text. Each configurator already persists its own canonical list via `useModuleState`:
+4. **Callers**
+   - `src/components/service-config/FormBuilder.tsx`: read `service.templateSetup` from `OnboardingContext` (already available via `useOnboarding`) and pass `{ categoriesList, subcategoriesList }` into `loadFormSteps`.
+   - `src/components/preview/PreviewContext.tsx`: same — pass the service's `templateSetup` into both `loadFormSteps` calls (Issuance + Renewal) and the storage‑event refresh.
 
-| Resource      | Storage key                                  | Lives in                    |
-|---------------|----------------------------------------------|-----------------------------|
-| Notifications | `notifications:{serviceId}:{moduleName}`     | NotificationsManager        |
-| Checklists    | `checklists:{serviceId}:{moduleName}`        | ChecklistBuilder            |
-| Payments      | `payments:{serviceId}:{moduleName}`          | PaymentsConfigurator        |
-| Fees          | `fees:{serviceId}:{moduleName}`              | FeesConfigurator            |
-
-The Workflow Designer should treat these as the **source lists** and only store *attachments* (arrays of ids) on each state/action.
-
-### State-level attachments
-A `WorkflowState` gains:
-- `notificationIds: string[]`  — fired on entry. Replaces the embedded `notifications` array.
-- `paymentStageId: string | null` — replaces the bare `paymentRequired` boolean. When set, the citizen pays at this state using that configured payment stage; the canvas `₹` chip shows the stage name on hover.
-
-Seed mapping: for each seed state, attach all notifications whose `workflowState === state.name`; for `Payment Pending`, attach the first payment stage whose `workflowState === "Payment Pending"`.
-
-### Action-level attachments
-A `WorkflowTransition` gains:
-- `checklistIds: string[]`     — must be completed before transition. Replaces inline `checklist` items.
-- (existing `roleId` and `conditionsEnabled` stay.)
-
-Seed mapping: for each seed transition with checklist items, find the configured `Checklist` whose `workflowState === transition.toStateId`'s state name (or by id match where possible) and attach it.
-
-### Inspector UI
-**State inspector** — replace current Notifications block and Payment switch with two pickers:
-- **Notifications fired on entry** — multi-select list of notification subjects from the source. Each row: checkbox to attach, "Edit" button (opens existing notification edit dialog inline), channel badges. "Add new" button opens the same dialog with a fresh notification (saved into the source list and auto-attached). Empty source state: link "No notifications yet — create one" opens the dialog.
-- **Payment stage** — single Select listing payment stages from the source + "Manage stage" pencil button → opens stage edit dialog. "Create new stage" option at bottom of the Select.
-
-**Action inspector** — replace inline checklist editor with:
-- **Checklist** — multi-select of configured checklists. Each attached row shows name + question count + "Edit" pencil → opens the checklist edit dialog (questions, required, field types). "Create new checklist" button at bottom.
-
-### Edit-in-popup dialogs
-Extract the edit forms used by the four configurators into reusable dialog components so the workflow designer can mount them:
-- `NotificationEditDialog` (subject, message + variable chips, channels, workflow state, tag)
-- `ChecklistEditDialog` (name, workflow state, questions list with field type, required, options)
-- `PaymentStageEditDialog` (name, workflow state, fees, payment type, methods, gateway, receipt template)
-
-Each dialog accepts `value`, `onSave`, `open`, `onOpenChange`. Used both inside their owning configurator and inside the workflow inspector. Saving writes back to the same `useModuleState` key so the existing configurator screens immediately reflect changes (no duplicate state). The workflow designer reads source lists by calling `useModuleState` with the same keys — the hook already returns the latest value from localStorage on mount.
-
-### Canvas updates
-- Replace the `₹` icon with a small pill showing the attached payment stage's name when `paymentStageId` is set.
-- Bell icon shows count: `🔔 ×n` when `notificationIds.length > 0`.
-- Action label keeps role chip; add tiny `✓ ×n` chip when `checklistIds.length > 0`.
-
-### Table view updates
-- States table: replace "Payment" Y/— with stage name (or "—"); "Notifications" cell shows count linking to source.
-- Actions table: "Checklist" cell shows attached checklist names (truncated) instead of free-text count.
-
-## 3) Migration / cleanup
-
-- Remove `paymentRequired`, embedded `notifications`, and inline `checklist` from `WorkflowState` / `WorkflowTransition` types.
-- Bump storage prefix to `v3` (states + transitions) so the new shape is seeded freshly without merging stale v2 data.
-- Delete unused checklist add/update/remove handlers in `WorkflowDesigner.tsx`.
-
-## Files touched
-
-- `src/data/tradeLicenseTemplate.ts` — add `t_pay`, `t_issue` to `TRADE_WORKFLOW_TRANSITIONS`.
-- `src/components/service-config/WorkflowDesigner.tsx` — type changes, seed mapping, inspector rewrite, canvas/table updates, mount edit dialogs.
-- New `src/components/service-config/dialogs/NotificationEditDialog.tsx`
-- New `src/components/service-config/dialogs/ChecklistEditDialog.tsx`
-- New `src/components/service-config/dialogs/PaymentStageEditDialog.tsx`
-- `NotificationsManager.tsx`, `ChecklistBuilder.tsx`, `PaymentsConfigurator.tsx` — refactor existing inline edit forms to use the new dialog components (no behavior change for those screens).
+5. **Cosmetic follow‑ups (labels only, no logic)**
+   - `src/components/service-config/DocumentDesigner.tsx` and `document/VCScreenDesigner.tsx`: rename the `tradeType` mapping label to "Business Category" and add a new `subCategory` mapping option. The underlying field IDs stay (`tradeType` kept as alias to avoid breaking existing saved documents) — we just expose the new `subCategory` token.
 
 ## Out of scope
 
-- No backend / database changes.
-- No new visual/animation work; reuse existing dialog & form styling.
-- Fees stay edited only inside FeesConfigurator (the workflow only references fees indirectly through a payment stage).
+- No DB / backend changes.
+- No changes to `TRADE_CATEGORY_MAP` consumers in `PreviewContext` defaults; once the seed is dynamic, those defaults are only used when a service has no `templateSetup` at all (legacy services). Keep them as a safety fallback.
+- Workflow designer and other configurators are untouched.
+
+## Risk
+
+- Services already created before this change will have their stored form (in localStorage) untouched — they keep the old hardcoded fields until the user resets the form. That's acceptable; new services pick up the correct behaviour immediately.
