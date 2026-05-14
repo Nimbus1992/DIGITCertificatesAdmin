@@ -1,23 +1,25 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
   ArrowLeft, Plus, Bell, Check, Circle, Play,
-  Square, X, GripVertical, Save, ChevronDown, ChevronRight, ChevronLeft,
-  Info, Trash2, IndianRupee, UserCog,
+  Square, Save, ChevronRight, ChevronLeft,
+  Info, Trash2, IndianRupee, UserCog, Pencil, ClipboardCheck, CreditCard,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -28,13 +30,6 @@ import { toast } from "@/hooks/use-toast";
 type StateType = "start" | "in_progress" | "end";
 type RoleId = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
 
-interface AttachedNotification {
-  id: string;
-  name: string;
-  channel: "email" | "sms";
-  enabled: boolean;
-}
-
 interface WorkflowState {
   id: string;
   name: string;
@@ -42,13 +37,8 @@ interface WorkflowState {
   type: StateType;
   x: number;
   y: number;
-  paymentRequired: boolean;
-  notifications: AttachedNotification[];
-}
-
-interface ChecklistItem {
-  id: string;
-  text: string;
+  paymentStageId: string | null;
+  notificationIds: string[];
 }
 
 interface WorkflowTransition {
@@ -57,7 +47,7 @@ interface WorkflowTransition {
   fromStateId: string;
   toStateId: string;
   roleId: RoleId;
-  checklist: ChecklistItem[];
+  checklistIds: string[];
   conditionsEnabled: boolean;
 }
 
@@ -74,6 +64,35 @@ const ROLE_OPTIONS: { id: RoleId; name: string }[] = [
 ];
 const roleName = (id: RoleId) => ROLE_OPTIONS.find(r => r.id === id)?.name ?? id;
 
+/* Source list types (mirror configurator shapes) */
+type FieldType = "text" | "radio" | "checkbox" | "dropdown" | "file_upload";
+interface SrcQuestion { id: string; text: string; fieldType: FieldType; required: boolean; options?: string[]; }
+interface SrcChecklist { id: string; name: string; workflowState: string; questions: SrcQuestion[]; }
+interface SrcNotification {
+  id: string; workflowState: string; subject: string; message: string;
+  channels: ("email" | "sms")[]; tag: string; tagColor: string;
+}
+type PaymentType = "full" | "partial" | "multiple";
+type Gateway = "razorpay" | "paygov" | "custom";
+interface SrcPaymentStage {
+  id: string; name: string; workflowState: string; fees: string[];
+  paymentType: PaymentType;
+  methods: { online: boolean; offline: boolean; counter: boolean };
+  gateway: Gateway; generateReceipt: boolean; receiptTemplate?: string;
+}
+
+const FIELD_TYPES: { value: FieldType; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "radio", label: "Radio" },
+  { value: "checkbox", label: "Checkbox" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "file_upload", label: "File Upload" },
+];
+
+const VARIABLES = [
+  "{applicationNumber}", "{applicantName}", "{businessName}", "{applicationStatus}",
+];
+
 /* ------------------------------------------------------------------ */
 /*  Seed Data                                                          */
 /* ------------------------------------------------------------------ */
@@ -82,14 +101,24 @@ import {
   TRADE_WORKFLOW_STATES,
   TRADE_WORKFLOW_TRANSITIONS,
   TRADE_NOTIFICATIONS,
+  TRADE_CHECKLISTS,
+  TRADE_STATE_NAMES,
+  TRADE_STATE_TAG_COLORS,
+  TRADE_FEE_NAMES,
 } from "@/data/tradeLicenseTemplate";
 import {
   RENEWAL_WORKFLOW_STATES,
   RENEWAL_WORKFLOW_TRANSITIONS,
   RENEWAL_NOTIFICATIONS,
+  RENEWAL_CHECKLISTS,
   RENEWAL_STATE_LAYOUT,
+  RENEWAL_STATE_NAMES,
+  RENEWAL_STATE_TAG_COLORS,
+  RENEWAL_FEE_NAMES,
   isRenewalModule,
 } from "@/data/renewalTemplate";
+import { TRADE_PAYMENT_STAGES } from "@/data/tradeLicenseTemplate";
+import { RENEWAL_PAYMENT_STAGES } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
 import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
 import ScopeSelector from "@/components/service-config/ScopeSelector";
@@ -114,23 +143,53 @@ const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s9:   { x: 1620, y: 320 },
 };
 
-const buildSeedStates = (moduleName: string): WorkflowState[] => {
+const buildSeedNotifications = (moduleName: string): SrcNotification[] => {
+  const renewal = isRenewalModule(moduleName);
+  const src = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
+  const colors = renewal ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+  return src.map(n => ({
+    id: n.id,
+    workflowState: n.workflowState,
+    subject: n.subject,
+    message: n.message,
+    channels: [...n.channels],
+    tag: n.tag,
+    tagColor: colors[n.tag] ?? "bg-muted text-muted-foreground",
+  }));
+};
+
+const buildSeedChecklists = (moduleName: string): SrcChecklist[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_CHECKLISTS : TRADE_CHECKLISTS;
+  return src.map(c => ({
+    id: c.id, name: c.name, workflowState: c.workflowState,
+    questions: c.questions.map(q => ({
+      id: q.id, text: q.text, fieldType: q.fieldType, required: q.required,
+      options: q.options ? [...q.options] : undefined,
+    })),
+  }));
+};
+
+const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_PAYMENT_STAGES : TRADE_PAYMENT_STAGES;
+  return src.map(s => ({
+    id: s.id, name: s.name, workflowState: s.workflowState, fees: [...s.fees],
+    paymentType: s.paymentType, methods: { ...s.methods }, gateway: s.gateway,
+    generateReceipt: s.generateReceipt, receiptTemplate: s.receiptTemplate,
+  }));
+};
+
+const buildSeedStates = (
+  moduleName: string,
+  notifications: SrcNotification[],
+  paymentStages: SrcPaymentStage[],
+): WorkflowState[] => {
   const renewal = isRenewalModule(moduleName);
   const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
-  const notifs = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
   const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
   return states.map((s) => {
     const pos = layout[s.id] ?? { x: 60, y: 100 };
-    const stateNotifs: AttachedNotification[] = notifs
-      .filter((n) => n.workflowState === s.name)
-      .flatMap((n) =>
-        n.channels.map((ch) => ({
-          id: `${n.id}-${ch}`,
-          name: `${n.subject} (${ch.toUpperCase()})`,
-          channel: ch,
-          enabled: true,
-        }))
-      );
+    const notificationIds = notifications.filter(n => n.workflowState === s.name).map(n => n.id);
+    const stage = paymentStages.find(p => p.workflowState === s.name);
     return {
       id: s.id,
       name: s.name,
@@ -138,23 +197,34 @@ const buildSeedStates = (moduleName: string): WorkflowState[] => {
       type: s.type,
       x: pos.x,
       y: pos.y,
-      paymentRequired: s.name === "Payment Pending",
-      notifications: stateNotifs,
+      paymentStageId: stage?.id ?? null,
+      notificationIds,
     };
   });
 };
 
-const buildSeedTransitions = (moduleName: string): WorkflowTransition[] => {
-  const src = isRenewalModule(moduleName) ? RENEWAL_WORKFLOW_TRANSITIONS : TRADE_WORKFLOW_TRANSITIONS;
-  return src.map((t) => ({
-    id: t.id,
-    name: t.name,
-    fromStateId: t.fromStateId,
-    toStateId: t.toStateId,
-    roleId: (t.role as RoleId) ?? "approver",
-    checklist: t.checklist.map((c) => ({ id: c.id, text: c.text })),
-    conditionsEnabled: false,
-  }));
+const buildSeedTransitions = (
+  moduleName: string,
+  checklists: SrcChecklist[],
+): WorkflowTransition[] => {
+  const renewal = isRenewalModule(moduleName);
+  const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
+  const src = renewal ? RENEWAL_WORKFLOW_TRANSITIONS : TRADE_WORKFLOW_TRANSITIONS;
+  return src.map((t) => {
+    const toState = states.find(s => s.id === t.toStateId);
+    const matchedChecklists = toState
+      ? checklists.filter(c => c.workflowState === toState.name).map(c => c.id)
+      : [];
+    return {
+      id: t.id,
+      name: t.name,
+      fromStateId: t.fromStateId,
+      toStateId: t.toStateId,
+      roleId: (t.role as RoleId) ?? "approver",
+      checklistIds: matchedChecklists,
+      conditionsEnabled: false,
+    };
+  });
 };
 
 /* ------------------------------------------------------------------ */
@@ -168,9 +238,8 @@ const stateTypeConfig: Record<StateType, { label: string; color: string; borderC
 };
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-
 const NODE_W = 220;
-const NODE_H = 130;
+const NODE_H = 140;
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -198,12 +267,26 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     ? `${moduleName}::cat::${activeCategory || "__"}`
     : moduleName;
 
+  /* ---- Source lists (shared with their configurator pages) ---- */
+  const [notifications, setNotifications] = useModuleState<SrcNotification[]>(
+    "notifications", serviceId, moduleName, () => buildSeedNotifications(moduleName),
+  );
+  const [checklists, setChecklists] = useModuleState<SrcChecklist[]>(
+    "checklists", serviceId, moduleName, () => buildSeedChecklists(moduleName),
+  );
+  const [paymentStages, setPaymentStages] = useModuleState<SrcPaymentStage[]>(
+    "payments", serviceId, moduleName, () => buildSeedPaymentStages(moduleName),
+  );
+
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states-v2", serviceId, storageSuffix, () => buildSeedStates(moduleName),
+    "workflow-states-v3", serviceId, storageSuffix,
+    () => buildSeedStates(moduleName, buildSeedNotifications(moduleName), buildSeedPaymentStages(moduleName)),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions-v2", serviceId, storageSuffix, () => buildSeedTransitions(moduleName),
+    "workflow-transitions-v3", serviceId, storageSuffix,
+    () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
+
   const [view, setView] = useState<"visual" | "table">("visual");
   const [tableTab, setTableTab] = useState<"states" | "actions">("actions");
   const [selection, setSelection] = useState<Selection>(null);
@@ -215,7 +298,11 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [newTransFrom, setNewTransFrom] = useState("");
   const [newTransTo, setNewTransTo] = useState("");
   const [newTransRole, setNewTransRole] = useState<RoleId>("approver");
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  /* ---- Edit dialogs ---- */
+  const [editingNotif, setEditingNotif] = useState<SrcNotification | null>(null);
+  const [editingChecklist, setEditingChecklist] = useState<SrcChecklist | null>(null);
+  const [editingStage, setEditingStage] = useState<SrcPaymentStage | null>(null);
 
   const inspectorKey = `workflow-inspector-collapsed:${serviceId}`;
   const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
@@ -227,6 +314,11 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+
+  const WORKFLOW_STATE_NAMES = useMemo(
+    () => Array.from(new Set(states.map(s => s.name))),
+    [states],
+  );
 
   /* ---- Drag logic ---- */
   const handleMouseDown = useCallback((e: React.MouseEvent, stateId: string, sx: number, sy: number) => {
@@ -262,11 +354,9 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const maxX = Math.max(...states.map(s => s.x), 0);
     setStates(prev => [...prev, {
       id: uid(), name: newStateName.trim(), description: "", type: newStateType,
-      x: maxX + 280, y: 180, paymentRequired: false, notifications: [],
+      x: maxX + 280, y: 180, paymentStageId: null, notificationIds: [],
     }]);
-    setNewStateName("");
-    setNewStateType("in_progress");
-    setShowAddState(false);
+    setNewStateName(""); setNewStateType("in_progress"); setShowAddState(false);
   };
 
   const updateState = (id: string, updates: Partial<WorkflowState>) => {
@@ -293,7 +383,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     if (!newTransName.trim() || !newTransFrom || !newTransTo) return;
     setTransitions(prev => [...prev, {
       id: uid(), name: newTransName.trim(), fromStateId: newTransFrom, toStateId: newTransTo,
-      roleId: newTransRole, checklist: [], conditionsEnabled: false,
+      roleId: newTransRole, checklistIds: [], conditionsEnabled: false,
     }]);
     setNewTransName(""); setNewTransFrom(""); setNewTransTo(""); setNewTransRole("approver");
     setShowAddTransition(false);
@@ -308,37 +398,67 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     setSelection(null);
   };
 
-  const addChecklistItem = (transId: string) => {
-    setTransitions(prev => prev.map(t =>
-      t.id === transId ? { ...t, checklist: [...t.checklist, { id: uid(), text: "" }] } : t
-    ));
+  /* ---- Source CRUD helpers ---- */
+  const upsertNotification = (n: SrcNotification) => {
+    setNotifications(prev => prev.some(x => x.id === n.id)
+      ? prev.map(x => x.id === n.id ? n : x)
+      : [...prev, n]);
+  };
+  const upsertChecklist = (c: SrcChecklist) => {
+    setChecklists(prev => prev.some(x => x.id === c.id)
+      ? prev.map(x => x.id === c.id ? c : x)
+      : [...prev, c]);
+  };
+  const upsertStage = (s: SrcPaymentStage) => {
+    setPaymentStages(prev => prev.some(x => x.id === s.id)
+      ? prev.map(x => x.id === s.id ? s : x)
+      : [...prev, s]);
   };
 
-  const updateChecklistItem = (transId: string, itemId: string, text: string) => {
-    setTransitions(prev => prev.map(t =>
-      t.id === transId ? { ...t, checklist: t.checklist.map(c => c.id === itemId ? { ...c, text } : c) } : t
-    ));
+  const createNotificationFor = (stateId: string) => {
+    const st = states.find(s => s.id === stateId);
+    const tagColors = isRenewalModule(moduleName) ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+    const tag = st?.name ?? "";
+    const draft: SrcNotification = {
+      id: crypto.randomUUID(),
+      workflowState: tag,
+      subject: "",
+      message: "",
+      channels: ["email"],
+      tag,
+      tagColor: tagColors[tag] ?? "bg-muted text-muted-foreground",
+    };
+    setEditingNotif(draft);
+  };
+  const createChecklistFor = (transitionId: string) => {
+    const t = transitions.find(x => x.id === transitionId);
+    const toState = t ? states.find(s => s.id === t.toStateId) : null;
+    setEditingChecklist({
+      id: crypto.randomUUID(),
+      name: "",
+      workflowState: toState?.name ?? "",
+      questions: [],
+    });
+  };
+  const createStageFor = (stateId: string) => {
+    const st = states.find(s => s.id === stateId);
+    setEditingStage({
+      id: crypto.randomUUID(),
+      name: "",
+      workflowState: st?.name ?? "",
+      fees: [],
+      paymentType: "full",
+      methods: { online: true, offline: false, counter: false },
+      gateway: "razorpay",
+      generateReceipt: false,
+    });
   };
 
-  const removeChecklistItem = (transId: string, itemId: string) => {
-    setTransitions(prev => prev.map(t =>
-      t.id === transId ? { ...t, checklist: t.checklist.filter(c => c.id !== itemId) } : t
-    ));
-  };
-
-  const toggleNotification = (stateId: string, notifId: string) => {
-    setStates(prev => prev.map(s =>
-      s.id === stateId ? {
-        ...s, notifications: s.notifications.map(n => n.id === notifId ? { ...n, enabled: !n.enabled } : n),
-      } : s
-    ));
-  };
-
-  /* ---- Selected objects ---- */
+  /* ---- Selected ---- */
   const selectedState = selection?.kind === "state" ? states.find(s => s.id === selection.id) : null;
   const selectedTransition = selection?.kind === "transition" ? transitions.find(t => t.id === selection.id) : null;
 
-  /* ---- Arrow computation ---- */
+  /* ---- Arrow ---- */
   const computeArrow = (from: WorkflowState, to: WorkflowState) => {
     const x1 = from.x + NODE_W;
     const y1 = from.y + NODE_H / 2;
@@ -348,18 +468,13 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     return { x1, y1, x2, y2, mx, my: (y1 + y2) / 2, path: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` };
   };
 
-  /* ---- Empty state ---- */
+  /* ---- Empty ---- */
   if (states.length === 0) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Header moduleName={moduleName} onBack={onBack} view={view} setView={setView} />
-        <ScopeBar
-          cfg={cfg}
-          scope={scope}
-          categories={categories}
-          activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
-        />
+        <ScopeBar cfg={cfg} scope={scope} categories={categories}
+          activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
             <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
@@ -392,19 +507,12 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           </div>
         }
       />
-      <ScopeBar
-        cfg={cfg}
-        scope={scope}
-        categories={categories}
-        activeCategory={activeCategory}
-        setActiveCategory={setActiveCategory}
-      />
+      <ScopeBar cfg={cfg} scope={scope} categories={categories}
+        activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Main area */}
         <div className="flex-1 overflow-auto">
           {view === "visual" ? (
-            /* ============ VISUAL CANVAS ============ */
             <div
               ref={canvasRef}
               className="relative min-h-[600px] min-w-[1200px]"
@@ -414,7 +522,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               }}
               onClick={() => setSelection(null)}
             >
-              {/* SVG arrows */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
                 <defs>
                   <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
@@ -453,13 +560,18 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       ${isSelected
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-card text-foreground border-border hover:border-accent"}`}
-                    style={{ left: a.mx - 50, top: a.my - 12 }}
+                    style={{ left: a.mx - 60, top: a.my - 12 }}
                     onClick={(e) => { e.stopPropagation(); setSelection({ kind: "transition", id: t.id }); }}
                   >
                     {t.name}
                     <span className={`text-[9px] px-1.5 rounded-full border ${isSelected ? "border-accent-foreground/30" : "border-border bg-muted/40 text-muted-foreground"}`}>
                       {roleName(t.roleId)}
                     </span>
+                    {t.checklistIds.length > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] text-muted-foreground">
+                        <Check className="h-2.5 w-2.5" />{t.checklistIds.length}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -468,6 +580,8 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               {states.map(s => {
                 const cfg = stateTypeConfig[s.type];
                 const isSelected = selection?.kind === "state" && selection.id === s.id;
+                const stage = s.paymentStageId ? paymentStages.find(p => p.id === s.paymentStageId) : null;
+                const notifCount = s.notificationIds.length;
                 return (
                   <div
                     key={s.id}
@@ -481,29 +595,30 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     <div className="p-3 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className={`text-[10px] uppercase font-semibold tracking-wider ${cfg.color}`}>{cfg.label}</span>
-                        <div className="flex gap-1">
-                          {s.paymentRequired && <IndianRupee className="h-3 w-3 text-amber-600" />}
-                          {s.notifications.some(n => n.enabled) && <Bell className="h-3 w-3 text-muted-foreground" />}
+                        <div className="flex items-center gap-1">
+                          {notifCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                              <Bell className="h-3 w-3" />{notifCount}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <h4 className="font-semibold text-sm text-foreground leading-tight">{s.name}</h4>
                       {s.description && (
                         <p className="text-[11px] text-muted-foreground leading-snug">{s.description}</p>
                       )}
+                      {stage && (
+                        <div className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 rounded px-1.5 py-0.5">
+                          <IndianRupee className="h-2.5 w-2.5" /> {stage.name}
+                        </div>
+                      )}
                     </div>
-                    {transitions.filter(t => t.fromStateId === s.id).length > 0 && (
-                      <div className="border-t px-3 py-1.5 flex gap-1 flex-wrap">
-                        {transitions.filter(t => t.fromStateId === s.id).map(t => (
-                          <span key={t.id} className="text-[10px] text-accent font-medium">→ {t.name}</span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
           ) : (
-            /* ============ TABLE VIEW ============ */
+            /* TABLE VIEW */
             <div className="p-6 space-y-4">
               <div className="flex rounded-md border overflow-hidden w-fit">
                 <button onClick={() => setTableTab("states")}
@@ -522,89 +637,73 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Payment</TableHead>
+                      <TableHead>Payment Stage</TableHead>
                       <TableHead>Notifications</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {states.map(s => (
-                      <TableRow key={s.id}
-                        className={`cursor-pointer ${selection?.kind === "state" && selection.id === s.id ? "bg-accent/5" : ""}`}
-                        onClick={() => { setSelection({ kind: "state", id: s.id }); setInspectorCollapsed(false); }}
-                      >
-                        <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs capitalize">{stateTypeConfig[s.type].label}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{s.description || "—"}</TableCell>
-                        <TableCell>{s.paymentRequired ? <IndianRupee className="h-3.5 w-3.5 text-amber-600" /> : <span className="text-muted-foreground text-xs">—</span>}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{s.notifications.filter(n => n.enabled).length}</TableCell>
-                      </TableRow>
-                    ))}
+                    {states.map(s => {
+                      const stage = s.paymentStageId ? paymentStages.find(p => p.id === s.paymentStageId) : null;
+                      return (
+                        <TableRow key={s.id}
+                          className={`cursor-pointer ${selection?.kind === "state" && selection.id === s.id ? "bg-accent/5" : ""}`}
+                          onClick={() => { setSelection({ kind: "state", id: s.id }); setInspectorCollapsed(false); }}
+                        >
+                          <TableCell className="font-medium">{s.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs capitalize">{stateTypeConfig[s.type].label}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {stage ? (
+                              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                                <IndianRupee className="h-3 w-3" /> {stage.name}
+                              </span>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">{s.notificationIds.length}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10"></TableHead>
                       <TableHead>From</TableHead>
                       <TableHead>To</TableHead>
                       <TableHead>Action</TableHead>
                       <TableHead>Role</TableHead>
-                      <TableHead>Checklist</TableHead>
+                      <TableHead>Checklists</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transitions.map(t => {
                       const from = states.find(s => s.id === t.fromStateId);
                       const to = states.find(s => s.id === t.toStateId);
-                      const isExpanded = expandedRows.has(t.id);
+                      const attached = t.checklistIds.map(id => checklists.find(c => c.id === id)).filter(Boolean) as SrcChecklist[];
                       return (
-                        <React.Fragment key={t.id}>
-                          <TableRow
-                            className={`cursor-pointer ${selection?.kind === "transition" && selection.id === t.id ? "bg-accent/5" : ""}`}
-                            onClick={() => { setSelection({ kind: "transition", id: t.id }); setInspectorCollapsed(false); }}
-                          >
-                            <TableCell>
-                              <button onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedRows(prev => {
-                                  const n = new Set(prev);
-                                  n.has(t.id) ? n.delete(t.id) : n.add(t.id);
-                                  return n;
-                                });
-                              }}>
-                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </button>
-                            </TableCell>
-                            <TableCell>{from?.name || "—"}</TableCell>
-                            <TableCell>{to?.name || "—"}</TableCell>
-                            <TableCell><Badge variant="secondary" className="text-xs">{t.name}</Badge></TableCell>
-                            <TableCell>
-                              <span className="inline-flex items-center gap-1 text-xs text-foreground">
-                                <UserCog className="h-3 w-3 text-muted-foreground" />
-                                {roleName(t.roleId)}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-xs">{t.checklist.length} items</TableCell>
-                          </TableRow>
-                          {isExpanded && t.checklist.length > 0 && (
-                            <TableRow>
-                              <TableCell />
-                              <TableCell colSpan={5}>
-                                <div className="pl-4 py-2 space-y-1">
-                                  {t.checklist.map(c => (
-                                    <div key={c.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <Check className="h-3 w-3" /> {c.text}
-                                    </div>
-                                  ))}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </React.Fragment>
+                        <TableRow key={t.id}
+                          className={`cursor-pointer ${selection?.kind === "transition" && selection.id === t.id ? "bg-accent/5" : ""}`}
+                          onClick={() => { setSelection({ kind: "transition", id: t.id }); setInspectorCollapsed(false); }}
+                        >
+                          <TableCell>{from?.name || "—"}</TableCell>
+                          <TableCell>{to?.name || "—"}</TableCell>
+                          <TableCell><Badge variant="secondary" className="text-xs">{t.name}</Badge></TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1 text-xs text-foreground">
+                              <UserCog className="h-3 w-3 text-muted-foreground" />
+                              {roleName(t.roleId)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {attached.length === 0
+                              ? <span className="text-muted-foreground">—</span>
+                              : <div className="flex flex-wrap gap-1">{attached.map(c => (
+                                  <Badge key={c.id} variant="outline" className="text-[10px]">{c.name}</Badge>
+                                ))}</div>}
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
                   </TableBody>
@@ -614,9 +713,8 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           )}
         </div>
 
-        {/* ============ RIGHT INSPECTOR (collapsible) ============ */}
-        <div className={`border-l bg-card overflow-hidden shrink-0 transition-[width] duration-200 flex ${inspectorCollapsed ? "w-10" : "w-[340px]"}`}>
-          {/* Collapse rail */}
+        {/* RIGHT INSPECTOR */}
+        <div className={`border-l bg-card overflow-hidden shrink-0 transition-[width] duration-200 flex ${inspectorCollapsed ? "w-10" : "w-[360px]"}`}>
           <button
             onClick={() => setInspectorCollapsed(v => !v)}
             className="w-10 shrink-0 border-r flex items-start justify-center pt-3 hover:bg-muted/50 transition-colors"
@@ -635,7 +733,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 </div>
               )}
 
-              {/* ---- State Inspector ---- */}
+              {/* STATE INSPECTOR */}
               {selectedState && (
                 <div className="p-4 space-y-5">
                   <div>
@@ -671,38 +769,89 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     <Input value={selectedState.description} onChange={e => updateState(selectedState.id, { description: e.target.value })} className="h-9 text-sm" placeholder="Short description" />
                   </div>
 
-                  {/* Payment toggle */}
-                  <div className="rounded-md border p-3 flex items-start justify-between gap-3">
-                    <div>
-                      <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                        <IndianRupee className="h-3.5 w-3.5 text-amber-600" />
-                        Payment collected here
-                      </Label>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Citizen is prompted to pay when the application reaches this state.
-                      </p>
+                  {/* Payment stage picker */}
+                  <div className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <IndianRupee className="h-3.5 w-3.5 text-amber-600" />
+                      <Label className="text-xs font-semibold text-foreground">Payment collected here</Label>
                     </div>
-                    <Switch
-                      checked={selectedState.paymentRequired}
-                      onCheckedChange={v => updateState(selectedState.id, { paymentRequired: v })}
-                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Pick a configured payment stage to charge the citizen when the application enters this state.
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Select
+                        value={selectedState.paymentStageId ?? "__none"}
+                        onValueChange={(v) => updateState(selectedState.id, { paymentStageId: v === "__none" ? null : v })}
+                      >
+                        <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="No payment" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No payment</SelectItem>
+                          {paymentStages.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedState.paymentStageId && (
+                        <Button size="icon" variant="ghost" className="h-9 w-9"
+                          onClick={() => {
+                            const s = paymentStages.find(p => p.id === selectedState.paymentStageId);
+                            if (s) setEditingStage({ ...s, methods: { ...s.methods }, fees: [...s.fees] });
+                          }}
+                          title="Edit stage"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
+                      onClick={() => createStageFor(selectedState.id)}>
+                      <Plus className="h-3 w-3" /> New payment stage
+                    </Button>
                   </div>
 
-                  {/* Notifications */}
+                  {/* Notifications picker */}
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notifications on entry</Label>
-                    {selectedState.notifications.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No notifications configured. Add them in the Notifications screen.</p>
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No notifications configured yet.</p>
                     ) : (
-                      <div className="space-y-2">
-                        {selectedState.notifications.map(n => (
-                          <div key={n.id} className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-foreground truncate">{n.name}</span>
-                            <Switch checked={n.enabled} onCheckedChange={() => toggleNotification(selectedState.id, n.id)} />
-                          </div>
-                        ))}
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-md border p-2">
+                        {notifications.map(n => {
+                          const attached = selectedState.notificationIds.includes(n.id);
+                          return (
+                            <div key={n.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/40">
+                              <Checkbox
+                                checked={attached}
+                                onCheckedChange={() => {
+                                  const next = attached
+                                    ? selectedState.notificationIds.filter(id => id !== n.id)
+                                    : [...selectedState.notificationIds, n.id];
+                                  updateState(selectedState.id, { notificationIds: next });
+                                }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-medium text-foreground truncate">{n.subject || "(untitled)"}</p>
+                                  <button onClick={() => setEditingNotif({ ...n, channels: [...n.channels] })}
+                                    className="text-muted-foreground hover:text-foreground" title="Edit">
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                </div>
+                                <div className="flex gap-1 mt-0.5">
+                                  {n.channels.map(c => (
+                                    <span key={c} className="text-[9px] uppercase text-muted-foreground">{c}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
+                    <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
+                      onClick={() => createNotificationFor(selectedState.id)}>
+                      <Plus className="h-3 w-3" /> New notification
+                    </Button>
                   </div>
 
                   <div className="border-t pt-3">
@@ -714,7 +863,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 </div>
               )}
 
-              {/* ---- Transition Inspector ---- */}
+              {/* TRANSITION INSPECTOR */}
               {selectedTransition && (() => {
                 const from = states.find(s => s.id === selectedTransition.fromStateId);
                 const to = states.find(s => s.id === selectedTransition.toStateId);
@@ -756,7 +905,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       </div>
                     </div>
 
-                    {/* Role */}
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Performed by (Role)</Label>
                       <Select value={selectedTransition.roleId} onValueChange={(v: RoleId) => updateTransition(selectedTransition.id, { roleId: v })}>
@@ -767,32 +915,48 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       </Select>
                     </div>
 
-                    {/* Checklist */}
+                    {/* Checklist picker */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Checklist</Label>
-                        <Button variant="ghost" size="sm" className="h-6 text-[11px] text-accent" onClick={() => addChecklistItem(selectedTransition.id)}>
-                          + Add Item
-                        </Button>
-                      </div>
-                      {selectedTransition.checklist.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic">No checklist items</p>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Checklists to complete</Label>
+                      {checklists.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No checklists configured yet.</p>
                       ) : (
-                        <div className="space-y-1.5">
-                          {selectedTransition.checklist.map(c => (
-                            <div key={c.id} className="flex items-center gap-2">
-                              <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <Input value={c.text} onChange={e => updateChecklistItem(selectedTransition.id, c.id, e.target.value)} className="h-8 text-xs flex-1" placeholder="Checklist item" />
-                              <button onClick={() => removeChecklistItem(selectedTransition.id, c.id)}>
-                                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                              </button>
-                            </div>
-                          ))}
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-md border p-2">
+                          {checklists.map(c => {
+                            const attached = selectedTransition.checklistIds.includes(c.id);
+                            return (
+                              <div key={c.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/40">
+                                <Checkbox
+                                  checked={attached}
+                                  onCheckedChange={() => {
+                                    const next = attached
+                                      ? selectedTransition.checklistIds.filter(id => id !== c.id)
+                                      : [...selectedTransition.checklistIds, c.id];
+                                    updateTransition(selectedTransition.id, { checklistIds: next });
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs font-medium text-foreground truncate">{c.name || "(untitled)"}</p>
+                                    <button onClick={() => setEditingChecklist({
+                                      ...c, questions: c.questions.map(q => ({ ...q, options: q.options ? [...q.options] : undefined })),
+                                    })} className="text-muted-foreground hover:text-foreground" title="Edit">
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">{c.questions.length} question{c.questions.length === 1 ? "" : "s"}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
+                      <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
+                        onClick={() => createChecklistFor(selectedTransition.id)}>
+                        <Plus className="h-3 w-3" /> New checklist
+                      </Button>
                     </div>
 
-                    {/* Conditions toggle */}
                     <div className="border-t pt-4 space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs font-medium text-foreground">Add Conditions</Label>
@@ -800,7 +964,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                           onCheckedChange={v => updateTransition(selectedTransition.id, { conditionsEnabled: v })} />
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        When enabled, this action will only be available if specific metadata criteria are met.
+                        When enabled, this action only appears if specific metadata criteria are met.
                       </p>
                     </div>
 
@@ -818,7 +982,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         </div>
       </div>
 
-      {/* Dialogs */}
+      {/* Add State / Action Dialogs */}
       <AddStateDialog open={showAddState} onOpenChange={setShowAddState} name={newStateName} setName={setNewStateName} type={newStateType} setType={setNewStateType} onAdd={addState} states={states} />
 
       <Dialog open={showAddTransition} onOpenChange={setShowAddTransition}>
@@ -861,6 +1025,76 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Notification edit dialog */}
+      <NotificationEditDialog
+        value={editingNotif}
+        workflowStates={WORKFLOW_STATE_NAMES}
+        moduleName={moduleName}
+        onClose={() => setEditingNotif(null)}
+        onSave={(n) => {
+          upsertNotification(n);
+          // Auto-attach if state currently selected
+          if (selectedState) {
+            const ids = selectedState.notificationIds.includes(n.id)
+              ? selectedState.notificationIds
+              : [...selectedState.notificationIds, n.id];
+            updateState(selectedState.id, { notificationIds: ids });
+          }
+          setEditingNotif(null);
+        }}
+        onDelete={(id) => {
+          setNotifications(prev => prev.filter(n => n.id !== id));
+          setStates(prev => prev.map(s => ({
+            ...s, notificationIds: s.notificationIds.filter(nid => nid !== id),
+          })));
+          setEditingNotif(null);
+        }}
+      />
+
+      {/* Checklist edit dialog */}
+      <ChecklistEditDialog
+        value={editingChecklist}
+        workflowStates={WORKFLOW_STATE_NAMES}
+        onClose={() => setEditingChecklist(null)}
+        onSave={(c) => {
+          upsertChecklist(c);
+          if (selectedTransition) {
+            const ids = selectedTransition.checklistIds.includes(c.id)
+              ? selectedTransition.checklistIds
+              : [...selectedTransition.checklistIds, c.id];
+            updateTransition(selectedTransition.id, { checklistIds: ids });
+          }
+          setEditingChecklist(null);
+        }}
+        onDelete={(id) => {
+          setChecklists(prev => prev.filter(c => c.id !== id));
+          setTransitions(prev => prev.map(t => ({
+            ...t, checklistIds: t.checklistIds.filter(cid => cid !== id),
+          })));
+          setEditingChecklist(null);
+        }}
+      />
+
+      {/* Payment stage edit dialog */}
+      <PaymentStageEditDialog
+        value={editingStage}
+        workflowStates={WORKFLOW_STATE_NAMES}
+        moduleName={moduleName}
+        onClose={() => setEditingStage(null)}
+        onSave={(s) => {
+          upsertStage(s);
+          if (selectedState) {
+            updateState(selectedState.id, { paymentStageId: s.id });
+          }
+          setEditingStage(null);
+        }}
+        onDelete={(id) => {
+          setPaymentStages(prev => prev.filter(s => s.id !== id));
+          setStates(prev => prev.map(s => s.paymentStageId === id ? { ...s, paymentStageId: null } : s));
+          setEditingStage(null);
+        }}
+      />
     </div>
   );
 };
@@ -984,5 +1218,287 @@ const AddStateDialog: React.FC<{
     </DialogContent>
   </Dialog>
 );
+
+/* ----- Notification Edit Dialog ----- */
+const NotificationEditDialog: React.FC<{
+  value: SrcNotification | null;
+  workflowStates: string[];
+  moduleName: string;
+  onClose: () => void;
+  onSave: (n: SrcNotification) => void;
+  onDelete: (id: string) => void;
+}> = ({ value, workflowStates, moduleName, onClose, onSave, onDelete }) => {
+  const [draft, setDraft] = useState<SrcNotification | null>(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  if (!draft) return null;
+
+  const tagColors = isRenewalModule(moduleName) ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+  const insertVariable = (v: string) => setDraft(d => d ? { ...d, message: (d.message || "") + v } : d);
+  const toggleChannel = (c: "email" | "sms") => setDraft(d => {
+    if (!d) return d;
+    const has = d.channels.includes(c);
+    return { ...d, channels: has ? d.channels.filter(x => x !== c) : [...d.channels, c] };
+  });
+
+  return (
+    <Dialog open={!!value} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Notification</DialogTitle>
+          <DialogDescription>Fired when the application enters this state.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Workflow State</Label>
+            <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
+              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+              <SelectContent>
+                {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Subject</Label>
+            <Input value={draft.subject} onChange={(e) => setDraft(d => d ? { ...d, subject: e.target.value } : d)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Message</Label>
+            <Textarea rows={4} value={draft.message} onChange={(e) => setDraft(d => d ? { ...d, message: e.target.value } : d)} />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              <span className="text-xs text-muted-foreground">Variables:</span>
+              {VARIABLES.map(v => (
+                <button key={v} type="button" onClick={() => insertVariable(v)}
+                  className="text-[10px] px-2 py-0.5 rounded-full border bg-muted hover:bg-accent/10 text-foreground transition-colors">
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Channels</Label>
+            <div className="flex gap-3">
+              {(["email", "sms"] as const).map(c => (
+                <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={draft.channels.includes(c)} onCheckedChange={() => toggleChannel(c)} />
+                  <span className="capitalize">{c}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
+            onClick={() => onDelete(draft.id)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button className="bg-accent text-accent-foreground hover:bg-accent/90"
+              disabled={!draft.workflowState || !draft.subject.trim()}
+              onClick={() => onSave(draft)}>Save</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/* ----- Checklist Edit Dialog ----- */
+const ChecklistEditDialog: React.FC<{
+  value: SrcChecklist | null;
+  workflowStates: string[];
+  onClose: () => void;
+  onSave: (c: SrcChecklist) => void;
+  onDelete: (id: string) => void;
+}> = ({ value, workflowStates, onClose, onSave, onDelete }) => {
+  const [draft, setDraft] = useState<SrcChecklist | null>(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  if (!draft) return null;
+
+  const updateQ = (qid: string, updates: Partial<SrcQuestion>) =>
+    setDraft(d => d ? { ...d, questions: d.questions.map(q => q.id === qid ? { ...q, ...updates } : q) } : d);
+  const addQ = () => setDraft(d => d ? { ...d, questions: [...d.questions, { id: crypto.randomUUID(), text: "", fieldType: "text", required: false }] } : d);
+  const removeQ = (qid: string) => setDraft(d => d ? { ...d, questions: d.questions.filter(q => q.id !== qid) } : d);
+
+  return (
+    <Dialog open={!!value} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-4 w-4 text-accent" /> Checklist</DialogTitle>
+          <DialogDescription>Items the assignee must complete before this action runs.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input value={draft.name} onChange={(e) => setDraft(d => d ? { ...d, name: e.target.value } : d)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Workflow State</Label>
+              <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v } : d)}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {draft.questions.map((q, idx) => (
+              <div key={q.id} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+                <span className="text-xs text-muted-foreground font-medium mt-2 w-5 shrink-0">{idx + 1}.</span>
+                <div className="flex-1 space-y-2">
+                  <Input value={q.text} onChange={(e) => updateQ(q.id, { text: e.target.value })}
+                    placeholder="Question text" className="text-sm" />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Select value={q.fieldType} onValueChange={(v) => updateQ(q.id, { fieldType: v as FieldType })}>
+                      <SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FIELD_TYPES.map(ft => <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-xs text-muted-foreground">Required</span>
+                      <Switch checked={q.required} onCheckedChange={(v) => updateQ(q.id, { required: v })} />
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive shrink-0"
+                      onClick={() => removeQ(q.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addQ} className="gap-1.5 text-xs">
+              <Plus className="h-3 w-3" /> Add Question
+            </Button>
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
+            onClick={() => onDelete(draft.id)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button className="bg-accent text-accent-foreground hover:bg-accent/90"
+              disabled={!draft.name.trim() || !draft.workflowState}
+              onClick={() => onSave(draft)}>Save</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/* ----- Payment Stage Edit Dialog ----- */
+const PaymentStageEditDialog: React.FC<{
+  value: SrcPaymentStage | null;
+  workflowStates: string[];
+  moduleName: string;
+  onClose: () => void;
+  onSave: (s: SrcPaymentStage) => void;
+  onDelete: (id: string) => void;
+}> = ({ value, workflowStates, moduleName, onClose, onSave, onDelete }) => {
+  const [draft, setDraft] = useState<SrcPaymentStage | null>(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  if (!draft) return null;
+
+  const AVAILABLE_FEES = isRenewalModule(moduleName) ? RENEWAL_FEE_NAMES : TRADE_FEE_NAMES;
+  const update = (u: Partial<SrcPaymentStage>) => setDraft(d => d ? { ...d, ...u } : d);
+  const toggleFee = (fee: string) => setDraft(d => d ? {
+    ...d, fees: d.fees.includes(fee) ? d.fees.filter(f => f !== fee) : [...d.fees, fee],
+  } : d);
+  const toggleMethod = (k: keyof SrcPaymentStage["methods"]) => setDraft(d => d ? {
+    ...d, methods: { ...d.methods, [k]: !d.methods[k] },
+  } : d);
+
+  return (
+    <Dialog open={!!value} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-accent" /> Payment Stage</DialogTitle>
+          <DialogDescription>Configure when and how the citizen pays.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Stage Name</Label>
+            <Input value={draft.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. Application Fee" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Workflow State</Label>
+            <Select value={draft.workflowState} onValueChange={(v) => update({ workflowState: v })}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Fees</Label>
+            <div className="rounded-md border p-2 space-y-1.5">
+              {AVAILABLE_FEES.map(fee => (
+                <label key={fee} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox checked={draft.fees.includes(fee)} onCheckedChange={() => toggleFee(fee)} />
+                  <span>{fee}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payment Type</Label>
+            <Select value={draft.paymentType} onValueChange={(v) => update({ paymentType: v as PaymentType })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">Full</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+                <SelectItem value="multiple">Multiple</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Methods</Label>
+            <div className="flex gap-3">
+              {(["online", "offline", "counter"] as const).map(m => (
+                <label key={m} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox checked={draft.methods[m]} onCheckedChange={() => toggleMethod(m)} />
+                  <span className="capitalize">{m}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Gateway</Label>
+            <Select value={draft.gateway} onValueChange={(v) => update({ gateway: v as Gateway })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="razorpay">Razorpay</SelectItem>
+                <SelectItem value="paygov">PayGov</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={draft.generateReceipt} onCheckedChange={(v) => update({ generateReceipt: v })} />
+            <Label>Generate Receipt</Label>
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
+            onClick={() => onDelete(draft.id)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button className="bg-accent text-accent-foreground hover:bg-accent/90"
+              disabled={!draft.name.trim() || !draft.workflowState || draft.fees.length === 0}
+              onClick={() => onSave(draft)}>Save</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 export default WorkflowDesigner;
