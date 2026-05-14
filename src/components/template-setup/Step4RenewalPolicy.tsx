@@ -137,9 +137,7 @@ const Step4RenewalPolicy: React.FC<Props> = ({
 
       {!hasCategories && (
         <Card className="p-5 space-y-3">
-          <Label htmlFor="global-months" className="text-sm">
-            How long should renewed licenses remain active?
-          </Label>
+          <Label htmlFor="global-months" className="text-sm">After how long from issuance should renewal be allowed?</Label>
           <div className="flex items-center gap-2">
             <MonthsInput value={policy.globalMonths} onChange={setGlobal} />
             <span className="text-sm text-muted-foreground">months</span>
@@ -183,9 +181,7 @@ const Step4RenewalPolicy: React.FC<Props> = ({
 
           {policy.mode === "global" && (
             <Card className="p-5 space-y-3">
-              <Label className="text-sm">
-                How long should renewed licenses remain active?
-              </Label>
+              <Label className="text-sm">After how long from issuance should renewal be allowed?</Label>
               <div className="flex items-center gap-2">
                 <MonthsInput value={policy.globalMonths} onChange={setGlobal} />
                 <span className="text-sm text-muted-foreground">months</span>
