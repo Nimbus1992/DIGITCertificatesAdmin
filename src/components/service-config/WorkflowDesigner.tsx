@@ -87,6 +87,15 @@ import {
   isRenewalModule,
 } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
+import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
+import ScopeSelector from "@/components/service-config/ScopeSelector";
+import {
+  Select as CatSelect,
+  SelectContent as CatSelectContent,
+  SelectItem as CatSelectItem,
+  SelectTrigger as CatSelectTrigger,
+  SelectValue as CatSelectValue,
+} from "@/components/ui/select";
 
 // Auto-layout: lay issuance states out in 2 rows, left-to-right.
 const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
@@ -175,11 +184,26 @@ interface Props {
 
 const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
+  const cfg = useServiceConfigOptional();
+  const scope = cfg?.workflowScope ?? "shared";
+  const categories = cfg?.categories ?? [];
+  const showCategoryPicker = scope === "by_category" && categories.length > 0;
+  const [activeCategory, setActiveCategory] = useState<string>(() => categories[0] ?? "");
+  useEffect(() => {
+    if (showCategoryPicker && !categories.includes(activeCategory)) {
+      setActiveCategory(categories[0] ?? "");
+    }
+  }, [showCategoryPicker, categories, activeCategory]);
+
+  const storageSuffix = showCategoryPicker
+    ? `${moduleName}::cat::${activeCategory || "__"}`
+    : moduleName;
+
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states", serviceId, moduleName, () => buildSeedStates(moduleName),
+    "workflow-states", serviceId, storageSuffix, () => buildSeedStates(moduleName),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions", serviceId, moduleName, () => buildSeedTransitions(moduleName),
+    "workflow-transitions", serviceId, storageSuffix, () => buildSeedTransitions(moduleName),
   );
   const [view, setView] = useState<"visual" | "table">("visual");
   const [selection, setSelection] = useState<Selection>(null);
@@ -317,6 +341,13 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Header moduleName={moduleName} onBack={onBack} view={view} setView={setView} />
+        <ScopeBar
+          cfg={cfg}
+          scope={scope}
+          categories={categories}
+          activeCategory={activeCategory}
+          setActiveCategory={setActiveCategory}
+        />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
             <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
@@ -348,6 +379,13 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             </Button>
           </div>
         }
+      />
+      <ScopeBar
+        cfg={cfg}
+        scope={scope}
+        categories={categories}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -811,6 +849,49 @@ const Header: React.FC<{
     </div>
   </header>
 );
+
+/* ------------------------------------------------------------------ */
+/*  Scope bar — workflow scope + category context switcher             */
+/* ------------------------------------------------------------------ */
+
+const ScopeBar: React.FC<{
+  cfg: ReturnType<typeof useServiceConfigOptional>;
+  scope: "shared" | "by_category" | "by_subcategory";
+  categories: string[];
+  activeCategory: string;
+  setActiveCategory: (c: string) => void;
+}> = ({ cfg, scope, categories, activeCategory, setActiveCategory }) => {
+  if (!cfg || !cfg.hasCategories) return null;
+  return (
+    <div className="border-b bg-muted/20 px-4 py-2 flex items-center gap-3 flex-wrap">
+      <span className="text-xs font-medium text-muted-foreground">Apply to:</span>
+      <ScopeSelector
+        size="sm"
+        value={scope}
+        onChange={(s) => cfg.setWorkflowScope(s)}
+        available={{ by_category: cfg.hasCategories, by_subcategory: false }}
+      />
+      {scope === "by_category" && categories.length > 0 && (
+        <>
+          <span className="text-xs text-muted-foreground ml-2">Editing:</span>
+          <CatSelect value={activeCategory} onValueChange={setActiveCategory}>
+            <CatSelectTrigger className="h-8 w-48 text-xs">
+              <CatSelectValue placeholder="Pick a category" />
+            </CatSelectTrigger>
+            <CatSelectContent>
+              {categories.map((c) => (
+                <CatSelectItem key={c} value={c}>{c}</CatSelectItem>
+              ))}
+            </CatSelectContent>
+          </CatSelect>
+          <span className="text-[11px] text-muted-foreground italic ml-1">
+            Changes apply only to this category's workflow.
+          </span>
+        </>
+      )}
+    </div>
+  );
+};
 
 const AddStateDialog: React.FC<{
   open: boolean;

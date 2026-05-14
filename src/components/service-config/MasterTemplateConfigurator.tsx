@@ -97,6 +97,8 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
       hasSubcategories: setup.hasCategories ? setup.hasSubcategories : false,
       categoriesFileName: setup.hasCategories ? setup.categoriesFileName : undefined,
       subcategoriesFileName: setup.hasCategories && setup.hasSubcategories ? setup.subcategoriesFileName : undefined,
+      categoriesList: setup.hasCategories ? setup.categoriesList : undefined,
+      subcategoriesList: setup.hasCategories && setup.hasSubcategories ? setup.subcategoriesList : undefined,
     };
     updateService(service.id, { name: trimmed, customModules, templateSetup: cleanSetup });
     toast({ title: "Template setup updated", description: "Service architecture changes saved." });

@@ -7,9 +7,10 @@ import Step3Structure from "@/components/template-setup/Step3Structure";
 import Step4RenewalPolicy, {
   type RenewalPolicyState,
 } from "@/components/template-setup/Step4RenewalPolicy";
+import Step5WorkflowScope from "@/components/template-setup/Step5WorkflowScope";
 import Step4Initializing from "@/components/template-setup/Step4Initializing";
 import { allTemplates } from "@/data/serviceTemplates";
-import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
+import { useOnboarding, type ServiceItem, type WorkflowScope } from "@/contexts/OnboardingContext";
 
 const TemplateSetup: React.FC = () => {
   const { templateId } = useParams<{ templateId: string }>();
@@ -44,6 +45,7 @@ const TemplateSetup: React.FC = () => {
     perCategory: {},
     perSubcategory: {},
   });
+  const [workflowScope, setWorkflowScope] = useState<WorkflowScope>("shared");
 
   if (!template) return null;
 
@@ -55,20 +57,28 @@ const TemplateSetup: React.FC = () => {
   const visibleSteps: SetupStepKey[] = useMemo(() => {
     const base: SetupStepKey[] = ["identity", "structure", "modules"];
     if (renewalEnabled) base.push("renewal");
+    if (hasCategories === true) base.push("workflow_scope");
     base.push("initialize");
     return base;
-  }, [renewalEnabled]);
+  }, [renewalEnabled, hasCategories]);
 
   const handleBack = () => {
     if (step === "identity") navigate("/services");
     else if (step === "structure") setStep("identity");
     else if (step === "modules") setStep("structure");
     else if (step === "renewal") setStep("modules");
+    else if (step === "workflow_scope") setStep(renewalEnabled ? "renewal" : "modules");
     // initializing has no back
   };
 
   const goAfterModules = () => {
     if (renewalEnabled) setStep("renewal");
+    else if (hasCategories === true) setStep("workflow_scope");
+    else setStep("initialize");
+  };
+
+  const goAfterRenewal = () => {
+    if (hasCategories === true) setStep("workflow_scope");
     else setStep("initialize");
   };
 
@@ -94,6 +104,7 @@ const TemplateSetup: React.FC = () => {
         subcategoriesList,
       },
       renewalPolicy: renewalEnabled ? renewalPolicy : undefined,
+      workflowScope: hasCategories === true ? workflowScope : "shared",
     };
     addService(newService);
     navigate(`/service/${newService.id}/configure`);
@@ -143,6 +154,14 @@ const TemplateSetup: React.FC = () => {
           subcategories={subcategoriesList}
           policy={renewalPolicy}
           setPolicy={setRenewalPolicy}
+          onContinue={goAfterRenewal}
+        />
+      )}
+      {step === "workflow_scope" && (
+        <Step5WorkflowScope
+          value={workflowScope}
+          onChange={setWorkflowScope}
+          categoryCount={categoriesList.length}
           onContinue={() => setStep("initialize")}
         />
       )}

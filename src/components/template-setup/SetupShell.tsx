@@ -8,6 +8,7 @@ export type SetupStepKey =
   | "structure"
   | "modules"
   | "renewal"
+  | "workflow_scope"
   | "initialize";
 
 const ALL_STEPS: { key: SetupStepKey; label: string }[] = [
@@ -15,6 +16,7 @@ const ALL_STEPS: { key: SetupStepKey; label: string }[] = [
   { key: "structure", label: "Structure" },
   { key: "modules", label: "Modules" },
   { key: "renewal", label: "Renewal" },
+  { key: "workflow_scope", label: "Approvals" },
   { key: "initialize", label: "Initializing" },
 ];
 
