@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,8 +97,8 @@ const DYNAMIC_VARS = [
 ];
 
 import { TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
-
-const GENERATE_WHEN_OPTIONS = [...TRADE_STATE_NAMES, "Workflow State Selection"];
+import { RENEWAL_STATE_NAMES, isRenewalModule } from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 const CREDENTIAL_ID_OPTIONS = ["License Number", "Application Number", "Custom Field"];
 
@@ -215,6 +216,78 @@ const TOOLBAR_ITEMS = [
   { type: "signature" as const, icon: PenTool, label: "Signature" },
 ];
 
+// Renewal-specific document set: simpler list, no inspection report,
+// renewed certificate copy.
+const createRenewalDocuments = (): DesignDocument[] => [
+  {
+    id: "rdoc-1",
+    name: "Renewed License Certificate",
+    type: "certificate",
+    generateWhen: "License Renewed",
+    verifiableCredential: { enabled: true, credentialType: "TradeCredential", idMapping: "License Number", includeQR: true },
+    elements: [
+      { id: "re1", type: "image", content: "Government Logo", x: 220, y: 20, width: 120, height: 60, style: { ...defaultStyle, alignment: "center" } },
+      { id: "re2", type: "text", content: "Business License — Renewal Certificate", x: 60, y: 100, width: 440, height: 36, style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" } },
+      { id: "re3", type: "text", content: "Department of Trade & Commerce", x: 60, y: 140, width: 440, height: 20, style: { ...defaultStyle, fontSize: 12, alignment: "center", color: "#6b7280" } },
+      { id: "re5", type: "dynamic", content: "{businessName}", x: 60, y: 210, width: 440, height: 24, style: { ...defaultStyle, fontSize: 16, fontWeight: "bold" }, sourceMapping: "businessName" },
+      { id: "re6", type: "dynamic", content: "{licenseNumber}", x: 60, y: 250, width: 220, height: 20, style: { ...defaultStyle }, sourceMapping: "licenseNumber" },
+      { id: "re7", type: "dynamic", content: "{applicantName}", x: 60, y: 280, width: 220, height: 20, style: { ...defaultStyle }, sourceMapping: "applicantName" },
+      { id: "re8", type: "text", content: "Renewed Until:", x: 300, y: 250, width: 100, height: 20, style: { ...defaultStyle, fontSize: 12, color: "#6b7280" } },
+      { id: "re9", type: "dynamic", content: "{expiryDate}", x: 300, y: 280, width: 200, height: 20, style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "expiryDate" },
+      { id: "re10", type: "qrcode", content: "QR Verification", x: 220, y: 340, width: 80, height: 80, style: { ...defaultStyle, alignment: "center" } },
+      { id: "re11", type: "text", content: "This renewal certificate is digitally verifiable.", x: 60, y: 440, width: 440, height: 16, style: { ...defaultStyle, fontSize: 10, alignment: "center", color: "#9ca3af" } },
+    ],
+  },
+  {
+    id: "rdoc-2",
+    name: "Renewal Application PDF",
+    type: "application_pdf",
+    generateWhen: "Submitted",
+    verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+    elements: [
+      { id: "re20", type: "text", content: "Business License Renewal Application", x: 60, y: 40, width: 440, height: 32, style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" } },
+      { id: "re21", type: "text", content: "Applicant Details", x: 60, y: 100, width: 440, height: 22, style: { ...defaultStyle, fontSize: 16, fontWeight: "bold" } },
+      { id: "re22", type: "dynamic", content: "{applicantName}", x: 60, y: 130, width: 220, height: 20, style: { ...defaultStyle }, sourceMapping: "applicantName" },
+      { id: "re23", type: "dynamic", content: "{applicationNumber}", x: 300, y: 130, width: 200, height: 20, style: { ...defaultStyle }, sourceMapping: "applicationNumber" },
+      { id: "re24", type: "text", content: "Existing License", x: 60, y: 180, width: 440, height: 22, style: { ...defaultStyle, fontSize: 16, fontWeight: "bold" } },
+      { id: "re25", type: "dynamic", content: "{licenseNumber}", x: 60, y: 210, width: 220, height: 20, style: { ...defaultStyle }, sourceMapping: "licenseNumber" },
+      { id: "re26", type: "dynamic", content: "{businessName}", x: 300, y: 210, width: 200, height: 20, style: { ...defaultStyle }, sourceMapping: "businessName" },
+      { id: "re27", type: "text", content: "Declaration: I confirm the details above are unchanged or have been updated.", x: 60, y: 280, width: 440, height: 40, style: { ...defaultStyle, fontSize: 11, color: "#6b7280" } },
+      { id: "re28", type: "signature", content: "Applicant Signature", x: 60, y: 360, width: 200, height: 60, style: { ...defaultStyle } },
+    ],
+  },
+  {
+    id: "rdoc-3",
+    name: "Renewal Acknowledgement",
+    type: "acknowledgement",
+    generateWhen: "Submitted",
+    verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+    elements: [
+      { id: "re30", type: "text", content: "Renewal Application Acknowledgement", x: 60, y: 40, width: 440, height: 32, style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" } },
+      { id: "re31", type: "text", content: "Your renewal application has been successfully submitted.", x: 60, y: 90, width: 440, height: 20, style: { ...defaultStyle, alignment: "center", color: "#6b7280" } },
+      { id: "re32", type: "dynamic", content: "{applicationNumber}", x: 60, y: 140, width: 440, height: 24, style: { ...defaultStyle, fontSize: 18, fontWeight: "bold", alignment: "center" }, sourceMapping: "applicationNumber" },
+      { id: "re33", type: "text", content: "Next Steps:", x: 60, y: 200, width: 440, height: 20, style: { ...defaultStyle, fontWeight: "bold" } },
+      { id: "re34", type: "text", content: "1. Your renewal will be reviewed by the verification team.\n2. You will receive payment instructions once approved.\n3. Track your renewal using the reference number above.", x: 60, y: 230, width: 440, height: 60, style: { ...defaultStyle, fontSize: 12, color: "#6b7280" } },
+    ],
+  },
+  {
+    id: "rdoc-4",
+    name: "Renewal Payment Receipt",
+    type: "custom",
+    generateWhen: "Paid",
+    verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+    elements: [
+      { id: "re50", type: "text", content: "Renewal Payment Receipt", x: 60, y: 40, width: 440, height: 32, style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" } },
+      { id: "re51", type: "text", content: "Department of Trade & Commerce", x: 60, y: 80, width: 440, height: 18, style: { ...defaultStyle, fontSize: 12, alignment: "center", color: "#6b7280" } },
+      { id: "re52", type: "dynamic", content: "{applicationNumber}", x: 60, y: 130, width: 220, height: 20, style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicationNumber" },
+      { id: "re53", type: "dynamic", content: "{applicantName}", x: 300, y: 130, width: 200, height: 20, style: { ...defaultStyle }, sourceMapping: "applicantName" },
+      { id: "re54", type: "text", content: "Amount Paid", x: 60, y: 180, width: 440, height: 22, style: { ...defaultStyle, fontSize: 16, fontWeight: "bold" } },
+      { id: "re55", type: "table", content: "Renewal Fee Breakdown", x: 60, y: 210, width: 440, height: 100, style: { ...defaultStyle } },
+      { id: "re56", type: "text", content: "Thank you for renewing your licence.", x: 60, y: 340, width: 440, height: 20, style: { ...defaultStyle, alignment: "center", color: "#6b7280" } },
+    ],
+  },
+];
+
 // ── Component ──────────────────────────────────────────
 
 interface Props {
@@ -223,8 +296,17 @@ interface Props {
 }
 
 const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [documents, setDocuments] = useState<DesignDocument[]>(createTemplateDocuments);
-  const [activeDocId, setActiveDocId] = useState(documents[0].id);
+  const { id: serviceId = "service" } = useParams();
+  const renewal = isRenewalModule(moduleName);
+  const GENERATE_WHEN_OPTIONS = [
+    ...(renewal ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES),
+    "Workflow State Selection",
+  ];
+  const [documents, setDocuments] = useModuleState<DesignDocument[]>(
+    "documents", serviceId, moduleName,
+    () => (renewal ? createRenewalDocuments() : createTemplateDocuments()),
+  );
+  const [activeDocId, setActiveDocId] = useState(documents[0]?.id ?? "");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);

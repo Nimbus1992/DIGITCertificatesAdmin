@@ -1,33 +1,53 @@
 ## Goal
-Move the module switcher (Issuance / Renewal) from the Service Configuration hub into each individual configurator. The hub becomes a clean launcher; module context is selected inside the tool.
+Each configuration block (Forms, Roles, Workflow, Checklists, Notifications, Documents, Fees, Payments) should load the right seed for the active module (Issuance vs Renewal) and persist edits per module so switching the top tabs swaps content without losing work.
 
-## Hub changes (`src/pages/ServiceConfig.tsx`)
-- Remove the "Modules" pill row at the top of the Configure tab.
-- Remove per-module status tracking: drop `selectedModule`, `tileStatuses`, `currentStatuses`, `completedCount`, the status badges on core tiles, and the colored dots on additional tiles.
-- Tiles render as clean launchers (icon + title + description). The "X of Y configured" counter is removed.
-- When a tile is opened, the configurator receives the list of available modules instead of a single `moduleName`. The current module is owned by the configurator itself (default = first module, persisted per service in localStorage so re-entry restores the last module).
+## Renewal seed (new)
+Create `src/data/renewalTemplate.ts` with a smaller, renewal-flavored variant of the trade-license seeds.
 
-## Configurator shell pattern
-A small shared header component, e.g. `src/components/service-config/ModuleTabs.tsx`, renders Issuance / Renewal as top tabs (matching the existing wizard step tab styling: underline-on-active, muted otherwise). Single-module services hide the tabs entirely.
+- **Workflow** — `RENEWAL_WORKFLOW_STATES` + `RENEWAL_WORKFLOW_TRANSITIONS`:
+  Submitted → Under Document Verification → Under Approval → Payment Pending → Paid → License Renewed, plus Sent Back and Rejected. No inspection state, no field-inspector transitions.
+- **Roles** — `RENEWAL_ROLES`: Citizen, Document Verifier, Approver. Field Inspector dropped.
+- **Checklists** — `RENEWAL_CHECKLISTS`: Document Verification (renewal-focused: existing license valid, payment of dues, updated documents), Approval (renewal decision), Send Back. No Inspection checklist.
+- **Notifications** — `RENEWAL_NOTIFICATIONS`: one per relevant state, with renewal-specific copy ("Your renewal application…", "Your licence has been renewed until {expiryDate}").
+- **Documents** — `RENEWAL_DOCUMENTS`: Renewal Application Form, Acknowledgement, Renewed License Certificate, Payment Receipt. No Inspection Report.
+- **Fees** — `RENEWAL_FEES`: single `Renewal Fee` (fixed, ₹750, applicable at Payment Pending, mandatory).
+- **Payments** — `RENEWAL_PAYMENT_STAGES`: one stage `Renewal Payment` at Payment Pending, fees `["Renewal Fee"]`, online + offline.
 
-Each configurator is updated to:
-- Accept `modules: string[]` (and remove the `moduleName` prop).
-- Own `activeModule` state, persisted at `serviceconfig:<serviceId>:<tileId>:module`.
-- Render `<ModuleTabs />` directly under its existing back/title bar.
-- Key its existing per-module storage off `activeModule` so switching tabs swaps content without losing edits.
+The existing `renewalFormTemplate.ts` already provides a renewal Form seed and stays as-is.
 
-## Configurators in scope
-All eight: FormBuilder, RolesDesigner, WorkflowDesigner, ChecklistBuilder, NotificationsManager, DocumentDesigner, PaymentsConfigurator, FeesConfigurator. Each gets the same tab strip; their internal data already keys by module name in most cases, so the change is mostly prop/state plumbing.
+## Per-module persistence pattern
+Every configurator that currently has no localStorage gets a per-module storage key:
 
-The generic placeholder fallback in `ServiceConfig.tsx` (used for `plugins`) also gets the tab strip so the pattern is consistent.
+```
+{configurator-prefix}:{serviceId}:{moduleName}
+```
+
+Each configurator:
+1. Accepts the existing `moduleName` prop.
+2. Detects renewal via `moduleName.toLowerCase().includes("renew")` (matches FormBuilder).
+3. Picks `ISSUANCE_*` or `RENEWAL_*` seed accordingly.
+4. Loads from localStorage on mount (keyed by serviceId + moduleName); falls back to the matching seed.
+5. Persists state changes back under the same key.
+
+The hub's `renderConfigurator` already remounts on `activeModule` change via `key={activeModule}`, so a fresh load happens automatically when the user switches tabs.
+
+## Per-configurator changes
+- **RolesDesigner** — seed from `ISSUANCE_ROLES` (alias of `TRADE_ROLES`) or `RENEWAL_ROLES`. Persist to `roles:{serviceId}:{moduleName}`.
+- **WorkflowDesigner** — seed states + transitions from issuance vs renewal. Persist to `workflow:{serviceId}:{moduleName}`.
+- **ChecklistBuilder** — seed checklists; persist to `checklists:{serviceId}:{moduleName}`.
+- **NotificationsManager** — seed notifications; persist to `notifications:{serviceId}:{moduleName}`.
+- **DocumentDesigner** — seed document list; persist to `documents:{serviceId}:{moduleName}`. (Per-document canvas state stays as-is.)
+- **FeesConfigurator** — seed fees; persist to `fees:{serviceId}:{moduleName}`.
+- **PaymentsConfigurator** — seed payment stages; persist to `payments:{serviceId}:{moduleName}`.
+- **FormBuilder** — already wired; no changes.
 
 ## Out of scope
-- No changes to citizen preview, Go-Live, or template setup.
-- No changes to the underlying form/role/workflow data models.
-- Roles stay per-module for now (user chose "all of them"); a future pass can promote shared resources to a global scope if desired.
+- Citizen/Employee preview (still drives off PreviewContext defaults).
+- Cross-module shared resources (e.g. global Roles). Roles stay per-module.
+- Backend persistence — this stays in localStorage for now.
+- New UI affordances; only seed + persistence wiring.
 
 ## Technical notes
-- `ModuleTabs` is a presentational component: `{ modules, active, onChange }`. Hidden when `modules.length <= 1`.
-- localStorage key for active module: `serviceconfig:<serviceId>:<tileId>:activeModule`.
-- Hub no longer needs `tileStatuses` seeding logic for the trade-license template; that block is removed.
-- `MasterTemplateConfigurator` (Template Setup sheet) is unchanged — modules are still defined there.
+- A small helper `pickSeed(moduleName, issuance, renewal)` in `src/data/renewalTemplate.ts` keeps the renewal-detection rule in one place.
+- Each configurator does a deep clone of the seed (existing pattern) before storing in state to avoid mutating the imported constants.
+- localStorage reads are wrapped in try/catch to tolerate quota / SSR issues.

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,9 +79,17 @@ import {
   TRADE_WORKFLOW_TRANSITIONS,
   TRADE_NOTIFICATIONS,
 } from "@/data/tradeLicenseTemplate";
+import {
+  RENEWAL_WORKFLOW_STATES,
+  RENEWAL_WORKFLOW_TRANSITIONS,
+  RENEWAL_NOTIFICATIONS,
+  RENEWAL_STATE_LAYOUT,
+  isRenewalModule,
+} from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
-// Auto-layout: lay states out in 2 rows, left-to-right.
-const STATE_LAYOUT: Record<string, { x: number; y: number }> = {
+// Auto-layout: lay issuance states out in 2 rows, left-to-right.
+const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s1:   { x: 60,   y: 100 },
   s_dv: { x: 320,  y: 100 },
   s_ip: { x: 580,  y: 100 },
@@ -93,43 +102,52 @@ const STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s9:   { x: 1620, y: 320 },
 };
 
-const seedStates: WorkflowState[] = TRADE_WORKFLOW_STATES.map((s) => {
-  const pos = STATE_LAYOUT[s.id] ?? { x: 60, y: 100 };
-  // Attach notifications matching this state
-  const stateNotifs: AttachedNotification[] = TRADE_NOTIFICATIONS
-    .filter((n) => n.workflowState === s.name)
-    .flatMap((n) =>
-      n.channels.map((ch) => ({
-        id: `${n.id}-${ch}`,
-        name: `${n.subject} (${ch.toUpperCase()})`,
-        channel: ch,
-        enabled: true,
-      }))
-    );
-  // Attach Application Form to "Submitted"
-  const stateForms: AttachedForm[] = s.id === "s1"
-    ? [{ id: "f-app", name: "Trade_License_Application.pdf" }]
-    : [];
-  return {
-    id: s.id,
-    name: s.name,
-    description: s.description,
-    type: s.type,
-    x: pos.x,
-    y: pos.y,
-    forms: stateForms,
-    notifications: stateNotifs,
-  };
-});
+const buildSeedStates = (moduleName: string): WorkflowState[] => {
+  const renewal = isRenewalModule(moduleName);
+  const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
+  const notifs = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
+  const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
+  const startStateId = states.find((s) => s.type === "start")?.id;
+  const formName = renewal ? "Renewal_Application.pdf" : "Trade_License_Application.pdf";
+  return states.map((s) => {
+    const pos = layout[s.id] ?? { x: 60, y: 100 };
+    const stateNotifs: AttachedNotification[] = notifs
+      .filter((n) => n.workflowState === s.name)
+      .flatMap((n) =>
+        n.channels.map((ch) => ({
+          id: `${n.id}-${ch}`,
+          name: `${n.subject} (${ch.toUpperCase()})`,
+          channel: ch,
+          enabled: true,
+        }))
+      );
+    const stateForms: AttachedForm[] = s.id === startStateId
+      ? [{ id: "f-app", name: formName }]
+      : [];
+    return {
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      type: s.type,
+      x: pos.x,
+      y: pos.y,
+      forms: stateForms,
+      notifications: stateNotifs,
+    };
+  });
+};
 
-const seedTransitions: WorkflowTransition[] = TRADE_WORKFLOW_TRANSITIONS.map((t) => ({
-  id: t.id,
-  name: t.name,
-  fromStateId: t.fromStateId,
-  toStateId: t.toStateId,
-  checklist: t.checklist.map((c) => ({ id: c.id, text: c.text })),
-  conditionsEnabled: false,
-}));
+const buildSeedTransitions = (moduleName: string): WorkflowTransition[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_WORKFLOW_TRANSITIONS : TRADE_WORKFLOW_TRANSITIONS;
+  return src.map((t) => ({
+    id: t.id,
+    name: t.name,
+    fromStateId: t.fromStateId,
+    toStateId: t.toStateId,
+    checklist: t.checklist.map((c) => ({ id: c.id, text: c.text })),
+    conditionsEnabled: false,
+  }));
+};
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -156,8 +174,13 @@ interface Props {
 }
 
 const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [states, setStates] = useState<WorkflowState[]>(seedStates);
-  const [transitions, setTransitions] = useState<WorkflowTransition[]>(seedTransitions);
+  const { id: serviceId = "service" } = useParams();
+  const [states, setStates] = useModuleState<WorkflowState[]>(
+    "workflow-states", serviceId, moduleName, () => buildSeedStates(moduleName),
+  );
+  const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
+    "workflow-transitions", serviceId, moduleName, () => buildSeedTransitions(moduleName),
+  );
   const [view, setView] = useState<"visual" | "table">("visual");
   const [selection, setSelection] = useState<Selection>(null);
   const [showAddState, setShowAddState] = useState(false);

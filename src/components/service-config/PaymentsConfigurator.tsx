@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +27,13 @@ import {
   TRADE_STATE_NAMES,
   TRADE_FEE_NAMES,
 } from "@/data/tradeLicenseTemplate";
-
-const WORKFLOW_STATES = TRADE_STATE_NAMES;
-
-const AVAILABLE_FEES = TRADE_FEE_NAMES;
+import {
+  RENEWAL_PAYMENT_STAGES,
+  RENEWAL_STATE_NAMES,
+  RENEWAL_FEE_NAMES,
+  isRenewalModule,
+} from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
 // Receipt templates pulled from Document Designer's shared template list
 import { DOCUMENT_TEMPLATE_NAMES } from "@/data/documentTemplates";
@@ -57,17 +61,20 @@ interface PaymentStage {
 
 const uid = () => crypto.randomUUID();
 
-const defaultStages: PaymentStage[] = TRADE_PAYMENT_STAGES.map((s) => ({
-  id: s.id,
-  name: s.name,
-  workflowState: s.workflowState,
-  fees: [...s.fees],
-  paymentType: s.paymentType,
-  methods: { ...s.methods },
-  gateway: s.gateway,
-  generateReceipt: s.generateReceipt,
-  receiptTemplate: s.receiptTemplate,
-}));
+const buildDefaultStages = (moduleName: string): PaymentStage[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_PAYMENT_STAGES : TRADE_PAYMENT_STAGES;
+  return src.map((s) => ({
+    id: s.id,
+    name: s.name,
+    workflowState: s.workflowState,
+    fees: [...s.fees],
+    paymentType: s.paymentType,
+    methods: { ...s.methods },
+    gateway: s.gateway,
+    generateReceipt: s.generateReceipt,
+    receiptTemplate: s.receiptTemplate,
+  }));
+};
 
 const emptyStage = (): PaymentStage => ({
   id: uid(),
@@ -88,8 +95,14 @@ interface Props {
 
 const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
   const { toast } = useToast();
+  const { id: serviceId = "service" } = useParams();
+  const renewal = isRenewalModule(moduleName);
+  const WORKFLOW_STATES = renewal ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES;
+  const AVAILABLE_FEES = renewal ? RENEWAL_FEE_NAMES : TRADE_FEE_NAMES;
   const [paymentsEnabled, setPaymentsEnabled] = useState(true);
-  const [stages, setStages] = useState<PaymentStage[]>(defaultStages);
+  const [stages, setStages] = useModuleState<PaymentStage[]>(
+    "payments", serviceId, moduleName, () => buildDefaultStages(moduleName),
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState<PaymentStage>(emptyStage());
   const [editingId, setEditingId] = useState<string | null>(null);

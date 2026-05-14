@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,15 +51,20 @@ const ALL_PERMISSIONS: Permission[] = [
 ];
 
 import { TRADE_ROLES } from "@/data/tradeLicenseTemplate";
+import { RENEWAL_ROLES, isRenewalModule } from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
 
-const defaultRoles: Role[] = TRADE_ROLES.map((r) => ({
-  id: r.id,
-  name: r.name,
-  description: r.description,
-  isDefault: r.isDefault,
-  permissions: r.permissions,
-  actions: r.actions,
-}));
+const buildDefaultRoles = (moduleName: string): Role[] => {
+  const src = isRenewalModule(moduleName) ? RENEWAL_ROLES : TRADE_ROLES;
+  return src.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    isDefault: r.isDefault,
+    permissions: [...r.permissions],
+    actions: [...r.actions],
+  }));
+};
 
 const getPermissionLabel = (id: string) =>
   ALL_PERMISSIONS.find((p) => p.id === id)?.label || id;
@@ -69,7 +75,10 @@ interface Props {
 }
 
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
-  const [roles, setRoles] = useState<Role[]>(defaultRoles);
+  const { id: serviceId = "service" } = useParams();
+  const [roles, setRoles] = useModuleState<Role[]>(
+    "roles", serviceId, moduleName, () => buildDefaultRoles(moduleName),
+  );
   const [search, setSearch] = useState("");
   const [showDialog, setShowDialog] = useState(false);
   const [newRole, setNewRole] = useState({ name: "", description: "", permissions: [] as string[] });
