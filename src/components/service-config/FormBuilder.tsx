@@ -99,6 +99,10 @@ interface FormBuilderProps {
 
 const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const { serviceId = "service" } = useParams();
+  const { id: routeServiceId } = useParams();
+  const { state } = useOnboarding();
+  const currentService = state.services.find((s) => s.id === routeServiceId);
+  const isSingleModule = (currentService?.customModules?.length ?? 0) <= 1;
   const isRenewal = moduleName.toLowerCase().includes("renew");
   const storageKey = `formbuilder:${serviceId}:${moduleName}`;
 
@@ -408,11 +412,15 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
           >
             <ArrowLeft className="h-4 w-4" /> Back to Service Dashboard
           </button>
-          <Separator orientation="vertical" className="h-5" />
-          <div className="text-sm">
-            <span className="text-muted-foreground">Form for </span>
-            <span className="font-semibold text-foreground">{moduleName}</span>
-          </div>
+          {!isSingleModule && (
+            <>
+              <Separator orientation="vertical" className="h-5" />
+              <div className="text-sm">
+                <span className="text-muted-foreground">Form for </span>
+                <span className="font-semibold text-foreground">{moduleName}</span>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <HelpCircle className="h-4 w-4" /> Help
