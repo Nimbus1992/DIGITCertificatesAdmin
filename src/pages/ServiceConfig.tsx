@@ -34,7 +34,7 @@ const deploymentSections: { title: string; description: string }[] = [
 const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) => (
   <div className="space-y-8">
     <div>
-      <h2 className="text-xl font-semibold text-foreground">Deployment</h2>
+      <h2 className="text-xl font-semibold text-foreground">Manage</h2>
       <p className="text-sm text-muted-foreground mt-1">Operate and manage your live service.</p>
     </div>
     <div className="flex items-center gap-2 text-sm">
@@ -176,12 +176,12 @@ const ServiceConfigInner: React.FC = () => {
   const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = [
     { id: "configure", label: "Configure" },
     { id: "preview", label: "Preview" },
-    {
-      id: "deployment",
-      label: "Deployment",
-      disabled: !isLive,
-      tooltip: !isLive ? "Available after publishing the service" : undefined,
-    },
+       {
+         id: "deployment",
+         label: "Manage",
+         disabled: !isLive,
+         tooltip: !isLive ? "Available after publishing the service" : undefined,
+       },
   ];
 
   // Main hub view
