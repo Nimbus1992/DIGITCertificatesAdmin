@@ -1,70 +1,86 @@
-## Goal
+# Workflow Designer Overhaul
 
-Make the FormBuilder and the Citizen Preview form share one source of truth so the builder's structure, fields, and sub-screens always render identically inside the preview, and any add/edit/remove/save action in the builder is immediately reflected when the citizen submits an application.
+The Workflow Designer becomes the canonical place where every state and every action is captured and configured end-to-end. Forms are removed from the workflow (one form per module lives only in the Form Builder). Roles move onto actions. Notifications, Payment requirement, and Checklists are first-class properties of the right place (state vs. action). The right-hand inspector becomes collapsible.
 
-Both modules ("Issuance" and "Renewal") must seed from the **same** template (the existing `ISSUANCE_FORM_STEPS`), but be edited and stored independently per module.
+## What changes for the user
 
-The Forms screen header/back affordance must match other configurators (icon-only ghost back button, title row).
+1. **States** capture lifecycle status only.
+   - Editable: name, type (Start / In Progress / End), description, **notifications fired on entry**, **"Payment required at this state"** toggle.
+   - Removed: Forms section (form lives in Form Builder).
 
-## Current state
+2. **Actions (transitions)** capture who acts and what they must complete.
+   - Editable: action name, From state, To state, **Role allowed to perform action** (single-select from project roles), **Checklist** items (existing builder), Conditions toggle.
+   - Visible on canvas labels, table view, and inspector.
 
-- Builder edits `WizardStep[]` and persists to `localStorage["formbuilder:{serviceId}:{moduleName}"]` — but it pulls `serviceId` from `useParams().serviceId`, which is `undefined` (route param is `:id`), so every service writes to the same `formbuilder:service:{module}` bucket.
-- Citizen Preview (`ApplicationForm.tsx`) ignores the builder entirely. It reads `formSections` from `PreviewContext.DEFAULT_SECTIONS` and renders a hardcoded `SUB_SCREENS` array. Builder edits never appear in the preview.
-- Renewal seed already mirrors Issuance via `cloneSteps(ISSUANCE_FORM_STEPS)`.
-- Other configurators (`RolesDesigner`, `WorkflowDesigner`, etc.) use a `Button variant="ghost" size="icon"` ArrowLeft inside a header row with title + subtitle. FormBuilder uses a custom text link "Back to Service Dashboard".
+3. **Full edit** across both views.
+   - Visual canvas: drag nodes, click to edit, delete state/transition (new trash button in inspector), add state, add transition.
+   - Table view: every row's From / To / Action / Role / Checklist count is clickable to open the inspector for that transition; states get their own table tab so all states are also editable in tabular form.
 
-## Approach
+4. **Collapsible inspector sidebar.**
+   - A chevron button on the inspector's left edge collapses it to a thin rail (icon-only) and re-expands. Selection state is preserved.
+   - Default: expanded. Persisted per service in `localStorage`.
 
-### 1. Canonical form storage
-- Introduce a small helper `src/lib/formStorage.ts`:
-  - `formStorageKey(serviceId, moduleName)` → `formbuilder:{serviceId}:{moduleName}`
-  - `loadFormSteps(serviceId, moduleName)` returns saved `WizardStep[]` or seeded `cloneSteps(ISSUANCE_FORM_STEPS)`
-  - `saveFormSteps(serviceId, moduleName, steps)` persists + dispatches a `window` event (`formbuilder:updated`) so listeners refresh.
-- Both Issuance and Renewal seed from `ISSUANCE_FORM_STEPS` (Renewal template file already does this).
-
-### 2. FormBuilder fixes
-File: `src/components/service-config/FormBuilder.tsx`
-- Replace the broken `useParams().serviceId` with `useParams().id` (already read for module count).
-- Switch reads/writes to `loadFormSteps` / `saveFormSteps` helpers.
-- Header row: replace the text "Back to Service Dashboard" link with the same pattern used in `RolesDesigner` / `WorkflowDesigner`:
-  - `Button variant="ghost" size="icon"` with `ArrowLeft`
-  - Title `{moduleName} — Form` (or just `Form` when single module) and a one-line subtitle.
-  - Help affordance stays on the right.
-- Wire the existing Save button (footer) to call `saveFormSteps` explicitly and toast "Form saved" — autosave on every change continues, but explicit save also broadcasts the update event.
-
-### 3. Preview reads from canonical storage
-File: `src/components/preview/PreviewContext.tsx`
-- `PreviewProvider` accepts a new `serviceId: string` prop.
-- Replace `formSections: DEFAULT_SECTIONS` with state derived from per-module `WizardStep[]`:
-  - `issuanceSteps` and `renewalSteps`, each loaded via `loadFormSteps(serviceId, "Issuance" | "Renewal")` with `DEFAULT_SECTIONS`-derived steps as fallback when no module name matches.
-  - Expose `getFormSteps(applicationType: "NEW" | "RENEWAL"): WizardStep[]`.
-  - Expose a derived `formSections: FormSectionConfig[]` (one section per step, fields flattened) so existing consumers (validation paths, field lookup elsewhere) keep working.
-- Subscribe to `formbuilder:updated` and `storage` events to reload the relevant module's steps.
-
-File: `src/components/preview/ServicePreview.tsx`
-- Pass route `id` into `PreviewProvider serviceId={id}`.
-
-### 4. Render preview from steps
-File: `src/components/preview/citizen/ApplicationForm.tsx`
-- Remove the hardcoded `SUB_SCREENS` constant.
-- Pull `steps = getFormSteps(isRenewal ? "RENEWAL" : "NEW")`.
-- Flatten into runtime sub-screens: `[{ stepIndex, stepName, sub }, ...]`. Last index remains the Review + Declaration screen.
-- `WizardProgress` takes step names from `steps.map(s => s.name)`; current step computed from `sub.stepIndex`.
-- Keep the existing field-render switch (`text/number/dropdown/radio/date/file/checkbox/textarea`) unchanged — `WizardField` and `FormFieldConfig` shapes are compatible. Add minimal mapping for `multiselect` (render as multi-checkbox or fall back to dropdown) so builder additions don't crash.
-- `helperBanner`, `subtitle`, `optional`, `isMap` continue to drive the existing UI.
-
-### 5. Visual parity
-- Builder's preview "card" already mirrors the citizen card layout. Keep it. After the rendering refactor, both screens consume the same data, so changes propagate.
-- No changes to other configurators.
+5. **Notifications, Payments, Checklists clarification (placement contract):**
+   - **Notifications** → attached to a **state** (fired when workflow enters that state). Existing seed already maps notifications by state name.
+   - **Checklists** → attached to an **action** (must be completed before the transition is taken). Already modelled per transition.
+   - **Payments** → a boolean flag on a **state** ("Payment is collected at this state"). Used by the Payments configurator and citizen preview to know which state triggers the pay screen. Seeded `true` for the existing "Payment Pending" state.
 
 ## Out of scope
 
-- No backend persistence — storage stays in `localStorage`.
-- No new field types beyond what the builder palette already supports.
-- No changes to workflow/roles/fees/etc.
-- Map sub-screen (`isMap`) rendering stays as the existing placeholder; users can still add/remove it via the builder.
+- No backend changes. All persistence stays in `localStorage` via existing `useModuleState`.
+- No changes to Form Builder, Notifications Manager, Checklist Builder, Fees, Payments, Roles screens beyond reading the new role/payment fields where already supported.
+- No new visual theme / animation work.
 
-## Risks / notes
+## Technical changes
 
-- `formSections` is also referenced in `ApplicationDetail.tsx` and possibly other preview screens for label lookup. The derived flattening keeps `id → field` resolution intact.
-- Existing drafts in `sessionStorage["tl-draft-*"]` are keyed by application id and remain compatible since field ids are preserved across edits unless the user removes a field.
+All changes confined to `src/components/service-config/WorkflowDesigner.tsx` plus tiny seed additions.
+
+### Types
+- `WorkflowState`: drop `forms`. Add `paymentRequired: boolean`.
+- `WorkflowTransition`: add `roleId: string` (one of the project's role ids; default from seed `role` field on `TRADE_WORKFLOW_TRANSITIONS` / `RENEWAL_WORKFLOW_TRANSITIONS`).
+- Add `ROLE_OPTIONS` derived from `TRADE_ROLES` (id + name) — imported from `@/data/tradeLicenseTemplate`.
+
+### Seed
+- `buildSeedStates`: stop attaching `forms`; set `paymentRequired = (state.name === "Payment Pending")`.
+- `buildSeedTransitions`: copy `role` from source data into `roleId`.
+- Bump storage prefix to `workflow-states-v2` / `workflow-transitions-v2` so old localStorage records don't collide with the new shape.
+
+### Inspector — State panel
+- Remove the entire Forms block.
+- Keep Notifications block as-is.
+- Add a single `Switch` row: "Payment collected at this state" bound to `paymentRequired`.
+- Add destructive "Delete State" button at the bottom (guards against deleting the only Start state and against deleting a state referenced by a transition; show toast).
+
+### Inspector — Transition panel
+- Add a `Select` for "Role" listing `ROLE_OPTIONS`, bound to `roleId`.
+- Add From / To `Select`s so the transition endpoints are editable here too.
+- Add destructive "Delete Transition" button.
+
+### Canvas
+- Replace the `FileText` form indicator on each state node with a small `Wallet`/`IndianRupee` icon when `paymentRequired`.
+- On each transition's pill label, append a tiny role chip (e.g. "Approver") next to the action name.
+
+### Table view
+- Add a top tabs control "States | Actions". Existing transition table goes under "Actions" with a new **Role** column (shows role name; click row to edit).
+- New "States" table: Name, Type, Payment, Notifications count, with row click selecting that state.
+
+### Collapsible right panel
+- Wrap the right inspector in a div whose width toggles between `w-[320px]` and `w-10`.
+- Collapse button is a vertical strip with a `ChevronRight` / `ChevronLeft` icon at the top-left of the panel.
+- Persist `workflow-inspector-collapsed:{serviceId}` in `localStorage`.
+
+### Cleanup
+- Remove `showAddForm`, `newFormName`, `addFormToState`, `removeFormFromState` and the Add-Form dialog.
+
+```text
+Header
+ScopeBar
+┌──────────────────────────── flex-1 ────────────────────────────┬─ inspector ─┐
+│ Visual canvas / Table (States | Actions tabs)                  │ collapsible │
+│   nodes show: type · name · 💰 if paymentRequired · 🔔 if any  │  state /    │
+│   labels show: action name · role chip                         │  transition │
+└────────────────────────────────────────────────────────────────┴─────────────┘
+```
+
+## Files touched
+- `src/components/service-config/WorkflowDesigner.tsx` (single-file refactor)

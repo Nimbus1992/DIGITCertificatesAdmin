@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -16,9 +15,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft, Plus, FileText, Bell, Check, Circle, Play,
-  Square, X, GripVertical, Save, Rocket, ChevronDown, ChevronRight,
-  Info,
+  ArrowLeft, Plus, Bell, Check, Circle, Play,
+  Square, X, GripVertical, Save, ChevronDown, ChevronRight, ChevronLeft,
+  Info, Trash2, IndianRupee, UserCog,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -27,11 +26,7 @@ import { toast } from "@/hooks/use-toast";
 /* ------------------------------------------------------------------ */
 
 type StateType = "start" | "in_progress" | "end";
-
-interface AttachedForm {
-  id: string;
-  name: string;
-}
+type RoleId = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
 
 interface AttachedNotification {
   id: string;
@@ -47,7 +42,7 @@ interface WorkflowState {
   type: StateType;
   x: number;
   y: number;
-  forms: AttachedForm[];
+  paymentRequired: boolean;
   notifications: AttachedNotification[];
 }
 
@@ -61,6 +56,7 @@ interface WorkflowTransition {
   name: string;
   fromStateId: string;
   toStateId: string;
+  roleId: RoleId;
   checklist: ChecklistItem[];
   conditionsEnabled: boolean;
 }
@@ -69,6 +65,14 @@ type Selection =
   | { kind: "state"; id: string }
   | { kind: "transition"; id: string }
   | null;
+
+const ROLE_OPTIONS: { id: RoleId; name: string }[] = [
+  { id: "citizen", name: "Citizen" },
+  { id: "documentVerifier", name: "Document Verifier" },
+  { id: "fieldInspector", name: "Field Inspector" },
+  { id: "approver", name: "Approver" },
+];
+const roleName = (id: RoleId) => ROLE_OPTIONS.find(r => r.id === id)?.name ?? id;
 
 /* ------------------------------------------------------------------ */
 /*  Seed Data                                                          */
@@ -97,7 +101,6 @@ import {
   SelectValue as CatSelectValue,
 } from "@/components/ui/select";
 
-// Auto-layout: lay issuance states out in 2 rows, left-to-right.
 const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s1:   { x: 60,   y: 100 },
   s_dv: { x: 320,  y: 100 },
@@ -116,8 +119,6 @@ const buildSeedStates = (moduleName: string): WorkflowState[] => {
   const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
   const notifs = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
   const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
-  const startStateId = states.find((s) => s.type === "start")?.id;
-  const formName = renewal ? "Renewal_Application.pdf" : "Trade_License_Application.pdf";
   return states.map((s) => {
     const pos = layout[s.id] ?? { x: 60, y: 100 };
     const stateNotifs: AttachedNotification[] = notifs
@@ -130,9 +131,6 @@ const buildSeedStates = (moduleName: string): WorkflowState[] => {
           enabled: true,
         }))
       );
-    const stateForms: AttachedForm[] = s.id === startStateId
-      ? [{ id: "f-app", name: formName }]
-      : [];
     return {
       id: s.id,
       name: s.name,
@@ -140,7 +138,7 @@ const buildSeedStates = (moduleName: string): WorkflowState[] => {
       type: s.type,
       x: pos.x,
       y: pos.y,
-      forms: stateForms,
+      paymentRequired: s.name === "Payment Pending",
       notifications: stateNotifs,
     };
   });
@@ -153,6 +151,7 @@ const buildSeedTransitions = (moduleName: string): WorkflowTransition[] => {
     name: t.name,
     fromStateId: t.fromStateId,
     toStateId: t.toStateId,
+    roleId: (t.role as RoleId) ?? "approver",
     checklist: t.checklist.map((c) => ({ id: c.id, text: c.text })),
     conditionsEnabled: false,
   }));
@@ -200,12 +199,13 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     : moduleName;
 
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states", serviceId, storageSuffix, () => buildSeedStates(moduleName),
+    "workflow-states-v2", serviceId, storageSuffix, () => buildSeedStates(moduleName),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions", serviceId, storageSuffix, () => buildSeedTransitions(moduleName),
+    "workflow-transitions-v2", serviceId, storageSuffix, () => buildSeedTransitions(moduleName),
   );
   const [view, setView] = useState<"visual" | "table">("visual");
+  const [tableTab, setTableTab] = useState<"states" | "actions">("actions");
   const [selection, setSelection] = useState<Selection>(null);
   const [showAddState, setShowAddState] = useState(false);
   const [newStateName, setNewStateName] = useState("");
@@ -214,19 +214,26 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [newTransName, setNewTransName] = useState("");
   const [newTransFrom, setNewTransFrom] = useState("");
   const [newTransTo, setNewTransTo] = useState("");
+  const [newTransRole, setNewTransRole] = useState<RoleId>("approver");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newFormName, setNewFormName] = useState("");
+
+  const inspectorKey = `workflow-inspector-collapsed:${serviceId}`;
+  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(inspectorKey) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(inspectorKey, inspectorCollapsed ? "1" : "0"); } catch {}
+  }, [inspectorCollapsed, inspectorKey]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  const dragRef = useRef<{ id: string; offsetX: number; offsetY: number; moved: boolean } | null>(null);
 
   /* ---- Drag logic ---- */
   const handleMouseDown = useCallback((e: React.MouseEvent, stateId: string, sx: number, sy: number) => {
     e.stopPropagation();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    dragRef.current = { id: stateId, offsetX: e.clientX - rect.left - sx, offsetY: e.clientY - rect.top - sy };
+    dragRef.current = { id: stateId, offsetX: e.clientX - rect.left - sx, offsetY: e.clientY - rect.top - sy, moved: false };
     setSelection({ kind: "state", id: stateId });
   }, []);
 
@@ -236,13 +243,14 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       const rect = canvasRef.current.getBoundingClientRect();
       const nx = Math.max(0, e.clientX - rect.left - dragRef.current.offsetX);
       const ny = Math.max(0, e.clientY - rect.top - dragRef.current.offsetY);
+      dragRef.current.moved = true;
       setStates(prev => prev.map(s => s.id === dragRef.current!.id ? { ...s, x: nx, y: ny } : s));
     };
     const onUp = () => { dragRef.current = null; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, []);
+  }, [setStates]);
 
   /* ---- State CRUD ---- */
   const addState = () => {
@@ -254,7 +262,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const maxX = Math.max(...states.map(s => s.x), 0);
     setStates(prev => [...prev, {
       id: uid(), name: newStateName.trim(), description: "", type: newStateType,
-      x: maxX + 280, y: 180, forms: [], notifications: [],
+      x: maxX + 280, y: 180, paymentRequired: false, notifications: [],
     }]);
     setNewStateName("");
     setNewStateType("in_progress");
@@ -265,19 +273,39 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     setStates(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
   };
 
+  const deleteState = (id: string) => {
+    const target = states.find(s => s.id === id);
+    if (!target) return;
+    if (target.type === "start" && states.filter(s => s.type === "start").length === 1) {
+      toast({ title: "Cannot delete the only Start state", variant: "destructive" });
+      return;
+    }
+    if (transitions.some(t => t.fromStateId === id || t.toStateId === id)) {
+      toast({ title: "Remove or re-point its transitions first", variant: "destructive" });
+      return;
+    }
+    setStates(prev => prev.filter(s => s.id !== id));
+    setSelection(null);
+  };
+
   /* ---- Transition CRUD ---- */
   const addTransition = () => {
     if (!newTransName.trim() || !newTransFrom || !newTransTo) return;
     setTransitions(prev => [...prev, {
       id: uid(), name: newTransName.trim(), fromStateId: newTransFrom, toStateId: newTransTo,
-      checklist: [], conditionsEnabled: false,
+      roleId: newTransRole, checklist: [], conditionsEnabled: false,
     }]);
-    setNewTransName(""); setNewTransFrom(""); setNewTransTo("");
+    setNewTransName(""); setNewTransFrom(""); setNewTransTo(""); setNewTransRole("approver");
     setShowAddTransition(false);
   };
 
   const updateTransition = (id: string, updates: Partial<WorkflowTransition>) => {
     setTransitions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  };
+
+  const deleteTransition = (id: string) => {
+    setTransitions(prev => prev.filter(t => t.id !== id));
+    setSelection(null);
   };
 
   const addChecklistItem = (transId: string) => {
@@ -295,22 +323,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const removeChecklistItem = (transId: string, itemId: string) => {
     setTransitions(prev => prev.map(t =>
       t.id === transId ? { ...t, checklist: t.checklist.filter(c => c.id !== itemId) } : t
-    ));
-  };
-
-  /* ---- Form helpers ---- */
-  const addFormToState = (stateId: string) => {
-    if (!newFormName.trim()) return;
-    setStates(prev => prev.map(s =>
-      s.id === stateId ? { ...s, forms: [...s.forms, { id: uid(), name: newFormName.trim() }] } : s
-    ));
-    setNewFormName("");
-    setShowAddForm(false);
-  };
-
-  const removeFormFromState = (stateId: string, formId: string) => {
-    setStates(prev => prev.map(s =>
-      s.id === stateId ? { ...s, forms: s.forms.filter(f => f.id !== formId) } : s
     ));
   };
 
@@ -375,7 +387,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               <Plus className="h-3.5 w-3.5" /> Add State
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowAddTransition(true)} className="gap-1.5">
-              <Plus className="h-3.5 w-3.5" /> Add Transition
+              <Plus className="h-3.5 w-3.5" /> Add Action
             </Button>
           </div>
         }
@@ -427,7 +439,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 })}
               </svg>
 
-              {/* Transition labels (HTML for click) */}
+              {/* Transition labels */}
               {transitions.map(t => {
                 const from = states.find(s => s.id === t.fromStateId);
                 const to = states.find(s => s.id === t.toStateId);
@@ -437,14 +449,17 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <button
                     key={`label-${t.id}`}
-                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors
+                    className={`absolute z-10 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer transition-colors flex items-center gap-1.5
                       ${isSelected
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-card text-foreground border-border hover:border-accent"}`}
-                    style={{ left: a.mx - 30, top: a.my - 12 }}
+                    style={{ left: a.mx - 50, top: a.my - 12 }}
                     onClick={(e) => { e.stopPropagation(); setSelection({ kind: "transition", id: t.id }); }}
                   >
                     {t.name}
+                    <span className={`text-[9px] px-1.5 rounded-full border ${isSelected ? "border-accent-foreground/30" : "border-border bg-muted/40 text-muted-foreground"}`}>
+                      {roleName(t.roleId)}
+                    </span>
                   </button>
                 );
               })}
@@ -467,7 +482,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       <div className="flex items-center justify-between">
                         <span className={`text-[10px] uppercase font-semibold tracking-wider ${cfg.color}`}>{cfg.label}</span>
                         <div className="flex gap-1">
-                          {s.forms.length > 0 && <FileText className="h-3 w-3 text-muted-foreground" />}
+                          {s.paymentRequired && <IndianRupee className="h-3 w-3 text-amber-600" />}
                           {s.notifications.some(n => n.enabled) && <Bell className="h-3 w-3 text-muted-foreground" />}
                         </div>
                       </div>
@@ -476,11 +491,10 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                         <p className="text-[11px] text-muted-foreground leading-snug">{s.description}</p>
                       )}
                     </div>
-                    {/* Action labels at bottom */}
                     {transitions.filter(t => t.fromStateId === s.id).length > 0 && (
                       <div className="border-t px-3 py-1.5 flex gap-1 flex-wrap">
                         {transitions.filter(t => t.fromStateId === s.id).map(t => (
-                          <span key={t.id} className="text-[10px] text-accent font-medium">ACTION: {t.name}</span>
+                          <span key={t.id} className="text-[10px] text-accent font-medium">→ {t.name}</span>
                         ))}
                       </div>
                     )}
@@ -490,268 +504,317 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             </div>
           ) : (
             /* ============ TABLE VIEW ============ */
-            <div className="p-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10"></TableHead>
-                    <TableHead>From State</TableHead>
-                    <TableHead>To State</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Checklist Items</TableHead>
-                    <TableHead>Forms</TableHead>
-                    <TableHead>Notifications</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transitions.map(t => {
-                    const from = states.find(s => s.id === t.fromStateId);
-                    const to = states.find(s => s.id === t.toStateId);
-                    const isExpanded = expandedRows.has(t.id);
-                    return (
-                      <React.Fragment key={t.id}>
-                        <TableRow
-                          className={`cursor-pointer ${selection?.kind === "transition" && selection.id === t.id ? "bg-accent/5" : ""}`}
-                          onClick={() => setSelection({ kind: "transition", id: t.id })}
-                        >
-                          <TableCell>
-                            <button onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedRows(prev => {
-                                const n = new Set(prev);
-                                n.has(t.id) ? n.delete(t.id) : n.add(t.id);
-                                return n;
-                              });
-                            }}>
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${from?.type === "start" ? "bg-green-500" : from?.type === "end" ? "bg-muted-foreground" : "bg-blue-500"}`} />
-                              {from?.name || "—"}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${to?.type === "start" ? "bg-green-500" : to?.type === "end" ? "bg-muted-foreground" : "bg-blue-500"}`} />
-                              {to?.name || "—"}
-                            </div>
-                          </TableCell>
-                          <TableCell><Badge variant="secondary" className="text-xs">{t.name}</Badge></TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{t.checklist.length} items</TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{from?.forms.length || 0}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs">{from?.notifications.filter(n => n.enabled).length || 0}</TableCell>
-                        </TableRow>
-                        {isExpanded && t.checklist.length > 0 && (
-                          <TableRow>
-                            <TableCell />
-                            <TableCell colSpan={6}>
-                              <div className="pl-4 py-2 space-y-1">
-                                {t.checklist.map(c => (
-                                  <div key={c.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Check className="h-3 w-3" /> {c.text}
-                                  </div>
-                                ))}
-                              </div>
+            <div className="p-6 space-y-4">
+              <div className="flex rounded-md border overflow-hidden w-fit">
+                <button onClick={() => setTableTab("states")}
+                  className={`text-xs font-medium px-3 py-1.5 transition-colors ${tableTab === "states" ? "bg-accent text-accent-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}>
+                  States ({states.length})
+                </button>
+                <button onClick={() => setTableTab("actions")}
+                  className={`text-xs font-medium px-3 py-1.5 transition-colors ${tableTab === "actions" ? "bg-accent text-accent-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}>
+                  Actions ({transitions.length})
+                </button>
+              </div>
+
+              {tableTab === "states" ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Notifications</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {states.map(s => (
+                      <TableRow key={s.id}
+                        className={`cursor-pointer ${selection?.kind === "state" && selection.id === s.id ? "bg-accent/5" : ""}`}
+                        onClick={() => { setSelection({ kind: "state", id: s.id }); setInspectorCollapsed(false); }}
+                      >
+                        <TableCell className="font-medium">{s.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs capitalize">{stateTypeConfig[s.type].label}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{s.description || "—"}</TableCell>
+                        <TableCell>{s.paymentRequired ? <IndianRupee className="h-3.5 w-3.5 text-amber-600" /> : <span className="text-muted-foreground text-xs">—</span>}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{s.notifications.filter(n => n.enabled).length}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>From</TableHead>
+                      <TableHead>To</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Checklist</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transitions.map(t => {
+                      const from = states.find(s => s.id === t.fromStateId);
+                      const to = states.find(s => s.id === t.toStateId);
+                      const isExpanded = expandedRows.has(t.id);
+                      return (
+                        <React.Fragment key={t.id}>
+                          <TableRow
+                            className={`cursor-pointer ${selection?.kind === "transition" && selection.id === t.id ? "bg-accent/5" : ""}`}
+                            onClick={() => { setSelection({ kind: "transition", id: t.id }); setInspectorCollapsed(false); }}
+                          >
+                            <TableCell>
+                              <button onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRows(prev => {
+                                  const n = new Set(prev);
+                                  n.has(t.id) ? n.delete(t.id) : n.add(t.id);
+                                  return n;
+                                });
+                              }}>
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
                             </TableCell>
+                            <TableCell>{from?.name || "—"}</TableCell>
+                            <TableCell>{to?.name || "—"}</TableCell>
+                            <TableCell><Badge variant="secondary" className="text-xs">{t.name}</Badge></TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center gap-1 text-xs text-foreground">
+                                <UserCog className="h-3 w-3 text-muted-foreground" />
+                                {roleName(t.roleId)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-xs">{t.checklist.length} items</TableCell>
                           </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          {isExpanded && t.checklist.length > 0 && (
+                            <TableRow>
+                              <TableCell />
+                              <TableCell colSpan={5}>
+                                <div className="pl-4 py-2 space-y-1">
+                                  {t.checklist.map(c => (
+                                    <div key={c.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <Check className="h-3 w-3" /> {c.text}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           )}
         </div>
 
-        {/* ============ RIGHT PANEL ============ */}
-        <div className="w-[320px] border-l bg-card overflow-y-auto shrink-0">
-          {!selection && (
-            <div className="p-6 text-center text-sm text-muted-foreground mt-20">
-              <Info className="h-8 w-8 mx-auto mb-3 text-muted-foreground/50" />
-              <p>Select a state or transition to view its properties.</p>
-            </div>
-          )}
+        {/* ============ RIGHT INSPECTOR (collapsible) ============ */}
+        <div className={`border-l bg-card overflow-hidden shrink-0 transition-[width] duration-200 flex ${inspectorCollapsed ? "w-10" : "w-[340px]"}`}>
+          {/* Collapse rail */}
+          <button
+            onClick={() => setInspectorCollapsed(v => !v)}
+            className="w-10 shrink-0 border-r flex items-start justify-center pt-3 hover:bg-muted/50 transition-colors"
+            aria-label={inspectorCollapsed ? "Expand inspector" : "Collapse inspector"}
+            title={inspectorCollapsed ? "Expand inspector" : "Collapse inspector"}
+          >
+            {inspectorCollapsed ? <ChevronLeft className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          </button>
 
-          {/* ---- State Inspector ---- */}
-          {selectedState && (
-            <div className="p-4 space-y-5">
-              <div>
-                <h3 className="font-semibold text-foreground text-sm">Workflow Inspector</h3>
-                <p className="text-xs text-muted-foreground">Configure State Properties</p>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b">
-                {["Inspector", "Logic", "Variables"].map((tab, i) => (
-                  <button key={tab}
-                    className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors
-                      ${i === 0 ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                  >
-                    {tab.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                {/* State Name */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State Name</Label>
-                  <Input value={selectedState.name} onChange={e => updateState(selectedState.id, { name: e.target.value })} className="h-9 text-sm" />
+          {!inspectorCollapsed && (
+            <div className="flex-1 overflow-y-auto">
+              {!selection && (
+                <div className="p-6 text-center text-sm text-muted-foreground mt-20">
+                  <Info className="h-8 w-8 mx-auto mb-3 text-muted-foreground/50" />
+                  <p>Select a state or action to view its properties.</p>
                 </div>
+              )}
 
-                {/* State Type */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State Type</Label>
-                  <Select value={selectedState.type} onValueChange={(v: StateType) => {
-                    if (v === "start" && states.some(s => s.type === "start" && s.id !== selectedState.id)) {
-                      toast({ title: "Only one Start state allowed", variant: "destructive" });
-                      return;
-                    }
-                    updateState(selectedState.id, { type: v });
-                  }}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="start">Start</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="end">End</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Description */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</Label>
-                  <Input value={selectedState.description} onChange={e => updateState(selectedState.id, { description: e.target.value })} className="h-9 text-sm" placeholder="Short description" />
-                </div>
-
-                {/* Forms */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Forms</Label>
-                    <Button variant="ghost" size="sm" className="h-6 text-[11px] text-accent" onClick={() => setShowAddForm(true)}>
-                      + Add Form
-                    </Button>
+              {/* ---- State Inspector ---- */}
+              {selectedState && (
+                <div className="p-4 space-y-5">
+                  <div>
+                    <h3 className="font-semibold text-foreground text-sm">State Properties</h3>
+                    <p className="text-xs text-muted-foreground">Lifecycle status configuration</p>
                   </div>
-                  {selectedState.forms.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No forms attached</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {selectedState.forms.map(f => (
-                        <div key={f.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-3.5 w-3.5 text-accent" />
-                            <span className="text-xs font-medium text-foreground">{f.name}</span>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State Name</Label>
+                    <Input value={selectedState.name} onChange={e => updateState(selectedState.id, { name: e.target.value })} className="h-9 text-sm" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">State Type</Label>
+                    <Select value={selectedState.type} onValueChange={(v: StateType) => {
+                      if (v === "start" && states.some(s => s.type === "start" && s.id !== selectedState.id)) {
+                        toast({ title: "Only one Start state allowed", variant: "destructive" });
+                        return;
+                      }
+                      updateState(selectedState.id, { type: v });
+                    }}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="start">Start</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="end">End</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</Label>
+                    <Input value={selectedState.description} onChange={e => updateState(selectedState.id, { description: e.target.value })} className="h-9 text-sm" placeholder="Short description" />
+                  </div>
+
+                  {/* Payment toggle */}
+                  <div className="rounded-md border p-3 flex items-start justify-between gap-3">
+                    <div>
+                      <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                        <IndianRupee className="h-3.5 w-3.5 text-amber-600" />
+                        Payment collected here
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Citizen is prompted to pay when the application reaches this state.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={selectedState.paymentRequired}
+                      onCheckedChange={v => updateState(selectedState.id, { paymentRequired: v })}
+                    />
+                  </div>
+
+                  {/* Notifications */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notifications on entry</Label>
+                    {selectedState.notifications.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No notifications configured. Add them in the Notifications screen.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedState.notifications.map(n => (
+                          <div key={n.id} className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-foreground truncate">{n.name}</span>
+                            <Switch checked={n.enabled} onCheckedChange={() => toggleNotification(selectedState.id, n.id)} />
                           </div>
-                          <button onClick={() => removeFormFromState(selectedState.id, f.id)}>
-                            <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                {/* Notifications */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notifications</Label>
-                  {selectedState.notifications.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No notifications configured</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedState.notifications.map(n => (
-                        <div key={n.id} className="flex items-center justify-between">
-                          <span className="text-xs text-foreground">{n.name}</span>
-                          <Switch checked={n.enabled} onCheckedChange={() => toggleNotification(selectedState.id, n.id)} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ---- Transition Inspector ---- */}
-          {selectedTransition && (() => {
-            const from = states.find(s => s.id === selectedTransition.fromStateId);
-            const to = states.find(s => s.id === selectedTransition.toStateId);
-            return (
-              <div className="p-4 space-y-5">
-                <div>
-                  <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
-                    {selectedTransition.name}
-                    <Badge variant="secondary" className="text-[10px]">Transition</Badge>
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Configure logic and requirements for movement from <span className="font-medium text-foreground">{from?.name}</span> to <span className="font-medium text-foreground">{to?.name}</span>.
-                  </p>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex border-b">
-                  {["Inspector", "Logic", "Variables"].map((tab, i) => (
-                    <button key={tab}
-                      className={`text-xs font-medium px-3 py-2 border-b-2 transition-colors
-                        ${i === 0 ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                    >
-                      {tab.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Transition name */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transition Name</Label>
-                  <Input value={selectedTransition.name} onChange={e => updateTransition(selectedTransition.id, { name: e.target.value })} className="h-9 text-sm" />
-                </div>
-
-                {/* Checklist */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Checklist Builder</Label>
-                    <Button variant="ghost" size="sm" className="h-6 text-[11px] text-accent" onClick={() => addChecklistItem(selectedTransition.id)}>
-                      + Add Item
+                  <div className="border-t pt-3">
+                    <Button variant="outline" size="sm" className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => deleteState(selectedState.id)}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete State
                     </Button>
                   </div>
-                  {selectedTransition.checklist.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No checklist items</p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {selectedTransition.checklist.map(c => (
-                        <div key={c.id} className="flex items-center gap-2">
-                          <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <Input value={c.text} onChange={e => updateChecklistItem(selectedTransition.id, c.id, e.target.value)} className="h-8 text-xs flex-1" placeholder="Checklist item" />
-                          <button onClick={() => removeChecklistItem(selectedTransition.id, c.id)}>
-                            <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                          </button>
-                        </div>
-                      ))}
+                </div>
+              )}
+
+              {/* ---- Transition Inspector ---- */}
+              {selectedTransition && (() => {
+                const from = states.find(s => s.id === selectedTransition.fromStateId);
+                const to = states.find(s => s.id === selectedTransition.toStateId);
+                return (
+                  <div className="p-4 space-y-5">
+                    <div>
+                      <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                        {selectedTransition.name}
+                        <Badge variant="secondary" className="text-[10px]">Action</Badge>
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        From <span className="font-medium text-foreground">{from?.name ?? "—"}</span> → <span className="font-medium text-foreground">{to?.name ?? "—"}</span>
+                      </p>
                     </div>
-                  )}
-                </div>
 
-                {/* Conditions toggle */}
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-foreground">Add Conditions</Label>
-                    <Switch checked={selectedTransition.conditionsEnabled}
-                      onCheckedChange={v => updateTransition(selectedTransition.id, { conditionsEnabled: v })} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action Name</Label>
+                      <Input value={selectedTransition.name} onChange={e => updateTransition(selectedTransition.id, { name: e.target.value })} className="h-9 text-sm" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">From</Label>
+                        <Select value={selectedTransition.fromStateId} onValueChange={v => updateTransition(selectedTransition.id, { fromStateId: v })}>
+                          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">To</Label>
+                        <Select value={selectedTransition.toStateId} onValueChange={v => updateTransition(selectedTransition.id, { toStateId: v })}>
+                          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Role */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Performed by (Role)</Label>
+                      <Select value={selectedTransition.roleId} onValueChange={(v: RoleId) => updateTransition(selectedTransition.id, { roleId: v })}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {ROLE_OPTIONS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Checklist */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Checklist</Label>
+                        <Button variant="ghost" size="sm" className="h-6 text-[11px] text-accent" onClick={() => addChecklistItem(selectedTransition.id)}>
+                          + Add Item
+                        </Button>
+                      </div>
+                      {selectedTransition.checklist.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No checklist items</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {selectedTransition.checklist.map(c => (
+                            <div key={c.id} className="flex items-center gap-2">
+                              <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <Input value={c.text} onChange={e => updateChecklistItem(selectedTransition.id, c.id, e.target.value)} className="h-8 text-xs flex-1" placeholder="Checklist item" />
+                              <button onClick={() => removeChecklistItem(selectedTransition.id, c.id)}>
+                                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Conditions toggle */}
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium text-foreground">Add Conditions</Label>
+                        <Switch checked={selectedTransition.conditionsEnabled}
+                          onCheckedChange={v => updateTransition(selectedTransition.id, { conditionsEnabled: v })} />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        When enabled, this action will only be available if specific metadata criteria are met.
+                      </p>
+                    </div>
+
+                    <div className="border-t pt-3">
+                      <Button variant="outline" size="sm" className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                        onClick={() => deleteTransition(selectedTransition.id)}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete Action
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    When enabled, this transition will only be available if specific metadata criteria are met.
-                  </p>
-                </div>
-
-                {/* Add transition */}
-                <Button variant="outline" className="w-full gap-2" onClick={() => setShowAddTransition(true)}>
-                  <Plus className="h-4 w-4" /> Add Transition
-                </Button>
-              </div>
-            );
-          })()}
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -760,45 +823,41 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
 
       <Dialog open={showAddTransition} onOpenChange={setShowAddTransition}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Add Transition</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Action</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Transition Name</Label>
+              <Label className="text-xs">Action Name</Label>
               <Input value={newTransName} onChange={e => setNewTransName(e.target.value)} placeholder='e.g. "Approve"' className="h-9 text-sm" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">From State</Label>
-              <Select value={newTransFrom} onValueChange={setNewTransFrom}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">From State</Label>
+                <Select value={newTransFrom} onValueChange={setNewTransFrom}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>{states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">To State</Label>
+                <Select value={newTransTo} onValueChange={setNewTransTo}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>{states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">To State</Label>
-              <Select value={newTransTo} onValueChange={setNewTransTo}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{states.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              <Label className="text-xs">Performed by (Role)</Label>
+              <Select value={newTransRole} onValueChange={(v: RoleId) => setNewTransRole(v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddTransition(false)}>Cancel</Button>
             <Button onClick={addTransition} className="bg-accent text-accent-foreground hover:bg-accent/90">Add</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add form dialog */}
-      <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Attach Form</DialogTitle></DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Form Name</Label>
-            <Input value={newFormName} onChange={e => setNewFormName(e.target.value)} placeholder="e.g. Inspection_Form.pdf" className="h-9 text-sm" />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
-            <Button onClick={() => selectedState && addFormToState(selectedState.id)} className="bg-accent text-accent-foreground hover:bg-accent/90">Attach</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -824,12 +883,11 @@ const Header: React.FC<{
         <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
           <h1 className="font-bold text-foreground text-sm">{moduleName} — Workflow</h1>
-          <p className="text-xs text-muted-foreground">Define process flow</p>
+          <p className="text-xs text-muted-foreground">Capture every state and action in your process</p>
         </div>
       </div>
       <div className="flex items-center gap-3">
         {extra}
-        {/* View toggle */}
         <div className="flex rounded-md border overflow-hidden">
           <button onClick={() => setView("visual")}
             className={`text-xs font-medium px-3 py-1.5 transition-colors ${view === "visual" ? "bg-accent text-accent-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}>
@@ -849,10 +907,6 @@ const Header: React.FC<{
     </div>
   </header>
 );
-
-/* ------------------------------------------------------------------ */
-/*  Scope bar — workflow scope + category context switcher             */
-/* ------------------------------------------------------------------ */
 
 const ScopeBar: React.FC<{
   cfg: ReturnType<typeof useServiceConfigOptional>;
