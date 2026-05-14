@@ -3,6 +3,7 @@ import { ArrowRight, Upload, FileSpreadsheet, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { parseCategoriesCsv, parseSubcategoriesCsv } from "@/lib/csvParse";
 
 interface Props {
   hasCategories: boolean | null;
@@ -14,6 +15,9 @@ interface Props {
   setHasSubcategories: (v: boolean) => void;
   subcategoriesFile: File | null;
   setSubcategoriesFile: (f: File | null) => void;
+
+  setCategoriesList: (list: string[]) => void;
+  setSubcategoriesList: (list: { name: string; parent: string }[]) => void;
 
   onContinue: () => void;
 }
@@ -129,6 +133,8 @@ const Step3Structure: React.FC<Props> = ({
   setHasSubcategories,
   subcategoriesFile,
   setSubcategoriesFile,
+  setCategoriesList,
+  setSubcategoriesList,
   onContinue,
 }) => {
   const handleCategoriesChange = (v: boolean) => {
@@ -136,6 +142,36 @@ const Step3Structure: React.FC<Props> = ({
     if (!v) {
       setHasSubcategories(false);
       setSubcategoriesFile(null);
+      setCategoriesList([]);
+      setSubcategoriesList([]);
+    }
+  };
+
+  const handleCategoriesFile = async (f: File | null) => {
+    setCategoriesFile(f);
+    if (!f) {
+      setCategoriesList([]);
+      return;
+    }
+    try {
+      const list = await parseCategoriesCsv(f);
+      setCategoriesList(list);
+    } catch {
+      setCategoriesList([]);
+    }
+  };
+
+  const handleSubcategoriesFile = async (f: File | null) => {
+    setSubcategoriesFile(f);
+    if (!f) {
+      setSubcategoriesList([]);
+      return;
+    }
+    try {
+      const list = await parseSubcategoriesCsv(f);
+      setSubcategoriesList(list);
+    } catch {
+      setSubcategoriesList([]);
     }
   };
 
@@ -171,7 +207,7 @@ const Step3Structure: React.FC<Props> = ({
             <Dropzone
               id="cat-upload"
               file={categoriesFile}
-              onChange={setCategoriesFile}
+              onChange={handleCategoriesFile}
               sampleFilename="license-categories-sample.csv"
               sampleCsv={CATEGORIES_SAMPLE_CSV}
             />
@@ -196,7 +232,7 @@ const Step3Structure: React.FC<Props> = ({
                 <Dropzone
                   id="sub-upload"
                   file={subcategoriesFile}
-                  onChange={setSubcategoriesFile}
+                  onChange={handleSubcategoriesFile}
                   sampleFilename="license-subcategories-sample.csv"
                   sampleCsv={SUBCATEGORIES_SAMPLE_CSV}
                 />
