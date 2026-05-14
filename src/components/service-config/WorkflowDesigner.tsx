@@ -314,6 +314,39 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number; moved: boolean } | null>(null);
 
+  /* ---- Zoom & Pan ---- */
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
+  const panDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const clampZoom = (z: number) => Math.min(2, Math.max(0.3, z));
+  const zoomIn = () => setZoom(z => clampZoom(z * 1.2));
+  const zoomOut = () => setZoom(z => clampZoom(z / 1.2));
+  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
+  const onCanvasWheel = useCallback((e: React.WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const newZoom = clampZoom(zoomRef.current * factor);
+    // zoom toward cursor
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const ratio = newZoom / zoomRef.current;
+    setPan(p => ({ x: cx - (cx - p.x) * ratio, y: cy - (cy - p.y) * ratio }));
+    setZoom(newZoom);
+  }, []);
+
+  const onCanvasBgMouseDown = (e: React.MouseEvent) => {
+    if (e.target !== e.currentTarget) return;
+    panDragRef.current = { startX: e.clientX, startY: e.clientY, origX: panRef.current.x, origY: panRef.current.y };
+  };
+
   const WORKFLOW_STATE_NAMES = useMemo(
     () => Array.from(new Set(states.map(s => s.name))),
     [states],
@@ -324,20 +357,33 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     e.stopPropagation();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    dragRef.current = { id: stateId, offsetX: e.clientX - rect.left - sx, offsetY: e.clientY - rect.top - sy, moved: false };
+    const z = zoomRef.current; const p = panRef.current;
+    dragRef.current = {
+      id: stateId,
+      offsetX: e.clientX - rect.left - (sx * z + p.x),
+      offsetY: e.clientY - rect.top - (sy * z + p.y),
+      moved: false,
+    };
     setSelection({ kind: "state", id: stateId });
   }, []);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
+      if (panDragRef.current) {
+        const dx = e.clientX - panDragRef.current.startX;
+        const dy = e.clientY - panDragRef.current.startY;
+        setPan({ x: panDragRef.current.origX + dx, y: panDragRef.current.origY + dy });
+        return;
+      }
       if (!dragRef.current || !canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const nx = Math.max(0, e.clientX - rect.left - dragRef.current.offsetX);
-      const ny = Math.max(0, e.clientY - rect.top - dragRef.current.offsetY);
+      const z = zoomRef.current; const p = panRef.current;
+      const nx = Math.max(0, (e.clientX - rect.left - p.x - dragRef.current.offsetX) / z);
+      const ny = Math.max(0, (e.clientY - rect.top - p.y - dragRef.current.offsetY) / z);
       dragRef.current.moved = true;
       setStates(prev => prev.map(s => s.id === dragRef.current!.id ? { ...s, x: nx, y: ny } : s));
     };
-    const onUp = () => { dragRef.current = null; };
+    const onUp = () => { dragRef.current = null; panDragRef.current = null; };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
