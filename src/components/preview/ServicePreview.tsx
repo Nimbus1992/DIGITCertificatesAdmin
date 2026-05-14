@@ -23,6 +23,7 @@ import EmployeeHome from "./employee/EmployeeHome";
 import InboxView from "./employee/InboxView";
 import SearchApplications from "./employee/SearchApplications";
 import ApplicationReview from "./employee/ApplicationReview";
+import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 
 const embeddedDevices: { mode: DeviceMode; icon: React.ElementType }[] = [
   { mode: "mobile", icon: Smartphone },
@@ -152,12 +153,15 @@ export const ServicePreviewWorkspace: React.FC = () => {
 
 const ServicePreview: React.FC = () => {
   const { state } = useOnboarding();
+  const { id } = useParams();
   const serviceName = state.serviceName || "Business License";
 
   return (
-    <PreviewProvider serviceName={serviceName}>
-      <ServicePreviewInner />
-    </PreviewProvider>
+    <ServiceConfigProvider serviceId={id ?? state.activeServiceId ?? ""}>
+      <PreviewProvider serviceName={serviceName}>
+        <ServicePreviewInner />
+      </PreviewProvider>
+    </ServiceConfigProvider>
   );
 };
 
