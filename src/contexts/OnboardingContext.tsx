@@ -45,6 +45,17 @@ export interface TemplateSetup {
   hasSubcategories: boolean;
   categoriesFileName?: string;
   subcategoriesFileName?: string;
+  categoriesList?: string[];
+  subcategoriesList?: { name: string; parent: string }[];
+}
+
+export type RenewalMode = "global" | "by_category" | "by_subcategory";
+
+export interface RenewalPolicy {
+  mode: RenewalMode;
+  globalMonths: number;
+  perCategory: Record<string, number>;
+  perSubcategory: Record<string, number>;
 }
 
 export interface ServiceItem {
@@ -65,6 +76,7 @@ export interface ServiceItem {
   subdomain?: string;
   branding?: BrandingConfig;
   templateSetup?: TemplateSetup;
+  renewalPolicy?: RenewalPolicy;
 }
 
 export interface OnboardingState {
