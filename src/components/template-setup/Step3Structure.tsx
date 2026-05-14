@@ -19,10 +19,10 @@ interface Props {
 }
 
 const CATEGORIES_SAMPLE_CSV =
-  "Category Name,Code,Description\nRetail,RTL,Shops selling goods directly to consumers\nManufacturing,MFG,Production of goods from raw materials\nHospitality,HSP,Hotels, restaurants and food services\n";
+  "Category Name\nRetail\nManufacturing\nHospitality\n";
 
 const SUBCATEGORIES_SAMPLE_CSV =
-  "Subcategory Name,Parent Category,Code,Description\nRestaurant,Hospitality,HSP-RST,Dine-in food service establishments\nBakery,Retail,RTL-BKY,Shops selling baked goods\nGarment Factory,Manufacturing,MFG-GRM,Apparel and textile production units\n";
+  "Subcategory Name,Parent Category\nRestaurant,Hospitality\nBakery,Retail\nGarment Factory,Manufacturing\n";
 
 const downloadSample = (filename: string, csv: string) => {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
