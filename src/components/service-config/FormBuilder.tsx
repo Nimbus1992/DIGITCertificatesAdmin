@@ -820,6 +820,15 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
                       </Button>
                     </>
                   )}
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => deleteField(selectedField.id)}
+                    className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Field
+                  </Button>
                 </div>
               ) : (
                 /* ── Sub-screen + Step properties ── */
