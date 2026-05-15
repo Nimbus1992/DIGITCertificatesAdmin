@@ -476,7 +476,8 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       workflowState: tag,
       subject: "",
       message: "",
-      channels: ["email"],
+      channel: "email",
+      recipientRole: "citizen",
       tag,
       tagColor: tagColors[tag] ?? "bg-muted text-muted-foreground",
     };
@@ -914,15 +915,14 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-xs font-medium text-foreground truncate">{n.subject || "(untitled)"}</p>
-                                  <button onClick={() => setEditingNotif({ ...n, channels: [...n.channels] })}
+                                  <button onClick={() => setEditingNotif({ ...n })}
                                     className="text-muted-foreground hover:text-foreground" title="Edit">
                                     <Pencil className="h-3 w-3" />
                                   </button>
                                 </div>
-                                <div className="flex gap-1 mt-0.5">
-                                  {n.channels.map(c => (
-                                    <span key={c} className="text-[9px] uppercase text-muted-foreground">{c}</span>
-                                  ))}
+                                <div className="flex gap-1.5 mt-0.5">
+                                  <span className="text-[9px] uppercase text-muted-foreground">{n.channel}</span>
+                                  <span className="text-[9px] uppercase text-muted-foreground">· {n.recipientRole}</span>
                                 </div>
                               </div>
                             </div>
@@ -1316,11 +1316,7 @@ const NotificationEditDialog: React.FC<{
 
   const tagColors = isRenewalModule(moduleName) ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
   const insertVariable = (v: string) => setDraft(d => d ? { ...d, message: (d.message || "") + v } : d);
-  const toggleChannel = (c: "email" | "sms") => setDraft(d => {
-    if (!d) return d;
-    const has = d.channels.includes(c);
-    return { ...d, channels: has ? d.channels.filter(x => x !== c) : [...d.channels, c] };
-  });
+  const setChannel = (c: "email" | "sms" | "push") => setDraft(d => d ? { ...d, channel: c } : d);
 
   return (
     <Dialog open={!!value} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -1331,6 +1327,17 @@ const NotificationEditDialog: React.FC<{
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
+            <Label>Channel</Label>
+            <div className="flex gap-2">
+              {(["email", "sms", "push"] as const).map(c => (
+                <button key={c} type="button" onClick={() => setChannel(c)}
+                  className={`flex-1 px-3 py-1.5 rounded-md border text-xs capitalize transition-colors ${draft.channel === c ? "bg-accent text-accent-foreground border-accent" : "bg-background hover:bg-muted"}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
             <Label>Workflow State</Label>
             <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
               <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
@@ -1339,10 +1346,12 @@ const NotificationEditDialog: React.FC<{
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Subject</Label>
-            <Input value={draft.subject} onChange={(e) => setDraft(d => d ? { ...d, subject: e.target.value } : d)} />
-          </div>
+          {draft.channel === "email" && (
+            <div className="space-y-1.5">
+              <Label>Subject</Label>
+              <Input value={draft.subject} onChange={(e) => setDraft(d => d ? { ...d, subject: e.target.value } : d)} />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Message</Label>
             <Textarea rows={4} value={draft.message} onChange={(e) => setDraft(d => d ? { ...d, message: e.target.value } : d)} />
@@ -1353,17 +1362,6 @@ const NotificationEditDialog: React.FC<{
                   className="text-[10px] px-2 py-0.5 rounded-full border bg-muted hover:bg-accent/10 text-foreground transition-colors">
                   {v}
                 </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Channels</Label>
-            <div className="flex gap-3">
-              {(["email", "sms"] as const).map(c => (
-                <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox checked={draft.channels.includes(c)} onCheckedChange={() => toggleChannel(c)} />
-                  <span className="capitalize">{c}</span>
-                </label>
               ))}
             </div>
           </div>
