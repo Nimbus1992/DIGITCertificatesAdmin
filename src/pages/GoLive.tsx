@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ShieldCheck, Palette, Plug, Languages, Rocket, Check, KeyRound, Sparkles } from "lucide-react";
+import { ShieldCheck, Palette, Plug, Languages, Rocket, Check, Sparkles } from "lucide-react";
 import RoleAccessSetup from "@/components/go-live/RoleAccessSetup";
-import LicenseKeySetup from "@/components/go-live/LicenseKeySetup";
 import GoLiveSuccess from "@/components/go-live/GoLiveSuccess";
 
 interface ChecklistItem {
@@ -31,7 +30,6 @@ const GoLive: React.FC = () => {
 
   const checklist: ChecklistItem[] = [
     { id: "access", label: "User Access & Authentication", description: "Set access type and sign-in method per role", icon: ShieldCheck, required: true, component: RoleAccessSetup },
-    { id: "license", label: "License Key", description: "Enter your application license key to activate", icon: KeyRound, required: true, component: LicenseKeySetup },
   ];
 
   const requiredComplete = checklist.filter((item) => item.required).every((item) => completedItems.includes(item.id));
