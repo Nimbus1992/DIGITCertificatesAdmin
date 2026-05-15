@@ -1011,7 +1011,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         },
       };
     }));
-  }, []);
+  }, [wfFor]);
 
   const resetDemo = useCallback(() => {
     setApplications([]);
@@ -1044,8 +1044,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       messagesDrawerOpen, setMessagesDrawerOpen,
       formSections,
       getFormSteps,
-      workflowStates: DEFAULT_WORKFLOW_STATES,
-      workflowTransitions: DEFAULT_TRANSITIONS,
+      workflowStates: exposedWorkflowStates,
+      workflowTransitions: exposedWorkflowTransitions,
       serviceName,
       userDocuments, addUserDocument, removeUserDocument,
       submitApplication, submitRenewal,
