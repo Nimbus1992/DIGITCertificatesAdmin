@@ -314,7 +314,26 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
       ),
     );
     if (selectedFieldId === fieldId) setSelectedFieldId(null);
+    toast({ title: "Field deleted" });
   };
+
+  // Delete / Backspace key removes the selected field (when not typing in an input).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!selectedFieldId) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el) {
+        const tag = el.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return;
+      }
+      e.preventDefault();
+      deleteField(selectedFieldId);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFieldId, activeSubScreen?.id, activeStepId]);
 
   /* ── Filtered palette ── */
   const filteredCategories = useMemo(() => {
@@ -339,7 +358,17 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
             : "border-transparent hover:border-muted-foreground/20 hover:bg-muted/30"
         }`}
       >
-        <div className="flex items-center gap-1 mb-1">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); deleteField(field.id); }}
+          className={`absolute top-2 right-2 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity ${
+            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+          title="Delete field"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex items-center gap-1 mb-1 pr-6">
           <Label className="text-sm font-medium text-foreground">{field.label}</Label>
           {field.required && <span className="text-destructive text-xs">*</span>}
         </div>
@@ -791,6 +820,15 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
                       </Button>
                     </>
                   )}
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => deleteField(selectedField.id)}
+                    className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete Field
+                  </Button>
                 </div>
               ) : (
                 /* ── Sub-screen + Step properties ── */
