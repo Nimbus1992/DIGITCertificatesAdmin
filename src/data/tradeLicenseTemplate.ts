@@ -326,52 +326,68 @@ export const TRADE_CHECKLISTS: TradeChecklist[] = [
 
 // ─── Notifications (one per relevant state) ──────────────────────────────────
 
+export type NotificationChannel = "email" | "sms" | "push";
+
 export interface TradeNotification {
   id: string;
   workflowState: string;
   subject: string;
   message: string;
-  channels: ("email" | "sms")[];
+  channel: NotificationChannel;
+  recipientRole: string;
   tag: string;
 }
 
+const mk = (
+  id: string, ws: string, channel: NotificationChannel, recipientRole: string,
+  subject: string, message: string,
+): TradeNotification => ({ id, workflowState: ws, channel, recipientRole, subject, message, tag: ws });
+
 export const TRADE_NOTIFICATIONS: TradeNotification[] = [
-  { id: "n1", workflowState: "Submitted",
-    subject: "Application Submitted Successfully",
-    message: "Hi {applicantName}, your Business License application {applicationNumber} for {businessName} has been submitted successfully.",
-    channels: ["email", "sms"], tag: "Submitted" },
-  { id: "n2", workflowState: "Under Document Verification",
-    subject: "Documents Under Verification",
-    message: "Your application {applicationNumber} is being reviewed by our document verification team.",
-    channels: ["email"], tag: "Under Document Verification" },
-  { id: "n3", workflowState: "Inspection Pending",
-    subject: "Inspection Scheduled",
-    message: "An inspection has been scheduled for {businessName}. Application: {applicationNumber}.",
-    channels: ["email", "sms"], tag: "Inspection Pending" },
-  { id: "n4", workflowState: "Under Approval",
-    subject: "Application Under Approval",
-    message: "Your application {applicationNumber} is under final approval.",
-    channels: ["email"], tag: "Under Approval" },
-  { id: "n5", workflowState: "Payment Pending",
-    subject: "Payment Required",
-    message: "Hi {applicantName}, please pay the licence fee for application {applicationNumber} to proceed.",
-    channels: ["email", "sms"], tag: "Payment Pending" },
-  { id: "n6", workflowState: "Paid",
-    subject: "Payment Received",
-    message: "We have received your payment for application {applicationNumber}. Your licence will be issued shortly.",
-    channels: ["email", "sms"], tag: "Paid" },
-  { id: "n7", workflowState: "License Issued",
-    subject: "Business License Issued",
-    message: "Congratulations {applicantName}, the Trade Licence for {businessName} has been issued. You can download it now.",
-    channels: ["email", "sms"], tag: "License Issued" },
-  { id: "n8", workflowState: "Sent Back",
-    subject: "Action Required on Your Application",
-    message: "Your application {applicationNumber} has been sent back. Please review remarks and resubmit.",
-    channels: ["email", "sms"], tag: "Sent Back" },
-  { id: "n9", workflowState: "Rejected",
-    subject: "Application Rejected",
-    message: "We regret to inform you that your Business License application {applicationNumber} has been rejected.",
-    channels: ["email", "sms"], tag: "Rejected" },
+  mk("n1e", "Submitted", "email", "citizen", "Application Submitted Successfully",
+    "Hi {applicantName}, your Business License application {applicationNumber} for {businessName} has been submitted successfully."),
+  mk("n1s", "Submitted", "sms", "citizen", "Application Submitted",
+    "Application {applicationNumber} for {businessName} submitted."),
+  mk("n1p", "Submitted", "push", "document_verifier", "New application to verify",
+    "Application {applicationNumber} from {applicantName} is awaiting verification."),
+
+  mk("n2e", "Under Document Verification", "email", "citizen", "Documents Under Verification",
+    "Your application {applicationNumber} is being reviewed by our document verification team."),
+
+  mk("n3e", "Inspection Pending", "email", "citizen", "Inspection Scheduled",
+    "An inspection has been scheduled for {businessName}. Application: {applicationNumber}."),
+  mk("n3s", "Inspection Pending", "sms", "citizen", "Inspection Scheduled",
+    "Inspection scheduled for application {applicationNumber}."),
+  mk("n3p", "Inspection Pending", "push", "field_inspector", "Inspection assigned",
+    "Application {applicationNumber} ({businessName}) is ready for site visit."),
+
+  mk("n4e", "Under Approval", "email", "citizen", "Application Under Approval",
+    "Your application {applicationNumber} is under final approval."),
+  mk("n4p", "Under Approval", "push", "approver", "Approval pending",
+    "Application {applicationNumber} ({businessName}) is ready for your approval."),
+
+  mk("n5e", "Payment Pending", "email", "citizen", "Payment Required",
+    "Hi {applicantName}, please pay the licence fee for application {applicationNumber} to proceed."),
+  mk("n5s", "Payment Pending", "sms", "citizen", "Payment Required",
+    "Pay licence fee for {applicationNumber} to proceed."),
+
+  mk("n6e", "Paid", "email", "citizen", "Payment Received",
+    "We have received your payment for application {applicationNumber}. Your licence will be issued shortly."),
+  mk("n6s", "Paid", "sms", "citizen", "Payment Received",
+    "Payment received for {applicationNumber}."),
+
+  mk("n7e", "License Issued", "email", "citizen", "Business License Issued",
+    "Congratulations {applicantName}, the Trade Licence for {businessName} has been issued. You can download it now."),
+  mk("n7s", "License Issued", "sms", "citizen", "License Issued",
+    "Trade Licence for {businessName} issued."),
+
+  mk("n8e", "Sent Back", "email", "citizen", "Action Required on Your Application",
+    "Your application {applicationNumber} has been sent back. Please review remarks and resubmit."),
+  mk("n8s", "Sent Back", "sms", "citizen", "Action Required",
+    "Application {applicationNumber} sent back. Please resubmit."),
+
+  mk("n9e", "Rejected", "email", "citizen", "Application Rejected",
+    "We regret to inform you that your Business License application {applicationNumber} has been rejected."),
 ];
 
 // ─── Documents (reflects what /lib/*Pdf.ts actually generates) ───────────────
