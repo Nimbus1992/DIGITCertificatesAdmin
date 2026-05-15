@@ -9,6 +9,8 @@ interface Props {
   onChange: (next: WorkflowScope) => void;
   categoryCount: number;
   onContinue: () => void;
+  hideHeader?: boolean;
+  hideContinue?: boolean;
 }
 
 const Option: React.FC<{
@@ -41,15 +43,15 @@ const Option: React.FC<{
   </button>
 );
 
-const Step5WorkflowScope: React.FC<Props> = ({ value, onChange, categoryCount, onContinue }) => (
+const Step5WorkflowScope: React.FC<Props> = ({ value, onChange, categoryCount, onContinue, hideHeader, hideContinue }) => (
   <div className="space-y-6">
-    <div>
+    {!hideHeader && (<div>
       <h1 className="text-2xl font-semibold text-foreground">Approval process</h1>
       <p className="text-sm text-muted-foreground mt-2">
         Do different categories require different approval processes? You can always change this later
         — workflows for each category are pre-filled and ready to customize.
       </p>
-    </div>
+    </div>)}
 
     <div className="space-y-3">
       <Option
@@ -68,11 +70,11 @@ const Step5WorkflowScope: React.FC<Props> = ({ value, onChange, categoryCount, o
       />
     </div>
 
-    <div className="pt-2">
+    {!hideContinue && (<div className="pt-2">
       <Button onClick={onContinue} className="gap-2">
         Continue <ArrowRight className="h-4 w-4" />
       </Button>
-    </div>
+    </div>)}
   </div>
 );
 

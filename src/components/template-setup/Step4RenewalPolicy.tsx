@@ -29,6 +29,8 @@ interface Props {
   policy: RenewalPolicyState;
   setPolicy: (next: RenewalPolicyState) => void;
   onContinue: () => void;
+  hideHeader?: boolean;
+  hideContinue?: boolean;
 }
 
 const subKey = (s: { name: string; parent: string }) => `${s.parent}::${s.name}`;
@@ -77,6 +79,8 @@ const Step4RenewalPolicy: React.FC<Props> = ({
   policy,
   setPolicy,
   onContinue,
+  hideHeader,
+  hideContinue,
 }) => {
   const hasCategories = categories.length > 0;
   const hasSubcategories = subcategories.length > 0;
@@ -126,14 +130,14 @@ const Step4RenewalPolicy: React.FC<Props> = ({
 
   return (
     <div className="space-y-8">
-      <div>
+      {!hideHeader && (<div>
         <h1 className="text-3xl font-semibold text-foreground tracking-tight">
           Set up renewal validity
         </h1>
         <p className="text-base text-muted-foreground mt-2">
           Define how long renewed licenses remain active.
         </p>
-      </div>
+      </div>)}
 
       {!hasCategories && (
         <Card className="p-5 space-y-3">
@@ -262,7 +266,7 @@ const Step4RenewalPolicy: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="flex justify-end">
+      {!hideContinue && (<div className="flex justify-end">
         <Button
           onClick={onContinue}
           size="lg"
@@ -271,7 +275,7 @@ const Step4RenewalPolicy: React.FC<Props> = ({
         >
           Continue <ArrowRight className="h-4 w-4" />
         </Button>
-      </div>
+      </div>)}
     </div>
   );
 };
