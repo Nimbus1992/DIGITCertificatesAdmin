@@ -249,20 +249,7 @@ interface Props {
 
 const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
-  const cfg = useServiceConfigOptional();
-  const scope = cfg?.workflowScope ?? "shared";
-  const categories = cfg?.categories ?? [];
-  const showCategoryPicker = scope === "by_category" && categories.length > 0;
-  const [activeCategory, setActiveCategory] = useState<string>(() => categories[0] ?? "");
-  useEffect(() => {
-    if (showCategoryPicker && !categories.includes(activeCategory)) {
-      setActiveCategory(categories[0] ?? "");
-    }
-  }, [showCategoryPicker, categories, activeCategory]);
-
-  const storageSuffix = showCategoryPicker
-    ? `${moduleName}::cat::${activeCategory || "__"}`
-    : moduleName;
+  const storageSuffix = moduleName;
 
   /* ---- Source lists (shared with their configurator pages) ---- */
   const [notifications, setNotifications] = useModuleState<SrcNotification[]>(
@@ -539,8 +526,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Header moduleName={moduleName} onBack={onBack} view={view} setView={setView} />
-        <ScopeBar cfg={cfg} scope={scope} categories={categories}
-          activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
             <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
@@ -573,8 +558,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           </div>
         }
       />
-      <ScopeBar cfg={cfg} scope={scope} categories={categories}
-        activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
 
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-auto">
