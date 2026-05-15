@@ -536,6 +536,66 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   // ── User-defined notification dispatcher (shared with NotificationsManager / WorkflowDesigner) ──
   const userNotifs = useServiceNotifications(routeServiceId);
 
+  // ── Workflow store (shared with WorkflowDesigner) ──
+  const wfStore = useServiceWorkflow(routeServiceId);
+  const wfFor = useCallback((type: ApplicationType) => wfStore.forType(type), [wfStore]);
+
+  /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
+  const resolveStateId = useCallback(
+    (type: ApplicationType, name: string, fallbackId: string): string => {
+      const wf = wfFor(type);
+      const target = name.trim().toLowerCase();
+      const match = wf.states.find(s => s.name.trim().toLowerCase() === target);
+      return match?.id ?? fallbackId;
+    },
+    [wfFor]
+  );
+
+  /** Initial state id for a new application (the workflow's start state). */
+  const startStateId = useCallback((type: ApplicationType): string => {
+    const wf = wfFor(type);
+    return wf.states.find(s => s.type === "start")?.id ?? wf.states[0]?.id ?? "s1";
+  }, [wfFor]);
+
+  /** Combined workflow exposed on the context (union of issuance + renewal). */
+  const combinedWorkflow = useMemo(() => {
+    const states = [...wfStore.issuance.states];
+    wfStore.renewal.states.forEach(s => {
+      if (!states.some(x => x.id === s.id)) states.push(s);
+    });
+    const transitions = [...wfStore.issuance.transitions];
+    wfStore.renewal.transitions.forEach(t => {
+      if (!transitions.some(x => x.id === t.id)) transitions.push(t);
+    });
+    return { states, transitions };
+  }, [wfStore]);
+
+  const exposedWorkflowStates: WorkflowStateConfig[] = useMemo(
+    () => combinedWorkflow.states.map(s => ({ id: s.id, name: s.name, type: s.type })),
+    [combinedWorkflow]
+  );
+
+  const exposedWorkflowTransitions: WorkflowTransitionConfig[] = useMemo(
+    () => combinedWorkflow.transitions.map(t => {
+      const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
+        ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
+      const role = (PREVIEW_ROLE_IDS_LIST as readonly string[]).includes(wfTx.roleId)
+        ? (wfTx.roleId as PreviewRole)
+        : "any" as const;
+      // Build inline checklist by looking up checklist names from store-bound checklists is overkill
+      // for preview rendering; ChecklistDialog already pulls items from app.checklists state.
+      return {
+        id: t.id,
+        name: t.name,
+        fromStateId: t.fromStateId,
+        toStateId: t.toStateId,
+        role,
+        checklist: [],
+      };
+    }),
+    [combinedWorkflow, wfStore]
+  );
+
   const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
   const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
     citizen: "citizen",
