@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ShieldCheck, Palette, Plug, Languages, Rocket, Check, KeyRound, Sparkles } from "lucide-react";
+import { ShieldCheck, Palette, Plug, Languages, Rocket, Check, Sparkles } from "lucide-react";
 import RoleAccessSetup from "@/components/go-live/RoleAccessSetup";
-import LicenseKeySetup from "@/components/go-live/LicenseKeySetup";
 import GoLiveSuccess from "@/components/go-live/GoLiveSuccess";
 
 interface ChecklistItem {
