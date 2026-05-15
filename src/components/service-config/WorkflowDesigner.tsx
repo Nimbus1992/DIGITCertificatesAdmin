@@ -58,13 +58,7 @@ type Selection =
   | { kind: "transition"; id: string }
   | null;
 
-const ROLE_OPTIONS: { id: RoleId; name: string }[] = [
-  { id: "citizen", name: "Citizen" },
-  { id: "documentVerifier", name: "Document Verifier" },
-  { id: "fieldInspector", name: "Field Inspector" },
-  { id: "approver", name: "Approver" },
-];
-const roleName = (id: RoleId) => ROLE_OPTIONS.find(r => r.id === id)?.name ?? id;
+/* ROLE_OPTIONS / roleName moved to per-component hook (useServiceRoles). */
 
 /* Source list types (mirror configurator shapes) */
 type FieldType = "text" | "radio" | "checkbox" | "dropdown" | "file_upload";
