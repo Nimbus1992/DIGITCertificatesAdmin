@@ -558,8 +558,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           </div>
         }
       />
-      <ScopeBar cfg={cfg} scope={scope} categories={categories}
-        activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
 
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-auto">
