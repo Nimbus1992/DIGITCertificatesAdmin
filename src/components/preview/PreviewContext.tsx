@@ -820,8 +820,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) emitEvent("payment_successful", updatedApp);
-  }, [emitEvent]);
+    if (updatedApp) dispatchByState(updatedApp, "Paid");
+  }, [dispatchByState]);
 
   const issueLicense = useCallback((appId: string) => {
     let updatedApp: PreviewApplication | null = null;
@@ -848,8 +848,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) emitEvent("license_issued", updatedApp);
-  }, [role, emitEvent]);
+    if (updatedApp) dispatchByState(updatedApp, "License Issued");
+  }, [role, dispatchByState]);
 
   const completeRenewal = useCallback((appId: string) => {
     let parentId: string | undefined;
@@ -917,8 +917,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         createdAt: issuedAt,
       } as PreviewApplication;
     })();
-    if (renewedSnapshot) emitEvent("renewal_completed", renewedSnapshot);
-  }, [role, emitEvent]);
+    if (renewedSnapshot) dispatchByState(renewedSnapshot, "License Renewed");
+  }, [role, dispatchByState]);
 
   const assignApplication = useCallback((appId: string, assignee: string) => {
     setApplications(prev => prev.map(app =>
