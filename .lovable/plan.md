@@ -1,90 +1,78 @@
-## Goal
+Three fixes, all aligned around making the preview consume what the Workflow Designer actually configures.
 
-Make the **Notifications Manager**, **Workflow Designer**, and **Preview** share a single source of truth so that:
+## 1. Workflow ↔ Preview two-way sync
 
-1. Every notification configured in the Manager (or inline in Workflow Designer) fires in Preview at the matching workflow state, on the configured channel, addressed to the configured role.
-2. Every notification the preview already sends (today driven by the hardcoded `NOTIFICATION_MATRIX`) is visible — and editable — inside the Notifications Manager and the Workflow Designer's per-state notifications panel.
+Today `PreviewContext` ships with hardcoded `DEFAULT_WORKFLOW_STATES` / `DEFAULT_TRANSITIONS`. The Workflow Designer writes its real states/transitions to `workflow-states-v3:<service>:<module>` and `workflow-transitions-v3:<service>:<module>` via `useModuleState`, but the preview never reads them. Result: edits in the Designer don't change what the preview shows or which actions appear in `ApplicationReview`.
 
-## Current gap
+### Add `src/lib/useServiceWorkflow.ts` (new)
 
-- `NOTIFICATION_MATRIX` (in `src/components/preview/notifications/notificationMatrix.ts`) is the only thing the preview reads. It is keyed by **trigger ids** like `application_submitted`, not workflow state names.
-- `NotificationsManager` and `WorkflowDesigner` write to `useModuleState("notifications", serviceId, moduleName)`. The preview never reads it.
-- Result: edits in the Manager are invisible to Preview, and the matrix entries (e.g. citizen "Application submitted" SMS+Email+Push, document-verifier "New application to verify") never appear in the Manager.
-
-## Solution — one shared store
-
-### 1. Migrate `NOTIFICATION_MATRIX` into the seed
-
-Rewrite `buildDefaultNotifications` (used by `useModuleState` in `NotificationsManager.tsx`) so the seed is the **union** of:
-
-- The existing template-specific seeds in `tradeLicenseTemplate.ts` / `renewalTemplate.ts`, plus
-- One row per `(triggerId, channel, recipientRole)` from `NOTIFICATION_MATRIX`, mapped onto a workflow **state name** via a fixed `TRIGGER_TO_STATE` table:
-
-```text
-application_submitted   → "Submitted"
-document_verified       → "Under Document Verification"
-application_verified    → "Inspection Pending"
-inspection_completed    → "Under Approval"
-application_approved    → "Payment Pending"
-application_sent_back   → "Sent Back"
-application_rejected    → "Rejected"
-payment_successful      → "Paid"
-license_issued          → "License Issued"
-document_rejected       → "Under Document Verification"
-renewal_submitted       → "Submitted"          (renewal module)
-renewal_completed       → "License Renewed"    (renewal module)
-```
-
-Each generated row carries `id` (deterministic, e.g. `seed-${triggerId}-${channel}-${role}`), `channel` (lower-cased from matrix), `recipientRole` (mapped to a service role id; `documentVerifier`→`document_verifier`, `fieldInspector`→`field_inspector`, others 1:1), `subject` (matrix `title`), `message` (matrix `message`, `{{var}}` syntax preserved), and `tag` = state name. Deterministic ids let the deduper drop true duplicates if the user resets.
-
-After this change, opening the Manager on a fresh service shows every preview notification, grouped under the right channel/state. Editing or deleting them is just normal CRUD — they're stored in the same `useModuleState` array.
-
-### 2. Preview reads the shared store
-
-Add `src/lib/useServiceNotifications.ts`:
+Mirrors the `useServiceNotifications` pattern:
 
 ```ts
-useServiceNotifications(serviceId) → {
-  forStateName(stateName: string, type: "NEW"|"RENEWAL"): Notification[]
+useServiceWorkflow(serviceId) → {
+  issuance: { states: WorkflowState[]; transitions: WorkflowTransition[] };
+  renewal:  { states: WorkflowState[]; transitions: WorkflowTransition[] };
+  forType:  (type: "NEW" | "RENEWAL") => { states; transitions };
 }
 ```
 
-Reads both `notifications:<serviceId>:Issuance` and `notifications:<serviceId>:Renewal` from `localStorage`, falls back to `buildDefaultNotifications`, and re-reads on a custom `notifications-updated` event + native `storage` event (mirrors `FORM_UPDATED_EVENT`).
+- Reads both module keys from `localStorage`.
+- Seeds with `buildSeedStates` / `buildSeedTransitions` (extract these from `WorkflowDesigner.tsx` into `src/data/workflowSeeds.ts` so both files share them).
+- Re-reads on a new `WORKFLOW_UPDATED_EVENT` and on native `storage` events.
 
-In `PreviewContext.tsx`:
+### Wire it into `PreviewContext.tsx`
 
-- Replace `emitEvent(triggerId, app, meta)` internals with `dispatchUserNotifications(app, stateName, meta)`. Resolve current state name via `workflowStates.find(s => s.id === app.currentStateId)?.name`.
-- For each matched record:
-  - Resolve `{{applicationNumber}}`, `{{applicantName}}`, `{{businessName}}`, `{{amount}}`, `{{licenseNumber}}`, `{{validTill}}`, etc. — same variable set the matrix already uses (move `resolveTemplate` into a shared `templateEngine` call that accepts a record).
-  - `channel === "push"` → `pushNotification(subject, message, app.id, recipientRole)`.
-  - `channel === "email" | "sms"` → append `SimulatedMessage`; render floating toast only when `recipientRole` resolves to citizen AND active preview role is citizen (preserves current UX).
-- Map custom role ids (anything outside the four built-in preview roles) → leave `recipientRole` undefined, so the bell shows it to all roles. Use `canonicalRoleId` for legacy mappings.
-- Call `dispatchUserNotifications` at every state change: `submitApplication`, `submitRenewal`, `transitionApplication` (after computing `nextState`), `payApplication`, `issueLicense`, `completeRenewal`. Removes the per-trigger emit calls and relies purely on state names.
+- Replace `DEFAULT_WORKFLOW_STATES` / `DEFAULT_TRANSITIONS` everywhere with the values from `useServiceWorkflow(routeServiceId).forType(app.type)`.
+- `transitionApplication` resolves the transition + target state from the active workflow (per app type), not the constant.
+- `toggleChecklist` uses the active workflow's transition list to seed checklist items.
+- For lifecycle actions whose state-id is currently hardcoded (`s1` on submit, `s5` on pay, `s6` on issue, `s9` on renewal complete), look up by **type/name** in the active workflow:
+  - submit → `states.find(s => s.type === "start") ?? states[0]`.
+  - pay → state named `"Paid"` (fall back to first state after Payment Pending if missing).
+  - issue → `"License Issued"`.
+  - renewal complete → `"License Renewed"`.
 
-### 3. Workflow Designer parity
+  This keeps preview working when names change and degrades gracefully if a state was deleted (skips the transition with a console warning).
+- The `workflowStates` / `workflowTransitions` exposed on the context become the **issuance** workflow by default but switch to renewal whenever the active screen is for a renewal application (`ApplicationReview` already filters by `app.currentStateId`, so this just needs `workflowStates`/`workflowTransitions` to be the union of both modules so both kinds of apps render correctly).
 
-`WorkflowDesigner.tsx` already reads/writes the same `useModuleState("notifications", …)` array, so once seeding is unified, every preview notification automatically appears in the per-state side panel. Keep its inline editor; just add `window.dispatchEvent(new CustomEvent("notifications-updated", { detail: { serviceId } }))` after save/delete so the preview hook live-refreshes.
+### Emit `WORKFLOW_UPDATED_EVENT` from Workflow Designer
 
-### 4. Manager change events
+In `src/components/service-config/WorkflowDesigner.tsx`, dispatch `window.dispatchEvent(new CustomEvent("workflow-updated", { detail: { serviceId } }))` after every state CRUD (`addState`, `updateState`, `deleteState`, drag end), every transition CRUD, and notification/payment-stage attachment changes that affect state metadata. Wrap the `setStates` / `setTransitions` callers with a small helper to centralise this.
 
-In `NotificationsManager.tsx`, dispatch the same `notifications-updated` event after Create / Edit / Duplicate / Delete.
+## 2. Allow deleting workflow states
 
-### 5. Retire the duplicate matrix path
+`deleteState` in `WorkflowDesigner.tsx` currently refuses when any transition references the state. Behaviour change:
 
-`NOTIFICATION_MATRIX` becomes a build-time seed only — exported, imported by `buildDefaultNotifications`, but no longer read at runtime by `PreviewContext`. `templateEngine.resolveTemplate` is generalised to accept either shape.
+- Replace the hard refusal with a confirm dialog: "Delete '{name}'? This will also remove N action(s) connected to it."
+- On confirm: cascade — `setTransitions(prev => prev.filter(t => t.fromStateId !== id && t.toStateId !== id))`, then remove the state.
+- Keep the "Cannot delete the only Start state" guard.
+- After deletion, also strip the state's `notificationIds` references from any orphaned notifications (notifications themselves stay; they just stop being routed via this state).
+- Surface the `notifications-updated` and new `workflow-updated` events so the preview's bell/action list refreshes immediately.
+
+## 3. Remove "License Renewed" from the Issuance workflow
+
+`s9 — License Renewed` is a renewal-only end state but currently appears in:
+
+- `src/data/tradeLicenseTemplate.ts` → `TRADE_WORKFLOW_STATES` (line 178), and the `"License Renewed"` entry in `TRADE_STATE_TAG_COLORS`.
+- `src/components/service-config/WorkflowDesigner.tsx` → `ISSUANCE_STATE_LAYOUT.s9` (line 139).
+- `src/components/preview/PreviewContext.tsx` → `DEFAULT_WORKFLOW_STATES` (line 336) and the `completeRenewal` flow that sets `currentStateId: "s9"` on a renewal app.
+
+Plan:
+
+- Drop `s9` from `TRADE_WORKFLOW_STATES`, the layout map, and `TRADE_STATE_TAG_COLORS` (move/keep only in renewal). The renewal template (`RENEWAL_WORKFLOW_STATES`) already owns `License Renewed` and stays untouched.
+- Drop `s9` from `DEFAULT_WORKFLOW_STATES` once the workflow comes from `useServiceWorkflow`. `completeRenewal` then resolves the License Renewed state from the **renewal** workflow only (matches its name there).
+- Existing user services that already persisted `workflow-states-v3:*:Issuance` with s9 in `localStorage` will keep showing it (we don't migrate persisted state). New services and any "Reset to defaults" path will get the cleaned seed.
 
 ## Files touched
 
-- `src/data/tradeLicenseTemplate.ts`, `src/data/renewalTemplate.ts` — extend `TRADE_NOTIFICATIONS` / `RENEWAL_NOTIFICATIONS` seeds with the matrix-derived rows (or compute the union inside `buildDefaultNotifications`).
-- `src/components/service-config/NotificationsManager.tsx` — share `buildDefaultNotifications`, dispatch `notifications-updated`.
-- `src/components/service-config/WorkflowDesigner.tsx` — dispatch `notifications-updated`.
-- `src/lib/useServiceNotifications.ts` *(new)* — shared reader hook.
-- `src/components/preview/PreviewContext.tsx` — replace `emitEvent` with state-name dispatcher; consume the hook.
-- `src/components/preview/notifications/templateEngine.ts` — accept the shared `Notification` shape.
-- `src/components/preview/notifications/notificationMatrix.ts` — keep as the seed source; add `TRIGGER_TO_STATE` map and role-id mapping helpers.
+- `src/data/workflowSeeds.ts` *(new)* — extracted `buildSeedStates` / `buildSeedTransitions` so the new hook and `WorkflowDesigner` share them.
+- `src/lib/useServiceWorkflow.ts` *(new)* — shared reader hook + `WORKFLOW_UPDATED_EVENT` + `emitWorkflowUpdated` helper.
+- `src/components/service-config/WorkflowDesigner.tsx` — cascade-delete in `deleteState`, dispatch `workflow-updated` from CRUD, import shared seed helpers, drop `s9` layout entry.
+- `src/components/preview/PreviewContext.tsx` — consume `useServiceWorkflow`; replace `DEFAULT_*` lookups; resolve lifecycle states by name/type; expose merged states/transitions on the context.
+- `src/data/tradeLicenseTemplate.ts` — remove the `s9 / License Renewed` row and tag color (issuance only).
 
 ## Out of scope
 
-- No backend persistence beyond the existing `localStorage` layer.
-- No UI changes to `NotificationsPanel` or `MessagesDrawer`.
-- No new notification triggers — preview still fires only at real state changes the simulator already performs.
+- No backend persistence beyond existing `localStorage`.
+- No data migration for already-persisted Issuance workflows that include `s9`; users can delete the state via the new cascade-delete flow.
+- No changes to renewal workflow (it correctly owns License Renewed).
+- No new transitions added to preview — preview still drives lifecycle from its existing helpers (`pay`, `issue`, `completeRenewal`); it just resolves target states from the live workflow store.

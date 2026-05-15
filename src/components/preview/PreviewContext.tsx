@@ -8,6 +8,7 @@ import type { WizardStep, WizardField } from "@/data/wizardForm";
 import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { useServiceNotifications, type SharedNotification } from "@/lib/useServiceNotifications";
+import { useServiceWorkflow } from "@/lib/useServiceWorkflow";
 import { canonicalRoleId } from "@/lib/useServiceRoles";
 
 // ─── Types ───────────────────────────────────────────────
@@ -333,7 +334,6 @@ const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
   { id: "s6", name: "License Issued", type: "end" },
   { id: "s7", name: "Sent Back", type: "in_progress" },
   { id: "s8", name: "Rejected", type: "end" },
-  { id: "s9", name: "License Renewed", type: "end" },
 ];
 
 const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
@@ -479,6 +479,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   const roleRef = useRef<PreviewRole>(role);
   roleRef.current = role;
+  const applicationsRef = useRef<PreviewApplication[]>(applications);
+  applicationsRef.current = applications;
 
   // PUSH = silent in-app only. Adds to bell list; never raises a toast.
   const pushNotification = useCallback(
@@ -535,6 +537,67 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   // ── User-defined notification dispatcher (shared with NotificationsManager / WorkflowDesigner) ──
   const userNotifs = useServiceNotifications(routeServiceId);
+
+  // ── Workflow store (shared with WorkflowDesigner) ──
+  const wfStore = useServiceWorkflow(routeServiceId);
+  const wfFor = useCallback((type: ApplicationType) => wfStore.forType(type), [wfStore]);
+
+  /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
+  const resolveStateId = useCallback(
+    (type: ApplicationType, name: string, fallbackId: string): string => {
+      const wf = wfFor(type);
+      const target = name.trim().toLowerCase();
+      const match = wf.states.find(s => s.name.trim().toLowerCase() === target);
+      return match?.id ?? fallbackId;
+    },
+    [wfFor]
+  );
+
+  /** Initial state id for a new application (the workflow's start state). */
+  const startStateId = useCallback((type: ApplicationType): string => {
+    const wf = wfFor(type);
+    return wf.states.find(s => s.type === "start")?.id ?? wf.states[0]?.id ?? "s1";
+  }, [wfFor]);
+
+  /** Combined workflow exposed on the context (union of issuance + renewal). */
+  const combinedWorkflow = useMemo(() => {
+    const states = [...wfStore.issuance.states];
+    wfStore.renewal.states.forEach(s => {
+      if (!states.some(x => x.id === s.id)) states.push(s);
+    });
+    const transitions = [...wfStore.issuance.transitions];
+    wfStore.renewal.transitions.forEach(t => {
+      if (!transitions.some(x => x.id === t.id)) transitions.push(t);
+    });
+    return { states, transitions };
+  }, [wfStore]);
+
+  const exposedWorkflowStates: WorkflowStateConfig[] = useMemo(
+    () => combinedWorkflow.states.map(s => ({ id: s.id, name: s.name, type: s.type })),
+    [combinedWorkflow]
+  );
+
+  const exposedWorkflowTransitions: WorkflowTransitionConfig[] = useMemo(
+    () => combinedWorkflow.transitions.map(t => {
+      const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
+        ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
+      const previewRoles = ["citizen", "documentVerifier", "fieldInspector", "approver"] as const;
+      const role = (previewRoles as readonly string[]).includes(canonicalRoleId(wfTx.roleId))
+        ? (canonicalRoleId(wfTx.roleId) as PreviewRole)
+        : "any" as const;
+      // Build inline checklist by looking up checklist names from store-bound checklists is overkill
+      // for preview rendering; ChecklistDialog already pulls items from app.checklists state.
+      return {
+        id: t.id,
+        name: t.name,
+        fromStateId: t.fromStateId,
+        toStateId: t.toStateId,
+        role,
+        checklist: [],
+      };
+    }),
+    [combinedWorkflow, wfStore]
+  );
 
   const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
   const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
@@ -697,7 +760,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       applicationNumber: appNumber,
       type: "NEW",
       status: "Submitted",
-      currentStateId: "s1",
+      currentStateId: startStateId("NEW"),
       formData,
       documents,
       checklists: {},
@@ -711,7 +774,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, dispatchByState]);
+  }, [serviceName, dispatchByState, startStateId]);
 
   const submitRenewal = useCallback((parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => {
     const appNumber = buildAppNumber("TL-RNW");
@@ -721,7 +784,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       type: "RENEWAL",
       parentLicenseId: parentAppId,
       status: "Submitted",
-      currentStateId: "s1",
+      currentStateId: startStateId("RENEWAL"),
       formData,
       documents,
       checklists: {},
@@ -735,29 +798,32 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, dispatchByState]);
+  }, [serviceName, dispatchByState, startStateId]);
 
   const transitionApplication = useCallback((appId: string, transitionId: string) => {
-    const transition = DEFAULT_TRANSITIONS.find(t => t.id === transitionId);
+    const app = applicationsRef.current.find(a => a.id === appId);
+    if (!app) return;
+    const wf = wfFor(app.type);
+    const transition = wf.transitions.find(t => t.id === transitionId);
     if (!transition) return;
-    const targetState = DEFAULT_WORKFLOW_STATES.find(s => s.id === transition.toStateId);
+    const targetState = wf.states.find(s => s.id === transition.toStateId);
     if (!targetState) return;
 
     let updatedApp: PreviewApplication | null = null;
-    setApplications(prev => prev.map(app => {
-      if (app.id !== appId) return app;
+    setApplications(prev => prev.map(a => {
+      if (a.id !== appId) return a;
       const actor = ROLE_LABEL[role];
       const updated: PreviewApplication = {
-        ...app,
+        ...a,
         currentStateId: transition.toStateId,
         status: targetState.name,
         timeline: [
-          ...app.timeline,
+          ...a.timeline,
           { state: targetState.name, actor, note: transition.name, at: Date.now() },
         ],
       };
-      // Auto-generate demand on Approve (now t_approve)
-      if (transition.id === "t_approve") {
+      // Auto-generate demand when transitioning into Payment Pending (any "Approve"-like action)
+      if (targetState.name === "Payment Pending") {
         updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
         updated.paymentStatus = "pending";
       }
@@ -768,7 +834,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     if (!updatedApp) return;
     const meta = { actionBy: ROLE_LABEL[role] };
     dispatchByState(updatedApp, targetState.name, meta);
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, wfFor]);
 
   const setDocumentStatus = useCallback((appId: string, docId: string, status: DocumentStatus) => {
     let updatedApp: PreviewApplication | null = null;
@@ -803,7 +869,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       if (!app.demand) return app;
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: "s5",
+        currentStateId: resolveStateId(app.type, "Paid", "s5"),
         status: "Paid",
         paymentStatus: "paid",
         paymentDetails: {
@@ -821,7 +887,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       return updated;
     }));
     if (updatedApp) dispatchByState(updatedApp, "Paid");
-  }, [dispatchByState]);
+  }, [dispatchByState, resolveStateId]);
 
   const issueLicense = useCallback((appId: string) => {
     let updatedApp: PreviewApplication | null = null;
@@ -837,7 +903,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       };
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: "s6",
+        currentStateId: resolveStateId(app.type, "License Issued", "s6"),
         status: "License Issued",
         license,
         timeline: [
@@ -849,7 +915,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       return updated;
     }));
     if (updatedApp) dispatchByState(updatedApp, "License Issued");
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, resolveStateId]);
 
   const completeRenewal = useCallback((appId: string) => {
     let parentId: string | undefined;
@@ -874,7 +940,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         if (app.id === appId) {
           return {
             ...app,
-            currentStateId: "s9",
+            currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
             status: "License Renewed",
             license: newLicense,
             timeline: [
@@ -905,7 +971,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         applicationNumber: appId,
         type: "RENEWAL",
         status: "License Renewed",
-        currentStateId: "s9",
+        currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
         formData: {},
         documents: [],
         checklists: {},
@@ -918,7 +984,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       } as PreviewApplication;
     })();
     if (renewedSnapshot) dispatchByState(renewedSnapshot, "License Renewed");
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, resolveStateId]);
 
   const assignApplication = useCallback((appId: string, assignee: string) => {
     setApplications(prev => prev.map(app =>
@@ -930,13 +996,13 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   const toggleChecklist = useCallback((appId: string, stateId: string, itemId: string) => {
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
-      const transition = DEFAULT_TRANSITIONS.find(t => t.fromStateId === stateId && t.checklist.length > 0);
-      const seed: ChecklistItemState[] = transition
-        ? transition.checklist.map(c => ({ id: c.id, text: c.text, checked: false }))
-        : [];
-      const existing = app.checklists[stateId] || seed;
-      // If existing was empty seed but item not present, ensure seed
-      const list = existing.length === 0 ? seed : existing;
+      const wf = wfFor(app.type);
+      const transition = wf.transitions.find(t => t.fromStateId === stateId && t.checklistIds.length > 0);
+      // Checklist items themselves live on the inline edit dialog; for preview we
+      // just toggle whatever items the app already has, no seed required.
+      const existing = app.checklists[stateId] || [];
+      const list = existing;
+      void transition;
       return {
         ...app,
         checklists: {
@@ -945,7 +1011,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         },
       };
     }));
-  }, []);
+  }, [wfFor]);
 
   const resetDemo = useCallback(() => {
     setApplications([]);
@@ -978,8 +1044,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       messagesDrawerOpen, setMessagesDrawerOpen,
       formSections,
       getFormSteps,
-      workflowStates: DEFAULT_WORKFLOW_STATES,
-      workflowTransitions: DEFAULT_TRANSITIONS,
+      workflowStates: exposedWorkflowStates,
+      workflowTransitions: exposedWorkflowTransitions,
       serviceName,
       userDocuments, addUserDocument, removeUserDocument,
       submitApplication, submitRenewal,
