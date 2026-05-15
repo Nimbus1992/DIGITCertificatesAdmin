@@ -1,23 +1,26 @@
-## Reorder workspace tabs in ServiceConfig
+## Go Live page cleanup
 
-Change the tab bar in `src/pages/ServiceConfig.tsx` so the order and default depend on whether the service is Live.
+### Required checklist (keep only 2)
+Remove `Deployment Setup` and `Customize your subdomain` from the required list. Keep:
+1. User Access & Authentication
+2. License Key
 
-**Draft services** (3 tabs, default = Preview):
-1. Preview (default/active)
-2. Configure
-3. Manage — disabled, tooltip "Available after publishing the service"
+Also drop the unused imports (`DeploymentSetup`, `SubdomainSetup`, `MapPin`, `Globe`) in `src/pages/GoLive.tsx`.
 
-**Live services** (2 tabs, default = Preview):
-1. Preview (default/active)
-2. Manage
+### Optional section
+Keep all three: Customize Theme, Integrations, Additional Languages.
 
-No Configure tab is shown for Live services.
+- **Customize Theme** — unchanged, navigates to `/config/branding`.
+- **Integrations** — clicking opens a "Coming soon" dialog (replace the existing `IntegrationsDialog` trigger).
+- **Additional Languages** — clicking opens the same "Coming soon" dialog.
 
-### Implementation notes
+Add a small reusable `ComingSoonDialog` (inline in `GoLive.tsx`) using the existing `Dialog` primitive — title "Coming soon", short message that this capability will be available in an upcoming release.
 
-- Change initial `mode` state from `"configure"` to `"preview"`.
-- Build `workspaceTabs` conditionally:
-  - If `isLive`: `[{preview}, {deployment: "Manage"}]`
-  - Else: `[{preview}, {configure}, {deployment: "Manage", disabled, tooltip}]`
-- Keep existing render branches for each mode unchanged.
-- No changes to `ServiceManage.tsx` or other files.
+### Fix the "disabled" look
+The optional cards currently use `opacity-70` which makes them look disabled. Remove the opacity class so they render at full strength, matching the required cards' visual weight. Keep the hover lift (`hover:shadow-md`) for affordance and keep the "Optional" badge.
+
+### Files touched
+- `src/pages/GoLive.tsx` — only file changing. No backend or context changes.
+
+### Out of scope
+- `IntegrationsDialog.tsx`, `DeploymentSetup.tsx`, `SubdomainSetup.tsx` files stay in the repo (not deleted) in case they're reused later.
