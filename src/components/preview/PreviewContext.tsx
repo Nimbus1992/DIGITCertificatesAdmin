@@ -533,7 +533,88 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     []
   );
 
-  // Emit a workflow event → fans out to PUSH (bell only) and simulated SMS / EMAIL (floating + drawer, citizen only).
+  // ── User-defined notification dispatcher (shared with NotificationsManager / WorkflowDesigner) ──
+  const userNotifs = useServiceNotifications(routeServiceId);
+
+  const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
+  const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
+    citizen: "citizen",
+    document_verifier: "documentVerifier",
+    documentVerifier: "documentVerifier",
+    field_inspector: "fieldInspector",
+    fieldInspector: "fieldInspector",
+    approver: "approver",
+  };
+
+  const fmtDateLocal = (ms: number) =>
+    new Date(ms).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  const buildTokens = (app: PreviewApplication, meta: Record<string, string>) => ({
+    applicantName:     app.formData?.fullName || "Applicant",
+    applicationNumber: app.applicationNumber || "",
+    applicationId:     app.applicationNumber || "",
+    businessName:      app.formData?.businessName || "your business",
+    applicationStatus: app.status || "",
+    amount:            app.demand?.total != null ? app.demand.total.toLocaleString("en-IN") : "",
+    licenseNumber:     app.license?.number || "",
+    validTill:         app.license?.validTill ? fmtDateLocal(app.license.validTill) : "",
+    actionBy:          meta.actionBy || "",
+    documentName:      meta.documentName || "",
+    remarks:           meta.remarks || "",
+    status:            meta.status || app.status || "",
+    ...meta,
+  });
+
+  const inject = (s: string, tokens: Record<string, string>) =>
+    (s || "").replace(/\{\{?(\w+)\}?\}/g, (_, k) => (tokens[k] != null ? String(tokens[k]) : ""));
+
+  const dispatchNotification = useCallback(
+    (n: SharedNotification, app: PreviewApplication, meta: Record<string, string> = {}) => {
+      const tokens = buildTokens(app, meta);
+      const subject = inject(n.subject, tokens);
+      const message = inject(n.message, tokens);
+      const roleKey = canonicalRoleId(n.recipientRole);
+      const previewRole: RecipientRole | undefined =
+        ROLE_ID_TO_PREVIEW[roleKey] ?? (PREVIEW_ROLE_IDS.has(roleKey as PreviewRole) ? (roleKey as PreviewRole) : undefined);
+
+      if (n.channel === "push") {
+        pushNotification(subject || message, message, app.id, previewRole);
+        return;
+      }
+      // email / sms — only simulate when targeted at citizen (officers don't have an inbox in preview)
+      if (previewRole !== "citizen") return;
+      const channel = (n.channel === "sms" ? "SMS" : "EMAIL") as "SMS" | "EMAIL";
+      const simulated: SimulatedMessage = {
+        id: crypto.randomUUID(),
+        channel,
+        recipientRole: previewRole,
+        title: subject || message.slice(0, 60),
+        message,
+        applicationId: app.id,
+        timestamp: Date.now(),
+      };
+      setMessages(prev => [simulated, ...prev]);
+      if (roleRef.current === "citizen") {
+        toast.custom(
+          (t) => renderSimulatedAlert(channel, simulated.title, message, t),
+          { duration: channel === "SMS" ? 4000 : 5000, position: "bottom-right" }
+        );
+      }
+    },
+    [userNotifs, pushNotification, renderSimulatedAlert]
+  );
+
+  // Dispatch every user-defined notification configured for the application's current state.
+  const dispatchByState = useCallback(
+    (app: PreviewApplication, stateName: string, meta: Record<string, string> = {}) => {
+      const list = userNotifs.forStateName(stateName, app.type);
+      list.forEach(n => dispatchNotification(n, app, meta));
+    },
+    [userNotifs, dispatchNotification]
+  );
+
+  // Legacy emitEvent — kept only for sub-state events that don't change workflow state
+  // (document verification / rejection). Reads from NOTIFICATION_MATRIX directly.
   const emitEvent = useCallback(
     (
       triggerId: string,
@@ -548,7 +629,6 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
             pushNotification(title, message, app.id, tpl.recipientRole);
             return;
           }
-          // SMS / EMAIL — only ever simulated for citizen recipient.
           if (tpl.recipientRole !== "citizen") return;
           const simulated: SimulatedMessage = {
             id: crypto.randomUUID(),
@@ -560,7 +640,6 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
             timestamp: Date.now(),
           };
           setMessages(prev => [simulated, ...prev]);
-          // Floating alert only when the user is currently viewing the citizen surface.
           if (roleRef.current === "citizen") {
             toast.custom(
               (t) => renderSimulatedAlert(channel as "SMS" | "EMAIL", title, message, t),
