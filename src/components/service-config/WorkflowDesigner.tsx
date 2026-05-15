@@ -1169,6 +1169,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             ...t, checklistIds: t.checklistIds.filter(cid => cid !== id),
           })));
           setEditingChecklist(null);
+          emitWorkflowUpdated(serviceId);
         }}
       />
 
@@ -1189,6 +1190,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           setPaymentStages(prev => prev.filter(s => s.id !== id));
           setStates(prev => prev.map(s => s.paymentStageId === id ? { ...s, paymentStageId: null } : s));
           setEditingStage(null);
+          emitWorkflowUpdated(serviceId);
         }}
       />
     </div>
