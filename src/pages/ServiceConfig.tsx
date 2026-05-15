@@ -173,16 +173,21 @@ const ServiceConfigInner: React.FC = () => {
     );
   }
 
-  const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = [
-    { id: "configure", label: "Configure" },
-    { id: "preview", label: "Preview" },
-       {
-         id: "deployment",
-         label: "Manage",
-         disabled: !isLive,
-         tooltip: !isLive ? "Available after publishing the service" : undefined,
-       },
-  ];
+  const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = isLive
+    ? [
+        { id: "preview", label: "Preview" },
+        { id: "deployment", label: "Manage" },
+      ]
+    : [
+        { id: "preview", label: "Preview" },
+        { id: "configure", label: "Configure" },
+        {
+          id: "deployment",
+          label: "Manage",
+          disabled: true,
+          tooltip: "Available after publishing the service",
+        },
+      ];
 
   // Main hub view
   return (
