@@ -7,7 +7,8 @@ import { useParams } from "react-router-dom";
 import type { WizardStep, WizardField } from "@/data/wizardForm";
 import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
 import { useOnboarding } from "@/contexts/OnboardingContext";
-import { useServiceNotifications, type SharedNotification } from "@/lib/useServiceNotifications";
+import { useServiceWorkflow } from "@/lib/useServiceWorkflow";
+import { canonicalRoleId as canonicalWfRole } from "@/lib/useServiceRoles";
 import { canonicalRoleId } from "@/lib/useServiceRoles";
 
 // ─── Types ───────────────────────────────────────────────
