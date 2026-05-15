@@ -4,19 +4,17 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, ShieldCheck, Palette, Plug, Languages, Rocket, Check, KeyRound, Globe } from "lucide-react";
-import DeploymentSetup from "@/components/go-live/DeploymentSetup";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ShieldCheck, Palette, Plug, Languages, Rocket, Check, KeyRound, Sparkles } from "lucide-react";
 import RoleAccessSetup from "@/components/go-live/RoleAccessSetup";
 import LicenseKeySetup from "@/components/go-live/LicenseKeySetup";
-import SubdomainSetup from "@/components/go-live/SubdomainSetup";
-import IntegrationsDialog from "@/components/go-live/IntegrationsDialog";
 import GoLiveSuccess from "@/components/go-live/GoLiveSuccess";
 
 interface ChecklistItem {
   id: string;
   label: string;
   description: string;
-  icon: typeof MapPin;
+  icon: typeof ShieldCheck;
   required: boolean;
   component: React.FC<{ onComplete: () => void; onBack: () => void }>;
 }
@@ -27,13 +25,11 @@ const GoLive: React.FC = () => {
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [completedItems, setCompletedItems] = useState<string[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [comingSoonFor, setComingSoonFor] = useState<string | null>(null);
 
   const activeService = state.services.find((s) => s.id === state.activeServiceId);
 
   const checklist: ChecklistItem[] = [
-    { id: "deployment", label: "Deployment Setup", description: "Configure where your application will be available", icon: MapPin, required: true, component: DeploymentSetup },
-    { id: "subdomain", label: "Customize your subdomain", description: "Set the URL users use to access the app", icon: Globe, required: true, component: SubdomainSetup },
     { id: "access", label: "User Access & Authentication", description: "Set access type and sign-in method per role", icon: ShieldCheck, required: true, component: RoleAccessSetup },
     { id: "license", label: "License Key", description: "Enter your application license key to activate", icon: KeyRound, required: true, component: LicenseKeySetup },
   ];
@@ -105,10 +101,10 @@ const GoLive: React.FC = () => {
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-4">Optional</p>
           {[
             { icon: Palette, label: "Customize Theme", description: "Brand colors and appearance", onClick: () => navigate("/config/branding") },
-            { icon: Plug, label: "Integrations", description: "Connect external applications", onClick: () => setIntegrationsOpen(true) },
-            { icon: Languages, label: "Additional Languages", description: "Add more language support", onClick: () => {} },
+            { icon: Plug, label: "Integrations", description: "Connect external applications", onClick: () => setComingSoonFor("Integrations") },
+            { icon: Languages, label: "Additional Languages", description: "Add more language support", onClick: () => setComingSoonFor("Additional Languages") },
           ].map((item) => (
-            <Card key={item.label} className="opacity-70 cursor-pointer hover:opacity-100 transition-all" onClick={item.onClick}>
+            <Card key={item.label} className="cursor-pointer transition-all hover:shadow-md" onClick={item.onClick}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground">
@@ -125,7 +121,19 @@ const GoLive: React.FC = () => {
           ))}
         </div>
 
-        <IntegrationsDialog open={integrationsOpen} onOpenChange={setIntegrationsOpen} />
+        <Dialog open={!!comingSoonFor} onOpenChange={(o) => !o && setComingSoonFor(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-2">
+                <Sparkles className="h-6 w-6 text-accent" />
+              </div>
+              <DialogTitle>Coming soon</DialogTitle>
+              <DialogDescription>
+                {comingSoonFor} will be available in an upcoming release. Stay tuned!
+              </DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
 
         <div className="mt-8">
           <Button onClick={handleGoLive} disabled={!requiredComplete} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-12 text-base">
