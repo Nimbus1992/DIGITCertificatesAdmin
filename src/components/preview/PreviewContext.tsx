@@ -580,8 +580,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
         ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
       const previewRoles = ["citizen", "documentVerifier", "fieldInspector", "approver"] as const;
-      const role = (previewRoles as readonly string[]).includes(canonicalWfRole(wfTx.roleId))
-        ? (canonicalWfRole(wfTx.roleId) as PreviewRole)
+      const role = (previewRoles as readonly string[]).includes(canonicalRoleId(wfTx.roleId))
+        ? (canonicalRoleId(wfTx.roleId) as PreviewRole)
         : "any" as const;
       // Build inline checklist by looking up checklist names from store-bound checklists is overkill
       // for preview rendering; ChecklistDialog already pulls items from app.checklists state.
