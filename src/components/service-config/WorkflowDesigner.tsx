@@ -281,6 +281,14 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
+  /* ---- Roles (shared across modules of this service) ---- */
+  const [serviceRoles] = useServiceRoles(serviceId, moduleName);
+  const ROLE_OPTIONS = serviceRoles.map((r) => ({ id: r.id, name: r.name }));
+  const roleName = (id: RoleId) => {
+    const canon = canonicalRoleId(id);
+    return serviceRoles.find((r) => r.id === canon)?.name ?? id;
+  };
+  const fallbackRoleId: RoleId = serviceRoles[0]?.id ?? "approver";
   const [view, setView] = useState<"visual" | "table">("visual");
   const [tableTab, setTableTab] = useState<"states" | "actions">("actions");
   const [selection, setSelection] = useState<Selection>(null);
