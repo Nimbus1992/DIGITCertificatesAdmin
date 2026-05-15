@@ -334,7 +334,6 @@ const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
   { id: "s6", name: "License Issued", type: "end" },
   { id: "s7", name: "Sent Back", type: "in_progress" },
   { id: "s8", name: "Rejected", type: "end" },
-  { id: "s9", name: "License Renewed", type: "end" },
 ];
 
 const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
