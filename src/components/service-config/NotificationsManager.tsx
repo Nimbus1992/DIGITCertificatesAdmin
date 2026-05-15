@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,52 +6,46 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Bell, Mail, MessageSquare, Pencil, Trash2, Info } from "lucide-react";
+import {
+  ArrowLeft, Plus, Mail, MessageSquare, BellRing, Pencil, Trash2, Copy, Info, Search,
+} from "lucide-react";
+import {
+  TRADE_NOTIFICATIONS, TRADE_STATE_NAMES, TRADE_STATE_TAG_COLORS,
+} from "@/data/tradeLicenseTemplate";
+import {
+  RENEWAL_NOTIFICATIONS, RENEWAL_STATE_NAMES, RENEWAL_STATE_TAG_COLORS, isRenewalModule,
+} from "@/data/renewalTemplate";
+import { useModuleState } from "@/lib/moduleStorage";
+import { useServiceRoles } from "@/lib/useServiceRoles";
+
+type Channel = "email" | "sms" | "push";
 
 interface Notification {
   id: string;
   workflowState: string;
+  channel: Channel;
+  recipientRole: string;
   subject: string;
   message: string;
-  channels: ("email" | "sms")[];
   tag: string;
   tagColor: string;
 }
 
-import {
-  TRADE_NOTIFICATIONS,
-  TRADE_STATE_NAMES,
-  TRADE_STATE_TAG_COLORS,
-} from "@/data/tradeLicenseTemplate";
-import {
-  RENEWAL_NOTIFICATIONS,
-  RENEWAL_STATE_NAMES,
-  RENEWAL_STATE_TAG_COLORS,
-  isRenewalModule,
-} from "@/data/renewalTemplate";
-import { useModuleState } from "@/lib/moduleStorage";
-
 const VARIABLES = [
-  "{applicationNumber}",
-  "{applicantName}",
-  "{businessName}",
-  "{applicationStatus}",
+  "{applicationNumber}", "{applicantName}", "{businessName}", "{applicationStatus}",
 ];
+
+const CHANNEL_META: Record<Channel, { label: string; icon: React.ElementType; subtitle: string }> = {
+  email: { label: "Email", icon: Mail, subtitle: "Configure email notifications for applicants" },
+  sms:   { label: "SMS",   icon: MessageSquare, subtitle: "Configure SMS notifications for applicants" },
+  push:  { label: "Push",  icon: BellRing, subtitle: "In-app push to officers and applicants" },
+};
 
 const buildDefaultNotifications = (moduleName: string): Notification[] => {
   const renewal = isRenewalModule(moduleName);
@@ -60,222 +54,330 @@ const buildDefaultNotifications = (moduleName: string): Notification[] => {
   return src.map((n) => ({
     id: n.id,
     workflowState: n.workflowState,
+    channel: n.channel,
+    recipientRole: n.recipientRole,
     subject: n.subject,
     message: n.message,
-    channels: [...n.channels],
     tag: n.tag,
     tagColor: colors[n.tag] ?? "bg-muted text-muted-foreground",
   }));
 };
 
-interface Props {
-  moduleName: string;
-  onBack: () => void;
-}
+interface Props { moduleName: string; onBack: () => void; }
 
 const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const renewal = isRenewalModule(moduleName);
   const WORKFLOW_STATES = renewal ? RENEWAL_STATE_NAMES : TRADE_STATE_NAMES;
   const tagColors: Record<string, string> = renewal ? RENEWAL_STATE_TAG_COLORS : TRADE_STATE_TAG_COLORS;
+
   const [notifications, setNotifications] = useModuleState<Notification[]>(
     "notifications", serviceId, moduleName, () => buildDefaultNotifications(moduleName),
   );
-  const [showDialog, setShowDialog] = useState(false);
-  const [form, setForm] = useState({ workflowState: "", subject: "", message: "" });
+  const [roles] = useServiceRoles(serviceId, moduleName);
 
-  const handleSave = () => {
-    if (!form.workflowState || !form.subject.trim()) return;
-    const tag = form.workflowState;
-    setNotifications((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        workflowState: form.workflowState,
-        subject: form.subject,
-        message: form.message,
-        channels: ["email"],
-        tag,
-        tagColor: tagColors[tag] || "bg-muted text-muted-foreground",
-      },
-    ]);
-    setForm({ workflowState: "", subject: "", message: "" });
-    setShowDialog(false);
+  const [activeChannel, setActiveChannel] = useState<Channel>("email");
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<Notification | null>(null);
+
+  const counts = useMemo(() => ({
+    email: notifications.filter(n => n.channel === "email").length,
+    sms:   notifications.filter(n => n.channel === "sms").length,
+    push:  notifications.filter(n => n.channel === "push").length,
+  }), [notifications]);
+
+  const visible = notifications.filter(n =>
+    n.channel === activeChannel &&
+    (!search.trim() || (n.subject + " " + n.message + " " + n.workflowState).toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const roleName = (id: string) => roles.find(r => r.id === id)?.name ?? id;
+
+  const startCreate = (channel: Channel) => {
+    setActiveChannel(channel);
+    setEditing({
+      id: crypto.randomUUID(),
+      workflowState: WORKFLOW_STATES[0] ?? "",
+      channel,
+      recipientRole: roles[0]?.id ?? "citizen",
+      subject: "",
+      message: "",
+      tag: WORKFLOW_STATES[0] ?? "",
+      tagColor: tagColors[WORKFLOW_STATES[0] ?? ""] ?? "bg-muted text-muted-foreground",
+    });
   };
 
-  const insertVariable = (v: string) => {
-    setForm((prev) => ({ ...prev, message: prev.message + v }));
+  const duplicate = (n: Notification) => {
+    setEditing({ ...n, id: crypto.randomUUID(), subject: n.subject + " (copy)" });
+  };
+
+  const remove = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const save = (n: Notification) => {
+    setNotifications(prev => prev.some(x => x.id === n.id)
+      ? prev.map(x => x.id === n.id ? n : x)
+      : [...prev, n]);
+    setEditing(null);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
             <h1 className="font-bold text-foreground">{moduleName} — Notifications</h1>
-            <p className="text-xs text-muted-foreground">Manage notification templates</p>
+            <p className="text-xs text-muted-foreground">Each notification targets one channel and one role</p>
           </div>
-          <Button onClick={() => setShowDialog(true)} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5">
+          <Button onClick={() => startCreate(activeChannel)} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5">
             <Plus className="h-4 w-4" /> Create New Notification
           </Button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-6 space-y-5">
+      <main className="max-w-6xl mx-auto px-6 py-6 space-y-5">
         <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-start gap-3">
           <Info className="h-4 w-4 text-accent mt-0.5 shrink-0" />
           <p className="text-sm text-foreground">
-            Notifications inform applicants and officers at different workflow stages. Keep applicants and officers informed automatically.
+            One notification = one channel + one recipient role. Changes here flow into the Workflow and the Service Preview.
           </p>
         </div>
 
-        {/* Channel cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-sm">Email</h3>
-                <p className="text-xs text-muted-foreground">{notifications.filter((n) => n.channels.includes("email")).length} notifications configured</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                <MessageSquare className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-sm">SMS</h3>
-                <p className="text-xs text-muted-foreground">{notifications.filter((n) => n.channels.includes("sms")).length} notifications configured</p>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Channel summary cards */}
+        <div className="grid grid-cols-3 gap-4">
+          {(Object.keys(CHANNEL_META) as Channel[]).map((c) => {
+            const meta = CHANNEL_META[c];
+            const Icon = meta.icon;
+            return (
+              <Card key={c} className="hover:border-accent/40 transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground text-sm">{meta.label}</h3>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{counts[c]}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{meta.subtitle}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="text-accent hover:text-accent" onClick={() => startCreate(c)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Notification cards */}
-        <div className="space-y-3">
-          {notifications.map((notif) => (
-            <Card key={notif.id}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-accent" />
-                    <h3 className="font-semibold text-foreground text-sm">{notif.subject}</h3>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${notif.tagColor}`}>
-                      {notif.tag}
-                    </Badge>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => setNotifications((prev) => prev.filter((n) => n.id !== notif.id))}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground mb-2">
-                  <span className="font-medium text-foreground">State:</span> {notif.workflowState}
-                </p>
-                <p className="text-sm text-muted-foreground bg-muted/50 rounded px-3 py-2 font-mono text-xs">
-                  {notif.message}
-                </p>
-                <div className="flex items-center gap-1.5 mt-3">
-                  {notif.channels.includes("email") && (
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer hover:bg-accent/10 transition-colors">
-                          <Mail className="h-2.5 w-2.5" /> Email
-                        </Badge>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2">
-                        <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Email Preview</p>
-                          <p className="text-xs font-medium text-foreground">Subject: {notif.subject}</p>
-                          <p className="text-xs text-muted-foreground font-mono bg-background rounded px-2 py-1.5">{notif.message}</p>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                  {notif.channels.includes("sms") && (
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer hover:bg-accent/10 transition-colors">
-                          <MessageSquare className="h-2.5 w-2.5" /> SMS
-                        </Badge>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2">
-                        <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">SMS Preview</p>
-                          <p className="text-xs text-muted-foreground font-mono bg-background rounded px-2 py-1.5">{notif.message}</p>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </main>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Notification</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Workflow State</Label>
-              <Select value={form.workflowState} onValueChange={(v) => setForm((p) => ({ ...p, workflowState: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                <SelectContent>
-                  {WORKFLOW_STATES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Subject</Label>
-              <Input value={form.subject} onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))} placeholder="Notification subject" />
-            </div>
-            <div>
-              <Label>Message Body</Label>
-              <Textarea value={form.message} onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))} placeholder="Enter message template..." rows={3} />
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className="text-xs text-muted-foreground">Variables:</span>
-                {VARIABLES.map((v) => (
+        {/* Tabs + list card */}
+        <Card>
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex gap-1 bg-muted/50 p-1 rounded-md">
+                {(Object.keys(CHANNEL_META) as Channel[]).map((c) => (
                   <button
-                    key={v}
-                    type="button"
-                    onClick={() => insertVariable(v)}
-                    className="text-[10px] px-2 py-0.5 rounded-full border bg-muted hover:bg-accent/10 text-foreground transition-colors"
+                    key={c}
+                    onClick={() => setActiveChannel(c)}
+                    className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${activeChannel === c ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    {v}
+                    {CHANNEL_META[c].label} ({counts[c]})
                   </button>
                 ))}
               </div>
+              <div className="relative">
+                <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search Notifications"
+                  className="pl-9 h-9 w-72"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {visible.length === 0 ? (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  No {CHANNEL_META[activeChannel].label.toLowerCase()} notifications yet.
+                </div>
+              ) : visible.map((n) => (
+                <div key={n.id} className="border rounded-lg p-4 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground text-sm mb-1">
+                        {n.channel === "email" ? n.subject || "(no subject)" : n.message.slice(0, 60) + (n.message.length > 60 ? "…" : "")}
+                      </h3>
+                      {n.channel === "email" && (
+                        <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{n.message}</p>
+                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${n.tagColor}`}>
+                          {n.tag}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          To: {roleName(n.recipientRole)}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button variant="outline" size="sm" className="h-8 gap-1 text-accent border-accent/40 hover:bg-accent/10 hover:text-accent" onClick={() => setEditing(n)}>
+                        <Pencil className="h-3 w-3" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 gap-1 text-accent border-accent/40 hover:bg-accent/10 hover:text-accent" onClick={() => duplicate(n)}>
+                        <Copy className="h-3 w-3" /> Duplicate
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 gap-1 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive" onClick={() => remove(n.id)}>
+                        <Trash2 className="h-3 w-3" /> Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+
+      {editing && (
+        <NotificationDialog
+          value={editing}
+          workflowStates={WORKFLOW_STATES}
+          tagColors={tagColors}
+          roles={roles}
+          onClose={() => setEditing(null)}
+          onSave={save}
+        />
+      )}
+    </div>
+  );
+};
+
+const NotificationDialog: React.FC<{
+  value: Notification;
+  workflowStates: string[];
+  tagColors: Record<string, string>;
+  roles: { id: string; name: string }[];
+  onClose: () => void;
+  onSave: (n: Notification) => void;
+}> = ({ value, workflowStates, tagColors, roles, onClose, onSave }) => {
+  const [draft, setDraft] = useState<Notification>(value);
+  const insertVar = (v: string) => setDraft(d => ({ ...d, message: d.message + v }));
+  const Icon = CHANNEL_META[draft.channel].icon;
+  const valid = draft.workflowState && draft.recipientRole && draft.message.trim() &&
+    (draft.channel !== "email" || draft.subject.trim());
+
+  const isSms = draft.channel === "sms";
+  const charCount = draft.message.length;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className="h-4 w-4 text-accent" />
+            {value.subject || draft.message ? "Edit Notification" : "New Notification"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          {/* Channel segmented */}
+          <div className="space-y-1.5">
+            <Label>Channel</Label>
+            <div className="flex gap-2">
+              {(Object.keys(CHANNEL_META) as Channel[]).map((c) => {
+                const M = CHANNEL_META[c];
+                const I = M.icon;
+                const active = draft.channel === c;
+                return (
+                  <button key={c} type="button"
+                    onClick={() => setDraft(d => ({ ...d, channel: c }))}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md border text-sm transition-colors ${active ? "bg-accent text-accent-foreground border-accent" : "bg-background hover:bg-muted"}`}>
+                    <I className="h-4 w-4" /> {M.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.workflowState || !form.subject.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+          {isSms && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-900">
+                Some countries require SMS templates to be approved by telecom providers before sending. Verify requirements for your country and register the template with your SMS provider if needed.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Workflow State *</Label>
+              <Select
+                value={draft.workflowState}
+                onValueChange={(v) => setDraft(d => ({ ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Recipient Role *</Label>
+              <Select value={draft.recipientRole} onValueChange={(v) => setDraft(d => ({ ...d, recipientRole: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {draft.channel === "email" && (
+            <div className="space-y-1.5">
+              <Label>Subject *</Label>
+              <Input value={draft.subject} onChange={(e) => setDraft(d => ({ ...d, subject: e.target.value }))} />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Message Body *</Label>
+            <Textarea
+              rows={4}
+              value={draft.message}
+              onChange={(e) => setDraft(d => ({ ...d, message: e.target.value }))}
+              maxLength={isSms ? 160 : undefined}
+            />
+            {isSms && (
+              <p className="text-[11px] text-muted-foreground text-right">{charCount}/160</p>
+            )}
+            {draft.channel === "push" && (
+              <p className="text-[11px] text-muted-foreground">Delivered to the recipient's in-app inbox.</p>
+            )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-xs text-muted-foreground">Personalization:</span>
+              {VARIABLES.map(v => (
+                <button key={v} type="button" onClick={() => insertVar(v)}
+                  className="text-[10px] px-2 py-0.5 rounded-full border bg-muted hover:bg-accent/10 text-foreground transition-colors">
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(draft)} disabled={!valid} className="bg-accent text-accent-foreground hover:bg-accent/90">
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
