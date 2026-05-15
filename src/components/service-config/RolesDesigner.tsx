@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,152 +14,195 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Search, Shield, Pencil, Trash2, Info } from "lucide-react";
-
-interface Permission {
-  id: string;
-  label: string;
-}
-
-interface Role {
-  id: string;
-  name: string;
-  description: string;
-  isDefault?: boolean;
-  permissions: string[];
-  actions: string[];
-}
-
-const ALL_PERMISSIONS: Permission[] = [
-  { id: "create_application", label: "Create Application" },
-  { id: "edit_draft", label: "Edit Draft" },
-  { id: "edit_application", label: "Edit Application" },
-  { id: "submit_application", label: "Submit Application" },
-  { id: "upload_documents", label: "Upload Documents" },
-  { id: "view_status", label: "View Status" },
-  { id: "download_certificate", label: "Download Certificate" },
-  { id: "verify_documents", label: "Verify Documents" },
-  { id: "raise_query", label: "Raise Query" },
-  { id: "approve_scrutiny", label: "Approve Scrutiny" },
-  { id: "reject_application", label: "Reject Application" },
-  { id: "submit_inspection", label: "Submit Inspection" },
-  { id: "upload_photos", label: "Upload Photos" },
-  { id: "recommend_decision", label: "Recommend Decision" },
-  { id: "approve_license", label: "Approve License" },
-  { id: "reject_license", label: "Reject License" },
-  { id: "send_back", label: "Send Back" },
-];
-
-import { TRADE_ROLES } from "@/data/tradeLicenseTemplate";
-import { RENEWAL_ROLES, isRenewalModule } from "@/data/renewalTemplate";
-import { useModuleState } from "@/lib/moduleStorage";
-
-const buildDefaultRoles = (moduleName: string): Role[] => {
-  const src = isRenewalModule(moduleName) ? RENEWAL_ROLES : TRADE_ROLES;
-  return src.map((r) => ({
-    id: r.id,
-    name: r.name,
-    description: r.description,
-    isDefault: r.isDefault,
-    permissions: [...r.permissions],
-    actions: [...r.actions],
-  }));
-};
-
-const getPermissionLabel = (id: string) =>
-  ALL_PERMISSIONS.find((p) => p.id === id)?.label || id;
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Plus, Search, User, Pencil, Trash2, Info } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import {
+  PERMISSIONS,
+  permissionLabel,
+  useServiceRoles,
+  type ServiceRoleRecord,
+} from "@/lib/useServiceRoles";
 
 interface Props {
   moduleName: string;
   onBack: () => void;
 }
 
+// Banner palette cycled per role index — soft tints inspired by the reference.
+const BANNER_PALETTE = [
+  "bg-orange-100/70",
+  "bg-emerald-100/70",
+  "bg-sky-100/70",
+  "bg-violet-100/70",
+  "bg-amber-100/70",
+  "bg-rose-100/70",
+];
+
+interface DraftState {
+  id: string | null; // null = creating
+  name: string;
+  description: string;
+  permissions: string[];
+}
+
+const emptyDraft = (): DraftState => ({
+  id: null, name: "", description: "", permissions: [],
+});
+
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
-  // Roles are shared across all modules of a service so renaming/removing a
-  // role propagates to workflow assignments and checklist ownership.
-  const [roles, setRoles] = useModuleState<Role[]>(
-    "roles", serviceId, "__shared__", () => buildDefaultRoles(moduleName),
-  );
+  const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
+
   const [search, setSearch] = useState("");
-  const [showDialog, setShowDialog] = useState(false);
-  const [newRole, setNewRole] = useState({ name: "", description: "", permissions: [] as string[] });
+  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ServiceRoleRecord | null>(null);
 
-  const filtered = roles.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.description.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () => roles.filter(
+      (r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()) ||
+        r.description.toLowerCase().includes(search.toLowerCase())
+    ),
+    [roles, search],
   );
 
-  const handleSave = () => {
-    if (!newRole.name.trim()) return;
-    setRoles((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: newRole.name,
-        description: newRole.description,
-        permissions: newRole.permissions,
-        actions: ["Edit", "View"],
-      },
-    ]);
-    setNewRole({ name: "", description: "", permissions: [] });
-    setShowDialog(false);
-  };
+  const openCreate = () => setDraft(emptyDraft());
+  const openEdit = (role: ServiceRoleRecord) => setDraft({
+    id: role.id,
+    name: role.name,
+    description: role.description,
+    permissions: [...role.permissions],
+  });
 
   const togglePermission = (permId: string) => {
-    setNewRole((prev) => ({
-      ...prev,
-      permissions: prev.permissions.includes(permId)
-        ? prev.permissions.filter((p) => p !== permId)
-        : [...prev.permissions, permId],
+    setDraft((d) => d && ({
+      ...d,
+      permissions: d.permissions.includes(permId)
+        ? d.permissions.filter((p) => p !== permId)
+        : [...d.permissions, permId],
     }));
+  };
+
+  const saveDraft = () => {
+    if (!draft) return;
+    const name = draft.name.trim();
+    if (!name) {
+      toast({ title: "Role name required", variant: "destructive" });
+      return;
+    }
+    if (draft.permissions.length === 0) {
+      toast({ title: "Select at least one permission", variant: "destructive" });
+      return;
+    }
+    if (draft.id) {
+      setRoles((prev) => prev.map((r) => r.id === draft.id ? {
+        ...r, name, description: draft.description.trim(), permissions: draft.permissions,
+      } : r));
+      toast({ title: "Role updated" });
+    } else {
+      // Generate a stable snake_case id from the name; suffix to avoid collisions.
+      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
+      let id = base; let i = 1;
+      while (roles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
+      setRoles((prev) => [
+        ...prev,
+        { id, name, description: draft.description.trim(), permissions: draft.permissions },
+      ]);
+      toast({ title: "Role created" });
+    }
+    setDraft(null);
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    setRoles((prev) => prev.filter((r) => r.id !== pendingDelete.id));
+    toast({ title: `Deleted "${pendingDelete.name}"` });
+    setPendingDelete(null);
   };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
-            <h1 className="font-bold text-foreground">{moduleName} — Roles Designer</h1>
-            <p className="text-xs text-muted-foreground">Define access roles for this flow</p>
+            <h1 className="font-bold text-foreground">Roles Designer</h1>
+            <p className="text-xs text-muted-foreground">Define who can access and act on this service</p>
           </div>
-          <Button onClick={() => setShowDialog(true)} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5">
+          <Button onClick={openCreate} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 gap-1.5">
             <Plus className="h-4 w-4" /> Create New Role
           </Button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-6 space-y-5">
+      <main className="max-w-6xl mx-auto px-6 py-6 space-y-5">
         <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-start gap-3">
           <Info className="h-4 w-4 text-accent mt-0.5 shrink-0" />
           <p className="text-sm text-foreground">
-            Roles define who can access and act on Business License applications.
+            Changes to roles automatically flow into Workflow steps, the Service Preview and every related configuration.
           </p>
         </div>
 
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search roles..."
+            placeholder="Search role"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
 
-        <div className="space-y-4">
-          {filtered.map((role) => (
-            <Card key={role.id}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center">
-                      <Shield className="h-4 w-4 text-accent" />
+        {filtered.length === 0 ? (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            No roles match your search.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((role, idx) => {
+              const banner = BANNER_PALETTE[roles.findIndex((r) => r.id === role.id) % BANNER_PALETTE.length];
+              return (
+                <Card key={role.id} className="overflow-hidden group">
+                  <div className={`relative ${banner} h-28 flex items-center justify-center`}>
+                    <div className="w-16 h-12 rounded-md bg-card shadow-sm flex items-center justify-center">
+                      <User className="h-6 w-6 text-primary" />
                     </div>
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openEdit(role)}
+                        aria-label="Edit role"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      {!role.isDefault && (
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => setPendingDelete(role)}
+                          aria-label="Delete role"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <CardContent className="p-4 space-y-3">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-foreground text-sm">{role.name}</h3>
@@ -167,79 +210,106 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Default</Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{role.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 min-h-[1rem]">
+                        {role.description || "—"}
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    {!role.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setRoles((prev) => prev.filter((r) => r.id !== role.id))}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="text-xs text-muted-foreground mr-1">Actions:</span>
-                  {role.actions.map((a) => (
-                    <Badge key={a} variant="outline" className="text-[10px] px-1.5 py-0">{a}</Badge>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {role.permissions.map((p) => (
-                    <Badge key={p} variant="secondary" className="text-[10px] px-2 py-0.5 font-normal">
-                      {getPermissionLabel(p)}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {role.permissions.length === 0 && (
+                        <span className="text-[11px] text-muted-foreground italic">No permissions</span>
+                      )}
+                      {role.permissions.map((p) => (
+                        <Badge
+                          key={p}
+                          variant="outline"
+                          className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20 font-normal"
+                        >
+                          {permissionLabel(p)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </main>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      {/* Create / Edit dialog */}
+      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Role</DialogTitle>
+            <DialogTitle>{draft?.id ? "Edit Role" : "Create New Role"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Role Name</Label>
-              <Input value={newRole.name} onChange={(e) => setNewRole((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Finance Officer" />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea value={newRole.description} onChange={(e) => setNewRole((p) => ({ ...p, description: e.target.value }))} placeholder="Brief description of this role" rows={2} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Permissions</Label>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                {ALL_PERMISSIONS.map((perm) => (
-                  <label key={perm.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox
-                      checked={newRole.permissions.includes(perm.id)}
-                      onCheckedChange={() => togglePermission(perm.id)}
-                    />
-                    {perm.label}
-                  </label>
-                ))}
+          {draft && (
+            <div className="space-y-4">
+              <div>
+                <Label>Role Name</Label>
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  placeholder="e.g. Finance Officer"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  placeholder="Brief description of this role"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <Label className="mb-2 block">Permissions</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PERMISSIONS.map((perm) => (
+                    <label key={perm.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={draft.permissions.includes(perm.id)}
+                        onCheckedChange={() => togglePermission(perm.id)}
+                      />
+                      {perm.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!newRole.name.trim()} className="bg-accent text-accent-foreground hover:bg-accent/90">Save</Button>
+            <Button variant="outline" onClick={() => setDraft(null)}>Cancel</Button>
+            <Button
+              onClick={saveDraft}
+              className="bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              {draft?.id ? "Save Changes" : "Create Role"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete role "{pendingDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Workflow steps assigned to this role will need to be reassigned manually.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

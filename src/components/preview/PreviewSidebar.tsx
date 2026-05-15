@@ -1,26 +1,30 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePreview, type PreviewRole } from "./PreviewContext";
 import { User, Bell, FileSearch, MapPin, ShieldCheck, RotateCcw, MessageSquare } from "lucide-react";
 import NotificationsPanel from "./NotificationsPanel";
 import MessagesDrawer from "./MessagesDrawer";
+import { useServiceRoles, permissionLabel, canonicalRoleId } from "@/lib/useServiceRoles";
 
-interface RoleDef {
-  id: PreviewRole;
-  label: string;
-  icon: React.ElementType;
-  permissions: string[];
-}
-
-const ROLES: RoleDef[] = [
-  { id: "citizen", label: "Citizen", icon: User, permissions: ["Apply", "Pay", "Track", "My Documents"] },
-  { id: "documentVerifier", label: "Document Verifier", icon: FileSearch, permissions: ["Verify Docs", "Send Back", "Move to Inspection"] },
-  { id: "fieldInspector", label: "Field Inspector", icon: MapPin, permissions: ["Site Visit", "Complete Inspection", "Send Back"] },
-  { id: "approver", label: "Approver", icon: ShieldCheck, permissions: ["Approve", "Reject", "Issue License"] },
-];
+// Map a service-role id to one of the preview's behavior roles.
+const PREVIEW_ROLE_MAP: Record<string, PreviewRole> = {
+  citizen: "citizen",
+  document_verifier: "documentVerifier",
+  field_inspector: "fieldInspector",
+  approver: "approver",
+};
+const ICON_FOR_PREVIEW: Record<PreviewRole, React.ElementType> = {
+  citizen: User,
+  documentVerifier: FileSearch,
+  fieldInspector: MapPin,
+  approver: ShieldCheck,
+};
 
 const PreviewSidebar: React.FC = () => {
+  const { id: serviceId = "service" } = useParams();
+  const [serviceRoles] = useServiceRoles(serviceId);
   const {
     role, setRole,
     unreadCount, markNotificationsRead,
@@ -29,6 +33,12 @@ const PreviewSidebar: React.FC = () => {
     resetDemo,
   } = usePreview();
   const [notifOpen, setNotifOpen] = useState(false);
+
+  // Pair each configured role with its preview-behavior id (custom roles default to approver).
+  const rolesView = useMemo(() => serviceRoles.map((r) => {
+    const previewId: PreviewRole = PREVIEW_ROLE_MAP[canonicalRoleId(r.id)] ?? "approver";
+    return { ...r, previewId, Icon: ICON_FOR_PREVIEW[previewId] };
+  }), [serviceRoles]);
 
   const openNotifications = () => {
     setNotifOpen(true);
@@ -76,26 +86,26 @@ const PreviewSidebar: React.FC = () => {
       </div>
 
       <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-        {ROLES.map((r) => {
-          const Icon = r.icon;
-          const isActive = role === r.id;
+        {rolesView.map((r) => {
+          const Icon = r.Icon;
+          const isActive = role === r.previewId;
           return (
             <button
               key={r.id}
-              onClick={() => setRole(r.id)}
+              onClick={() => setRole(r.previewId)}
               className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
                 isActive ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
               }`}
             >
               <div className="flex items-center gap-2 mb-3">
                 <Icon className="h-4 w-4 text-accent shrink-0" />
-                <span className="font-semibold text-foreground text-sm">{r.label}</span>
+                <span className="font-semibold text-foreground text-sm">{r.name}</span>
                 {isActive && <Badge className="ml-auto text-[9px] bg-accent text-accent-foreground">Active</Badge>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {r.permissions.map((a) => (
-                  <Badge key={a} variant="outline" className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20">
-                    {a}
+                {r.permissions.map((p) => (
+                  <Badge key={p} variant="outline" className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20">
+                    {permissionLabel(p)}
                   </Badge>
                 ))}
               </div>

@@ -234,7 +234,6 @@ export interface TradeRole {
   description: string;
   isDefault?: boolean;
   permissions: string[]; // ids from RolesDesigner ALL_PERMISSIONS
-  actions: string[];
 }
 
 export const TRADE_ROLES: TradeRole[] = [
@@ -243,39 +242,25 @@ export const TRADE_ROLES: TradeRole[] = [
     name: "Citizen",
     description: "Applicant applying for a Business License",
     isDefault: true,
-    permissions: [
-      "create_application", "edit_draft", "submit_application",
-      "upload_documents", "view_status", "download_certificate",
-    ],
-    actions: ["Create", "Edit", "View"],
+    permissions: ["create_application", "edit_application", "view_application"],
   },
   {
     id: "document_verifier",
     name: "Document Verifier",
     description: "Reviews submitted applications and verifies documents",
-    permissions: [
-      "verify_documents", "raise_query", "approve_scrutiny",
-      "send_back", "reject_application",
-    ],
-    actions: ["Edit", "View"],
+    permissions: ["view_application", "fill_checklist", "edit_checklist", "view_checklist"],
   },
   {
     id: "field_inspector",
     name: "Field Inspector",
     description: "Visits the business site and confirms compliance",
-    permissions: [
-      "submit_inspection", "upload_photos", "recommend_decision", "send_back",
-    ],
-    actions: ["Edit", "View"],
+    permissions: ["view_application", "fill_checklist", "view_checklist"],
   },
   {
     id: "approver",
     name: "Approver",
     description: "Final approving authority for licence issuance",
-    permissions: [
-      "approve_license", "reject_license", "send_back",
-    ],
-    actions: ["Edit", "View"],
+    permissions: ["view_application", "edit_application", "view_checklist"],
   },
 ];
 

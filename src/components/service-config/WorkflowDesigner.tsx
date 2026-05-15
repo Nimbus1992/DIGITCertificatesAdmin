@@ -23,13 +23,14 @@ import {
   ZoomIn, ZoomOut, Maximize2,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useServiceRoles, canonicalRoleId } from "@/lib/useServiceRoles";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
 type StateType = "start" | "in_progress" | "end";
-type RoleId = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
+type RoleId = string;
 
 interface WorkflowState {
   id: string;
@@ -57,13 +58,7 @@ type Selection =
   | { kind: "transition"; id: string }
   | null;
 
-const ROLE_OPTIONS: { id: RoleId; name: string }[] = [
-  { id: "citizen", name: "Citizen" },
-  { id: "documentVerifier", name: "Document Verifier" },
-  { id: "fieldInspector", name: "Field Inspector" },
-  { id: "approver", name: "Approver" },
-];
-const roleName = (id: RoleId) => ROLE_OPTIONS.find(r => r.id === id)?.name ?? id;
+/* ROLE_OPTIONS / roleName moved to per-component hook (useServiceRoles). */
 
 /* Source list types (mirror configurator shapes) */
 type FieldType = "text" | "radio" | "checkbox" | "dropdown" | "file_upload";
@@ -286,6 +281,14 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
+  /* ---- Roles (shared across modules of this service) ---- */
+  const [serviceRoles] = useServiceRoles(serviceId, moduleName);
+  const ROLE_OPTIONS = serviceRoles.map((r) => ({ id: r.id, name: r.name }));
+  const roleName = (id: RoleId) => {
+    const canon = canonicalRoleId(id);
+    return serviceRoles.find((r) => r.id === canon)?.name ?? id;
+  };
+  const fallbackRoleId: RoleId = serviceRoles[0]?.id ?? "approver";
   const [view, setView] = useState<"visual" | "table">("visual");
   const [tableTab, setTableTab] = useState<"states" | "actions">("actions");
   const [selection, setSelection] = useState<Selection>(null);
