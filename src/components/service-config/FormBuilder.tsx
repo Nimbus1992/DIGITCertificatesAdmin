@@ -314,7 +314,26 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
       ),
     );
     if (selectedFieldId === fieldId) setSelectedFieldId(null);
+    toast({ title: "Field deleted" });
   };
+
+  // Delete / Backspace key removes the selected field (when not typing in an input).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!selectedFieldId) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el) {
+        const tag = el.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return;
+      }
+      e.preventDefault();
+      deleteField(selectedFieldId);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFieldId, activeSubScreen?.id, activeStepId]);
 
   /* ── Filtered palette ── */
   const filteredCategories = useMemo(() => {
