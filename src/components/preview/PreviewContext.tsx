@@ -709,9 +709,9 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       createdAt: Date.now(),
     };
     setApplications(prev => [app, ...prev]);
-    emitEvent("application_submitted", app);
+    dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, emitEvent]);
+  }, [serviceName, dispatchByState]);
 
   const submitRenewal = useCallback((parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => {
     const appNumber = buildAppNumber("TL-RNW");
@@ -733,9 +733,9 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       createdAt: Date.now(),
     };
     setApplications(prev => [app, ...prev]);
-    emitEvent("renewal_submitted", app);
+    dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, emitEvent]);
+  }, [serviceName, dispatchByState]);
 
   const transitionApplication = useCallback((appId: string, transitionId: string) => {
     const transition = DEFAULT_TRANSITIONS.find(t => t.id === transitionId);
@@ -767,18 +767,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
     if (!updatedApp) return;
     const meta = { actionBy: ROLE_LABEL[role] };
-    const triggerByTransition: Record<string, string | undefined> = {
-      t_verify_app: "application_verified",
-      t_send_back_dv: "application_sent_back",
-      t_complete_insp: "inspection_completed",
-      t_send_back_ip: "application_sent_back",
-      t_approve: "application_approved",
-      t_reject: "application_rejected",
-      // t_claim_dv and t_resubmit are silent — no notification trigger in matrix
-    };
-    const triggerId = triggerByTransition[transition.id];
-    if (triggerId) emitEvent(triggerId, updatedApp, meta);
-  }, [role, emitEvent]);
+    dispatchByState(updatedApp, targetState.name, meta);
+  }, [role, dispatchByState]);
 
   const setDocumentStatus = useCallback((appId: string, docId: string, status: DocumentStatus) => {
     let updatedApp: PreviewApplication | null = null;
