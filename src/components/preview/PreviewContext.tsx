@@ -869,7 +869,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       if (!app.demand) return app;
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: "s5",
+        currentStateId: resolveStateId(app.type, "Paid", "s5"),
         status: "Paid",
         paymentStatus: "paid",
         paymentDetails: {
@@ -887,7 +887,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       return updated;
     }));
     if (updatedApp) dispatchByState(updatedApp, "Paid");
-  }, [dispatchByState]);
+  }, [dispatchByState, resolveStateId]);
 
   const issueLicense = useCallback((appId: string) => {
     let updatedApp: PreviewApplication | null = null;
@@ -903,7 +903,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       };
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: "s6",
+        currentStateId: resolveStateId(app.type, "License Issued", "s6"),
         status: "License Issued",
         license,
         timeline: [
@@ -915,7 +915,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       return updated;
     }));
     if (updatedApp) dispatchByState(updatedApp, "License Issued");
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, resolveStateId]);
 
   const completeRenewal = useCallback((appId: string) => {
     let parentId: string | undefined;
@@ -940,7 +940,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         if (app.id === appId) {
           return {
             ...app,
-            currentStateId: "s9",
+            currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
             status: "License Renewed",
             license: newLicense,
             timeline: [
@@ -971,7 +971,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         applicationNumber: appId,
         type: "RENEWAL",
         status: "License Renewed",
-        currentStateId: "s9",
+        currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
         formData: {},
         documents: [],
         checklists: {},
@@ -984,7 +984,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       } as PreviewApplication;
     })();
     if (renewedSnapshot) dispatchByState(renewedSnapshot, "License Renewed");
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, resolveStateId]);
 
   const assignApplication = useCallback((appId: string, assignee: string) => {
     setApplications(prev => prev.map(app =>
@@ -996,13 +996,13 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   const toggleChecklist = useCallback((appId: string, stateId: string, itemId: string) => {
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
-      const transition = DEFAULT_TRANSITIONS.find(t => t.fromStateId === stateId && t.checklist.length > 0);
-      const seed: ChecklistItemState[] = transition
-        ? transition.checklist.map(c => ({ id: c.id, text: c.text, checked: false }))
-        : [];
-      const existing = app.checklists[stateId] || seed;
-      // If existing was empty seed but item not present, ensure seed
-      const list = existing.length === 0 ? seed : existing;
+      const wf = wfFor(app.type);
+      const transition = wf.transitions.find(t => t.fromStateId === stateId && t.checklistIds.length > 0);
+      // Checklist items themselves live on the inline edit dialog; for preview we
+      // just toggle whatever items the app already has, no seed required.
+      const existing = app.checklists[stateId] || [];
+      const list = existing;
+      void transition;
       return {
         ...app,
         checklists: {
