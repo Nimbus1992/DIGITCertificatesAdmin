@@ -479,6 +479,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   const roleRef = useRef<PreviewRole>(role);
   roleRef.current = role;
+  const applicationsRef = useRef<PreviewApplication[]>(applications);
+  applicationsRef.current = applications;
 
   // PUSH = silent in-app only. Adds to bell list; never raises a toast.
   const pushNotification = useCallback(
