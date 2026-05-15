@@ -116,6 +116,7 @@ import { TRADE_PAYMENT_STAGES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_PAYMENT_STAGES } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
+import { emitWorkflowUpdated } from "@/lib/useServiceWorkflow";
 import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
 import ScopeSelector from "@/components/service-config/ScopeSelector";
 import {
@@ -409,10 +410,12 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       x: maxX + 280, y: 180, paymentStageId: null, notificationIds: [],
     }]);
     setNewStateName(""); setNewStateType("in_progress"); setShowAddState(false);
+    emitWorkflowUpdated(serviceId);
   };
 
   const updateState = (id: string, updates: Partial<WorkflowState>) => {
     setStates(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    emitWorkflowUpdated(serviceId);
   };
 
   const deleteState = (id: string) => {
@@ -422,12 +425,18 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       toast({ title: "Cannot delete the only Start state", variant: "destructive" });
       return;
     }
-    if (transitions.some(t => t.fromStateId === id || t.toStateId === id)) {
-      toast({ title: "Remove or re-point its transitions first", variant: "destructive" });
-      return;
+    const linked = transitions.filter(t => t.fromStateId === id || t.toStateId === id);
+    if (linked.length > 0) {
+      const ok = window.confirm(
+        `Delete "${target.name}"?\n\nThis will also remove ${linked.length} action${linked.length === 1 ? "" : "s"} connected to it.`
+      );
+      if (!ok) return;
+      setTransitions(prev => prev.filter(t => t.fromStateId !== id && t.toStateId !== id));
     }
     setStates(prev => prev.filter(s => s.id !== id));
     setSelection(null);
+    toast({ title: `State "${target.name}" deleted` });
+    emitWorkflowUpdated(serviceId);
   };
 
   /* ---- Transition CRUD ---- */
@@ -439,15 +448,18 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     }]);
     setNewTransName(""); setNewTransFrom(""); setNewTransTo(""); setNewTransRole("approver");
     setShowAddTransition(false);
+    emitWorkflowUpdated(serviceId);
   };
 
   const updateTransition = (id: string, updates: Partial<WorkflowTransition>) => {
     setTransitions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    emitWorkflowUpdated(serviceId);
   };
 
   const deleteTransition = (id: string) => {
     setTransitions(prev => prev.filter(t => t.id !== id));
     setSelection(null);
+    emitWorkflowUpdated(serviceId);
   };
 
   /* ---- Source CRUD helpers ---- */
