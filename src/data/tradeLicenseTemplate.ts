@@ -175,7 +175,6 @@ export const TRADE_WORKFLOW_STATES: TradeWorkflowState[] = [
   { id: "s6",   name: "License Issued",                description: "Licence certificate issued",            type: "end" },
   { id: "s7",   name: "Sent Back",                     description: "Returned to citizen for corrections",   type: "in_progress" },
   { id: "s8",   name: "Rejected",                      description: "Application rejected",                  type: "end" },
-  { id: "s9",   name: "License Renewed",               description: "Renewal completed",                     type: "end" },
 ];
 
 export const TRADE_WORKFLOW_TRANSITIONS: TradeWorkflowTransition[] = [
@@ -223,7 +222,6 @@ export const TRADE_STATE_TAG_COLORS: Record<string, string> = {
   "License Issued":                "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   "Sent Back":                     "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
   "Rejected":                      "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  "License Renewed":               "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
 };
 
 // ─── Roles (matches PreviewRole) ─────────────────────────────────────────────

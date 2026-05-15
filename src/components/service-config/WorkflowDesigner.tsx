@@ -136,7 +136,6 @@ const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s6:   { x: 1620, y: 100 },
   s7:   { x: 580,  y: 320 },
   s8:   { x: 840,  y: 320 },
-  s9:   { x: 1620, y: 320 },
 };
 
 const buildSeedNotifications = (moduleName: string): SrcNotification[] => {
