@@ -30,7 +30,6 @@ const GoLive: React.FC = () => {
 
   const checklist: ChecklistItem[] = [
     { id: "access", label: "User Access & Authentication", description: "Set access type and sign-in method per role", icon: ShieldCheck, required: true, component: RoleAccessSetup },
-    { id: "license", label: "License Key", description: "Enter your application license key to activate", icon: KeyRound, required: true, component: LicenseKeySetup },
   ];
 
   const requiredComplete = checklist.filter((item) => item.required).every((item) => completedItems.includes(item.id));
