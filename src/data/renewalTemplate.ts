@@ -78,26 +78,17 @@ export const RENEWAL_ROLES: TradeRole[] = [
     id: "citizen", name: "Citizen",
     description: "Applicant renewing a Business License",
     isDefault: true,
-    permissions: [
-      "create_application", "edit_draft", "submit_application",
-      "upload_documents", "view_status", "download_certificate",
-    ],
-    actions: ["Create", "Edit", "View"],
+    permissions: ["create_application", "edit_application", "view_application"],
   },
   {
     id: "document_verifier", name: "Document Verifier",
     description: "Reviews submitted renewal applications and verifies documents",
-    permissions: [
-      "verify_documents", "raise_query", "approve_scrutiny",
-      "send_back", "reject_application",
-    ],
-    actions: ["Edit", "View"],
+    permissions: ["view_application", "fill_checklist", "edit_checklist", "view_checklist"],
   },
   {
     id: "approver", name: "Approver",
     description: "Final approving authority for renewal issuance",
-    permissions: ["approve_license", "reject_license", "send_back"],
-    actions: ["Edit", "View"],
+    permissions: ["view_application", "edit_application", "view_checklist"],
   },
 ];
 
