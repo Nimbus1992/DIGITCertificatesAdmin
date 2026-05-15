@@ -115,6 +115,7 @@ import {
 import { TRADE_PAYMENT_STAGES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_PAYMENT_STAGES } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
+import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
 import ScopeSelector from "@/components/service-config/ScopeSelector";
 import {
@@ -455,6 +456,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     setNotifications(prev => prev.some(x => x.id === n.id)
       ? prev.map(x => x.id === n.id ? n : x)
       : [...prev, n]);
+    emitNotificationsUpdated(serviceId);
   };
   const upsertChecklist = (c: SrcChecklist) => {
     setChecklists(prev => prev.some(x => x.id === c.id)
@@ -1131,6 +1133,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             ...s, notificationIds: s.notificationIds.filter(nid => nid !== id),
           })));
           setEditingNotif(null);
+          emitNotificationsUpdated(serviceId);
         }}
       />
 
