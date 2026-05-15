@@ -375,13 +375,15 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         setPan({ x: panDragRef.current.origX + dx, y: panDragRef.current.origY + dy });
         return;
       }
-      if (!dragRef.current || !canvasRef.current) return;
+      const drag = dragRef.current;
+      if (!drag || !canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
       const z = zoomRef.current; const p = panRef.current;
-      const nx = Math.max(0, (e.clientX - rect.left - p.x - dragRef.current.offsetX) / z);
-      const ny = Math.max(0, (e.clientY - rect.top - p.y - dragRef.current.offsetY) / z);
-      dragRef.current.moved = true;
-      setStates(prev => prev.map(s => s.id === dragRef.current!.id ? { ...s, x: nx, y: ny } : s));
+      const nx = Math.max(0, (e.clientX - rect.left - p.x - drag.offsetX) / z);
+      const ny = Math.max(0, (e.clientY - rect.top - p.y - drag.offsetY) / z);
+      drag.moved = true;
+      const draggedStateId = drag.id;
+      setStates(prev => prev.map(s => s.id === draggedStateId ? { ...s, x: nx, y: ny } : s));
     };
     const onUp = () => { dragRef.current = null; panDragRef.current = null; };
     window.addEventListener("mousemove", onMove);
