@@ -66,7 +66,8 @@ interface SrcQuestion { id: string; text: string; fieldType: FieldType; required
 interface SrcChecklist { id: string; name: string; workflowState: string; questions: SrcQuestion[]; }
 interface SrcNotification {
   id: string; workflowState: string; subject: string; message: string;
-  channels: ("email" | "sms")[]; tag: string; tagColor: string;
+  channel: "email" | "sms" | "push"; recipientRole: string;
+  tag: string; tagColor: string;
 }
 type PaymentType = "full" | "partial" | "multiple";
 type Gateway = "razorpay" | "paygov" | "custom";
@@ -146,7 +147,8 @@ const buildSeedNotifications = (moduleName: string): SrcNotification[] => {
     workflowState: n.workflowState,
     subject: n.subject,
     message: n.message,
-    channels: [...n.channels],
+    channel: n.channel,
+    recipientRole: n.recipientRole,
     tag: n.tag,
     tagColor: colors[n.tag] ?? "bg-muted text-muted-foreground",
   }));
