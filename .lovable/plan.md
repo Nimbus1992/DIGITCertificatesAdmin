@@ -1,42 +1,67 @@
-# Align "Trade Type / Business Category" with template-setup uploads
+# Master Template drawer: full parity with template setup
 
-Today the issuance form ships with two hardcoded dropdowns (`tradeType`, `businessCategory`) backed by `TRADE_CATEGORY_MAP`. They have nothing to do with the categories/subcategories the user uploads in Step 3 of template setup. We'll fix this so:
+## Problem
+The Master Template side-drawer (`MasterTemplateConfigurator`) currently only edits service name, modules, and category/subcategory **toggles + filenames**. It does not:
+1. **Parse** the uploaded category / subcategory files, so `templateSetup.categoriesList` / `subcategoriesList` stay empty and the dynamic Business Category / Sub Category form fields never appear.
+2. Capture the **renewal policy** (global vs by-category vs by-subcategory + months) — which Step 4 of the wizard collects.
+3. Capture the **workflow scope** (Shared vs Per-category) — which Step 5 of the wizard collects when categories exist.
+4. Refresh dependent artifacts (form schema in localStorage) so changes are visible immediately.
 
-- "Trade Type" becomes **Business Category** (the parent — values come from uploaded `categoriesList`).
-- "Business Category" becomes **Sub Category** (the child — values come from uploaded `subcategoriesList`, filtered by the chosen parent).
-- If categories were **not** uploaded, both fields are removed from the seeded form entirely.
-- If categories were uploaded but subcategories were not, only the parent field is seeded.
+We need the drawer to accommodate every condition the initial template-setup wizard handles, so that editing master template post-creation has full parity.
 
-## Changes
+## Plan
 
-1. **`src/data/issuanceFormTemplate.ts`**
-   - Stop importing `TRADE_CATEGORY_MAP`.
-   - Export a builder `buildIssuanceFormSteps({ categories, subcategories })` instead of a static const. It returns the same 5 wizard steps, but in step 2 / sub‑screen `s2-1` it conditionally inserts:
-     - `businessCategory` (label "Business Category", options = `categories`) when `categories.length > 0`.
-     - `subCategory` (label "Sub Category", `dependsOn: "businessCategory"`, `dependsValueMap` built from `subcategoriesList` grouped by `parent`) when `subcategories.length > 0`.
-   - When neither is provided, sub‑screen `s2-1` falls back to just `businessName` (and we drop the screen's category fields). If that leaves the screen with only `businessName`, keep the screen — it's still meaningful.
-   - Keep the existing `ISSUANCE_FORM_STEPS` export as `buildIssuanceFormSteps({categories: [], subcategories: []})` for any legacy import, but mark deprecated.
+### 1. Parse uploads in the drawer
+`src/components/service-config/MasterTemplateConfigurator.tsx`
+- Replace the filename-only `FilePicker` with a real `<input type="file">` that, on change:
+  - Calls `parseCategoriesCsv(file)` / `parseSubcategoriesCsv(file)` from `@/lib/csvParse`.
+  - Stores `{ categoriesFileName, categoriesList }` (or sub equivalents) in local `setup` state.
+  - Shows the same chip-style "file uploaded" UI with size + clear (✕). Clearing also wipes the parsed list.
+- Add a "Download sample file" affordance mirroring `Step3Structure` (reuse the same sample CSV strings).
+- Keep previously-parsed lists when reopening the drawer without re-uploading.
 
-2. **`src/data/renewalFormTemplate.ts`**
-   - Mirror: export `buildRenewalFormSteps(setup)` that clones `buildIssuanceFormSteps(setup)`.
+### 2. Add Renewal Policy section (when Renewal is enabled)
+- Reuse `Step4RenewalPolicy` directly inside the drawer (it already takes `categories`, `subcategories`, `policy`, `setPolicy`). Wrap it in a collapsible / titled block.
+- Hide the section if Renewal toggle is off.
+- If categories were just turned off, downgrade `mode` from `by_category`/`by_subcategory` back to `global` and clear the per-key maps so we don't carry stale state.
+- Persist into `service.renewalPolicy` on save (already on `ServiceItem`).
 
-3. **`src/lib/formStorage.ts`**
-   - `seedFormSteps` and `loadFormSteps` take a new `setup: { categoriesList?: string[]; subcategoriesList?: { name: string; parent: string }[] }` arg and pass it to the builder.
-   - Existing localStorage payloads remain untouched (only seeding changes); when nothing is stored, the seed reflects the uploaded data.
+### 3. Add Workflow Scope section (when categories enabled)
+- Reuse `Step5WorkflowScope` (takes `value`, `onChange`, `categoryCount`).
+- Show only when `setup.hasCategories === true` and `categoriesList.length > 0`.
+- If categories get disabled, force-reset workflow scope to `"shared"`.
+- Persist into `service.workflowScope` on save.
 
-4. **Callers**
-   - `src/components/service-config/FormBuilder.tsx`: read `service.templateSetup` from `OnboardingContext` (already available via `useOnboarding`) and pass `{ categoriesList, subcategoriesList }` into `loadFormSteps`.
-   - `src/components/preview/PreviewContext.tsx`: same — pass the service's `templateSetup` into both `loadFormSteps` calls (Issuance + Renewal) and the storage‑event refresh.
+### 4. Drawer layout
+Section order inside the existing `Sheet`:
+1. Service Name
+2. Modules (Issuance always-on, Renewal toggle)
+3. Structure (Categories Yes/No → upload; Subcategories Yes/No → upload) ← parsed
+4. Renewal Policy (only if Renewal enabled) ← reused Step4
+5. Workflow Scope (only if Categories enabled) ← reused Step5
 
-5. **Cosmetic follow‑ups (labels only, no logic)**
-   - `src/components/service-config/DocumentDesigner.tsx` and `document/VCScreenDesigner.tsx`: rename the `tradeType` mapping label to "Business Category" and add a new `subCategory` mapping option. The underlying field IDs stay (`tradeType` kept as alias to avoid breaking existing saved documents) — we just expose the new `subCategory` token.
+Long content → ensure `SheetContent` keeps `overflow-y-auto` (already set) and add a sticky footer for Save/Cancel.
+
+### 5. Refresh form schema after save
+The persisted form in `localStorage` (`formbuilder:<id>:<module>`) shadows the seed in `loadFormSteps`, so newly uploaded categories wouldn't appear until the form is reset.
+
+On Save, when `categoriesList` or `subcategoriesList` actually changed (deep-compare against the previous `service.templateSetup`):
+- `import { seedFormSteps, saveFormSteps } from "@/lib/formStorage"`.
+- Re-seed and persist:
+  - `saveFormSteps(service.id, "Issuance", seedFormSteps("Issuance", cleanSetup))`
+  - `saveFormSteps(service.id, "Renewal", seedFormSteps("Renewal", cleanSetup))` (only if Renewal enabled).
+- `saveFormSteps` already dispatches `FORM_UPDATED_EVENT`, so the FormBuilder and citizen Preview re-render automatically.
+
+If the lists didn't change, **don't** reseed — preserve any per-field customizations the user made in FormBuilder.
+
+### 6. Validation on Save
+- Disabled until: name non-empty AND (if Categories=Yes then a categories list is present) AND (if Subcategories=Yes then a subcategories list is present).
+- `globalMonths` (and any per-key months) must be > 0 — fall back to the shipped defaults if untouched.
 
 ## Out of scope
-
+- No changes to `OnboardingContext`, `csvParse`, form template builders, FormBuilder, PreviewContext, or the wizard pages — they already support everything required.
 - No DB / backend changes.
-- No changes to `TRADE_CATEGORY_MAP` consumers in `PreviewContext` defaults; once the seed is dynamic, those defaults are only used when a service has no `templateSetup` at all (legacy services). Keep them as a safety fallback.
-- Workflow designer and other configurators are untouched.
+- Workflow Designer, Notifications, Fees, etc. are not touched (they consume `templateSetup` reactively where applicable).
 
-## Risk
-
-- Services already created before this change will have their stored form (in localStorage) untouched — they keep the old hardcoded fields until the user resets the form. That's acceptable; new services pick up the correct behaviour immediately.
+## Files touched
+- `src/components/service-config/MasterTemplateConfigurator.tsx` (only file modified)
