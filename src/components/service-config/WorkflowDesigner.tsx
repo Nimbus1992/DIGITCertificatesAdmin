@@ -249,20 +249,7 @@ interface Props {
 
 const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
-  const cfg = useServiceConfigOptional();
-  const scope = cfg?.workflowScope ?? "shared";
-  const categories = cfg?.categories ?? [];
-  const showCategoryPicker = scope === "by_category" && categories.length > 0;
-  const [activeCategory, setActiveCategory] = useState<string>(() => categories[0] ?? "");
-  useEffect(() => {
-    if (showCategoryPicker && !categories.includes(activeCategory)) {
-      setActiveCategory(categories[0] ?? "");
-    }
-  }, [showCategoryPicker, categories, activeCategory]);
-
-  const storageSuffix = showCategoryPicker
-    ? `${moduleName}::cat::${activeCategory || "__"}`
-    : moduleName;
+  const storageSuffix = moduleName;
 
   /* ---- Source lists (shared with their configurator pages) ---- */
   const [notifications, setNotifications] = useModuleState<SrcNotification[]>(
