@@ -19,15 +19,20 @@ const Option: React.FC<{
   title: string;
   description: string;
   onClick: () => void;
-}> = ({ active, icon: Icon, title, description, onClick }) => (
+  disabled?: boolean;
+  badge?: string;
+}> = ({ active, icon: Icon, title, description, onClick, disabled, badge }) => (
   <button
     type="button"
-    onClick={onClick}
+    disabled={disabled}
+    onClick={disabled ? undefined : onClick}
     className={cn(
       "text-left p-5 rounded-md border transition-all w-full flex gap-4",
+      disabled && "opacity-60 cursor-not-allowed",
       active
         ? "border-accent bg-accent/5 ring-1 ring-accent"
-        : "border-input hover:border-accent/40 hover:bg-muted/20",
+        : !disabled && "border-input hover:border-accent/40 hover:bg-muted/20",
+      disabled && !active && "border-input bg-muted/10",
     )}
   >
     <div className={cn(
@@ -36,8 +41,15 @@ const Option: React.FC<{
     )}>
       <Icon className="h-5 w-5" />
     </div>
-    <div>
-      <div className="text-sm font-semibold text-foreground">{title}</div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2">
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        {badge && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
     </div>
   </button>
@@ -67,6 +79,8 @@ const Step5WorkflowScope: React.FC<Props> = ({ value, onChange, categoryCount, o
         title="Different approval processes by category"
         description={`We'll create a starting workflow for each of your ${categoryCount} categor${categoryCount === 1 ? "y" : "ies"} — edit each one independently.`}
         onClick={() => onChange("by_category")}
+        disabled
+        badge="Coming soon"
       />
     </div>
 
