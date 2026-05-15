@@ -23,6 +23,7 @@ import {
 } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
 import { useServiceRoles } from "@/lib/useServiceRoles";
+import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 
 type Channel = "email" | "sms" | "push";
 
@@ -113,6 +114,7 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
 
   const remove = (id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
+    emitNotificationsUpdated(serviceId);
   };
 
   const save = (n: Notification) => {
@@ -120,6 +122,7 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
       ? prev.map(x => x.id === n.id ? n : x)
       : [...prev, n]);
     setEditing(null);
+    emitNotificationsUpdated(serviceId);
   };
 
   return (
