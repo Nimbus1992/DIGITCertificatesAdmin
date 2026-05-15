@@ -799,26 +799,29 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   }, [serviceName, dispatchByState, startStateId]);
 
   const transitionApplication = useCallback((appId: string, transitionId: string) => {
-    const transition = DEFAULT_TRANSITIONS.find(t => t.id === transitionId);
+    const app = applicationsRef.current.find(a => a.id === appId);
+    if (!app) return;
+    const wf = wfFor(app.type);
+    const transition = wf.transitions.find(t => t.id === transitionId);
     if (!transition) return;
-    const targetState = DEFAULT_WORKFLOW_STATES.find(s => s.id === transition.toStateId);
+    const targetState = wf.states.find(s => s.id === transition.toStateId);
     if (!targetState) return;
 
     let updatedApp: PreviewApplication | null = null;
-    setApplications(prev => prev.map(app => {
-      if (app.id !== appId) return app;
+    setApplications(prev => prev.map(a => {
+      if (a.id !== appId) return a;
       const actor = ROLE_LABEL[role];
       const updated: PreviewApplication = {
-        ...app,
+        ...a,
         currentStateId: transition.toStateId,
         status: targetState.name,
         timeline: [
-          ...app.timeline,
+          ...a.timeline,
           { state: targetState.name, actor, note: transition.name, at: Date.now() },
         ],
       };
-      // Auto-generate demand on Approve (now t_approve)
-      if (transition.id === "t_approve") {
+      // Auto-generate demand when transitioning into Payment Pending (any "Approve"-like action)
+      if (targetState.name === "Payment Pending") {
         updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
         updated.paymentStatus = "pending";
       }
@@ -829,7 +832,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     if (!updatedApp) return;
     const meta = { actionBy: ROLE_LABEL[role] };
     dispatchByState(updatedApp, targetState.name, meta);
-  }, [role, dispatchByState]);
+  }, [role, dispatchByState, wfFor]);
 
   const setDocumentStatus = useCallback((appId: string, docId: string, status: DocumentStatus) => {
     let updatedApp: PreviewApplication | null = null;
