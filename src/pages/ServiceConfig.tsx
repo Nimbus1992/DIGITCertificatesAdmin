@@ -64,7 +64,7 @@ const ServiceConfigInner: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"configure" | "preview" | "deployment">("configure");
+  const [mode, setMode] = useState<"configure" | "preview" | "deployment">("preview");
   const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => {
