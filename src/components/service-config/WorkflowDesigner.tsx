@@ -23,13 +23,14 @@ import {
   ZoomIn, ZoomOut, Maximize2,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useServiceRoles, canonicalRoleId } from "@/lib/useServiceRoles";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
 type StateType = "start" | "in_progress" | "end";
-type RoleId = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
+type RoleId = string;
 
 interface WorkflowState {
   id: string;
