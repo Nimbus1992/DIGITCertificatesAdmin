@@ -358,7 +358,17 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
             : "border-transparent hover:border-muted-foreground/20 hover:bg-muted/30"
         }`}
       >
-        <div className="flex items-center gap-1 mb-1">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); deleteField(field.id); }}
+          className={`absolute top-2 right-2 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity ${
+            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+          title="Delete field"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex items-center gap-1 mb-1 pr-6">
           <Label className="text-sm font-medium text-foreground">{field.label}</Label>
           {field.required && <span className="text-destructive text-xs">*</span>}
         </div>
