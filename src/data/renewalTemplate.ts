@@ -128,39 +128,49 @@ export const RENEWAL_CHECKLISTS: TradeChecklist[] = [
 
 // ── Notifications ───────────────────────────────────────────────────────────
 
+const rmk = (
+  id: string, ws: string, channel: "email" | "sms" | "push", recipientRole: string,
+  subject: string, message: string,
+): TradeNotification => ({ id, workflowState: ws, channel, recipientRole, subject, message, tag: ws });
+
 export const RENEWAL_NOTIFICATIONS: TradeNotification[] = [
-  { id: "rn1", workflowState: "Submitted",
-    subject: "Renewal Application Submitted",
-    message: "Hi {applicantName}, your renewal application {applicationNumber} for {businessName} has been submitted successfully.",
-    channels: ["email", "sms"], tag: "Submitted" },
-  { id: "rn2", workflowState: "Under Document Verification",
-    subject: "Renewal Documents Under Verification",
-    message: "Your renewal application {applicationNumber} is being reviewed by our verification team.",
-    channels: ["email"], tag: "Under Document Verification" },
-  { id: "rn3", workflowState: "Under Approval",
-    subject: "Renewal Under Approval",
-    message: "Your renewal application {applicationNumber} is under final approval.",
-    channels: ["email"], tag: "Under Approval" },
-  { id: "rn4", workflowState: "Payment Pending",
-    subject: "Renewal Fee Payment Required",
-    message: "Hi {applicantName}, please pay the renewal fee for application {applicationNumber} to proceed.",
-    channels: ["email", "sms"], tag: "Payment Pending" },
-  { id: "rn5", workflowState: "Paid",
-    subject: "Renewal Payment Received",
-    message: "We have received your payment for renewal {applicationNumber}. Your renewed licence will be issued shortly.",
-    channels: ["email", "sms"], tag: "Paid" },
-  { id: "rn6", workflowState: "License Renewed",
-    subject: "Business License Renewed",
-    message: "Congratulations {applicantName}, your Business Licence for {businessName} has been renewed. You can download it now.",
-    channels: ["email", "sms"], tag: "License Renewed" },
-  { id: "rn7", workflowState: "Sent Back",
-    subject: "Action Required on Your Renewal",
-    message: "Your renewal application {applicationNumber} has been sent back. Please review remarks and resubmit.",
-    channels: ["email", "sms"], tag: "Sent Back" },
-  { id: "rn8", workflowState: "Rejected",
-    subject: "Renewal Application Rejected",
-    message: "We regret to inform you that your renewal application {applicationNumber} has been rejected.",
-    channels: ["email", "sms"], tag: "Rejected" },
+  rmk("rn1e", "Submitted", "email", "citizen", "Renewal Application Submitted",
+    "Hi {applicantName}, your renewal application {applicationNumber} for {businessName} has been submitted successfully."),
+  rmk("rn1s", "Submitted", "sms", "citizen", "Renewal Submitted",
+    "Renewal {applicationNumber} submitted."),
+  rmk("rn1p", "Submitted", "push", "document_verifier", "Renewal to verify",
+    "Renewal {applicationNumber} from {applicantName} awaits verification."),
+
+  rmk("rn2e", "Under Document Verification", "email", "citizen", "Renewal Documents Under Verification",
+    "Your renewal application {applicationNumber} is being reviewed by our verification team."),
+
+  rmk("rn3e", "Under Approval", "email", "citizen", "Renewal Under Approval",
+    "Your renewal application {applicationNumber} is under final approval."),
+  rmk("rn3p", "Under Approval", "push", "approver", "Renewal pending approval",
+    "Renewal {applicationNumber} is ready for your approval."),
+
+  rmk("rn4e", "Payment Pending", "email", "citizen", "Renewal Fee Payment Required",
+    "Hi {applicantName}, please pay the renewal fee for application {applicationNumber} to proceed."),
+  rmk("rn4s", "Payment Pending", "sms", "citizen", "Renewal Fee Due",
+    "Pay renewal fee for {applicationNumber} to proceed."),
+
+  rmk("rn5e", "Paid", "email", "citizen", "Renewal Payment Received",
+    "We have received your payment for renewal {applicationNumber}. Your renewed licence will be issued shortly."),
+  rmk("rn5s", "Paid", "sms", "citizen", "Payment Received",
+    "Renewal payment received for {applicationNumber}."),
+
+  rmk("rn6e", "License Renewed", "email", "citizen", "Business License Renewed",
+    "Congratulations {applicantName}, your Business Licence for {businessName} has been renewed. You can download it now."),
+  rmk("rn6s", "License Renewed", "sms", "citizen", "License Renewed",
+    "Your licence for {businessName} has been renewed."),
+
+  rmk("rn7e", "Sent Back", "email", "citizen", "Action Required on Your Renewal",
+    "Your renewal application {applicationNumber} has been sent back. Please review remarks and resubmit."),
+  rmk("rn7s", "Sent Back", "sms", "citizen", "Action Required",
+    "Renewal {applicationNumber} sent back. Please resubmit."),
+
+  rmk("rn8e", "Rejected", "email", "citizen", "Renewal Application Rejected",
+    "We regret to inform you that your renewal application {applicationNumber} has been rejected."),
 ];
 
 // ── Documents ───────────────────────────────────────────────────────────────
