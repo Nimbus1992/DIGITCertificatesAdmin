@@ -758,7 +758,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       applicationNumber: appNumber,
       type: "NEW",
       status: "Submitted",
-      currentStateId: "s1",
+      currentStateId: startStateId("NEW"),
       formData,
       documents,
       checklists: {},
@@ -772,7 +772,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, dispatchByState]);
+  }, [serviceName, dispatchByState, startStateId]);
 
   const submitRenewal = useCallback((parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => {
     const appNumber = buildAppNumber("TL-RNW");
@@ -782,7 +782,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       type: "RENEWAL",
       parentLicenseId: parentAppId,
       status: "Submitted",
-      currentStateId: "s1",
+      currentStateId: startStateId("RENEWAL"),
       formData,
       documents,
       checklists: {},
@@ -796,7 +796,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
     return app.id;
-  }, [serviceName, dispatchByState]);
+  }, [serviceName, dispatchByState, startStateId]);
 
   const transitionApplication = useCallback((appId: string, transitionId: string) => {
     const transition = DEFAULT_TRANSITIONS.find(t => t.id === transitionId);
