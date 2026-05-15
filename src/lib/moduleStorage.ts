@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Per-module persistence helper used by every service-config configurator.
@@ -34,9 +34,26 @@ export function useModuleState<T>(
     return seedRef.current();
   });
 
+  const cleanValue = useCallback((next: T): T => {
+    if (Array.isArray(next)) {
+      return next.filter((x) => x != null) as unknown as T;
+    }
+    return next;
+  }, []);
+
+  const setCleanValue: React.Dispatch<React.SetStateAction<T>> = useCallback((next) => {
+    setValue((prev) => {
+      const cleanPrev = cleanValue(prev);
+      const resolved = typeof next === "function"
+        ? (next as (value: T) => T)(cleanPrev)
+        : next;
+      return cleanValue(resolved);
+    });
+  }, [cleanValue]);
+
   useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
   }, [key, value]);
 
-  return [value, setValue];
+  return [cleanValue(value), setCleanValue];
 }
