@@ -1,67 +1,90 @@
 ## Goal
 
-Rebuild the Notifications screen to match the uploaded reference, enforce one-channel-per-notification, add Push as a third channel, map each notification to a target role, and make changes flow into Workflow and Preview.
+Make the **Notifications Manager**, **Workflow Designer**, and **Preview** share a single source of truth so that:
 
-## UI redesign (`NotificationsManager.tsx`)
+1. Every notification configured in the Manager (or inline in Workflow Designer) fires in Preview at the matching workflow state, on the configured channel, addressed to the configured role.
+2. Every notification the preview already sends (today driven by the hardcoded `NOTIFICATION_MATRIX`) is visible — and editable — inside the Notifications Manager and the Workflow Designer's per-state notifications panel.
 
-Top header — keep "Notifications" title and a prominent **+ Create New Notification** button (accent-filled, top right).
+## Current gap
 
-**Channel summary row** — three cards side-by-side: Email, SMS, Push. Each shows icon, title, "Configure {channel} notifications" subtitle, count badge, and a `+` button that opens the create dialog pre-filled with that channel.
+- `NOTIFICATION_MATRIX` (in `src/components/preview/notifications/notificationMatrix.ts`) is the only thing the preview reads. It is keyed by **trigger ids** like `application_submitted`, not workflow state names.
+- `NotificationsManager` and `WorkflowDesigner` write to `useModuleState("notifications", serviceId, moduleName)`. The preview never reads it.
+- Result: edits in the Manager are invisible to Preview, and the matrix entries (e.g. citizen "Application submitted" SMS+Email+Push, document-verifier "New application to verify") never appear in the Manager.
 
-**Tabs + list** — single card containing channel tabs `Email (n)` / `SMS (n)` / `Push (n)` (active tab uses accent) plus a search box on the right. Below: list of notification cards filtered by active channel.
+## Solution — one shared store
 
-**Notification card** — title row with subject (left) and **Edit / Duplicate / Delete** outline buttons (right). Message preview underneath. Footer row shows the workflow-state pill and a role pill (e.g. "Citizen", "Approver").
+### 1. Migrate `NOTIFICATION_MATRIX` into the seed
 
-## Data model changes
+Rewrite `buildDefaultNotifications` (used by `useModuleState` in `NotificationsManager.tsx`) so the seed is the **union** of:
+
+- The existing template-specific seeds in `tradeLicenseTemplate.ts` / `renewalTemplate.ts`, plus
+- One row per `(triggerId, channel, recipientRole)` from `NOTIFICATION_MATRIX`, mapped onto a workflow **state name** via a fixed `TRIGGER_TO_STATE` table:
+
+```text
+application_submitted   → "Submitted"
+document_verified       → "Under Document Verification"
+application_verified    → "Inspection Pending"
+inspection_completed    → "Under Approval"
+application_approved    → "Payment Pending"
+application_sent_back   → "Sent Back"
+application_rejected    → "Rejected"
+payment_successful      → "Paid"
+license_issued          → "License Issued"
+document_rejected       → "Under Document Verification"
+renewal_submitted       → "Submitted"          (renewal module)
+renewal_completed       → "License Renewed"    (renewal module)
+```
+
+Each generated row carries `id` (deterministic, e.g. `seed-${triggerId}-${channel}-${role}`), `channel` (lower-cased from matrix), `recipientRole` (mapped to a service role id; `documentVerifier`→`document_verifier`, `fieldInspector`→`field_inspector`, others 1:1), `subject` (matrix `title`), `message` (matrix `message`, `{{var}}` syntax preserved), and `tag` = state name. Deterministic ids let the deduper drop true duplicates if the user resets.
+
+After this change, opening the Manager on a fresh service shows every preview notification, grouped under the right channel/state. Editing or deleting them is just normal CRUD — they're stored in the same `useModuleState` array.
+
+### 2. Preview reads the shared store
+
+Add `src/lib/useServiceNotifications.ts`:
 
 ```ts
-interface Notification {
-  id: string;
-  workflowState: string;
-  channel: "email" | "sms" | "push";   // single channel, replaces channels[]
-  recipientRole: string;               // role id from useServiceRoles
-  subject: string;                     // optional/empty for SMS & Push? keep field, hide for SMS
-  message: string;
-  tag: string;
-  tagColor: string;
+useServiceNotifications(serviceId) → {
+  forStateName(stateName: string, type: "NEW"|"RENEWAL"): Notification[]
 }
 ```
 
-Migration: when loading legacy notifications with `channels: [...]`, expand into one record per channel and default `recipientRole` to `"citizen"`.
+Reads both `notifications:<serviceId>:Issuance` and `notifications:<serviceId>:Renewal` from `localStorage`, falls back to `buildDefaultNotifications`, and re-reads on a custom `notifications-updated` event + native `storage` event (mirrors `FORM_UPDATED_EVENT`).
 
-Update `TRADE_NOTIFICATIONS` and `RENEWAL_NOTIFICATIONS` seeds in `tradeLicenseTemplate.ts` / `renewalTemplate.ts` to one-row-per-channel and add `recipientRole`.
+In `PreviewContext.tsx`:
 
-## Create / Edit dialog
+- Replace `emitEvent(triggerId, app, meta)` internals with `dispatchUserNotifications(app, stateName, meta)`. Resolve current state name via `workflowStates.find(s => s.id === app.currentStateId)?.name`.
+- For each matched record:
+  - Resolve `{{applicationNumber}}`, `{{applicantName}}`, `{{businessName}}`, `{{amount}}`, `{{licenseNumber}}`, `{{validTill}}`, etc. — same variable set the matrix already uses (move `resolveTemplate` into a shared `templateEngine` call that accepts a record).
+  - `channel === "push"` → `pushNotification(subject, message, app.id, recipientRole)`.
+  - `channel === "email" | "sms"` → append `SimulatedMessage`; render floating toast only when `recipientRole` resolves to citizen AND active preview role is citizen (preserves current UX).
+- Map custom role ids (anything outside the four built-in preview roles) → leave `recipientRole` undefined, so the bell shows it to all roles. Use `canonicalRoleId` for legacy mappings.
+- Call `dispatchUserNotifications` at every state change: `submitApplication`, `submitRenewal`, `transitionApplication` (after computing `nextState`), `payApplication`, `issueLicense`, `completeRenewal`. Removes the per-trigger emit calls and relies purely on state names.
 
-Single dialog reused for create + edit + duplicate.
+### 3. Workflow Designer parity
 
-Fields:
-1. **Channel** — segmented control (Email / SMS / Push), required, locked when editing existing record.
-2. **Workflow State** — existing select.
-3. **Recipient Role** — select sourced from `useServiceRoles(serviceId)` so custom/renamed roles appear automatically.
-4. **Subject** — shown only for Email.
-5. **Message Body** — textarea with personalization variable chips. SMS shows the `63/160` counter and the telecom-approval info banner from the reference.
-6. **Push** shows a small "delivered to in-app inbox" helper.
+`WorkflowDesigner.tsx` already reads/writes the same `useModuleState("notifications", …)` array, so once seeding is unified, every preview notification automatically appears in the per-state side panel. Keep its inline editor; just add `window.dispatchEvent(new CustomEvent("notifications-updated", { detail: { serviceId } }))` after save/delete so the preview hook live-refreshes.
 
-Footer: Cancel / Save. Validation: channel + state + role + message required (subject required for Email).
+### 4. Manager change events
 
-Duplicate: clones the record with `id = uuid()` and opens the dialog in edit mode.
+In `NotificationsManager.tsx`, dispatch the same `notifications-updated` event after Create / Edit / Duplicate / Delete.
 
-## Propagation
+### 5. Retire the duplicate matrix path
 
-- **Preview** (`PreviewContext` / `NotificationsPanel`): the existing notification matrix already filters by `recipientRole`. Extend the dispatch to also read user-defined notifications from `useModuleState("notifications", …)` so newly created/edited entries fire in preview at the matching workflow state, addressed to the configured role. Push → renders in `NotificationsPanel`; SMS/Email → simulated in `MessagesDrawer` (already supports both).
-- **Workflow Designer**: in each state's side-panel "Notifications" section, list notifications whose `workflowState` matches the state, grouped by channel and role. Read-only chips with a "Manage" link back to the Notifications screen.
-- **Roles changes**: because role list comes from `useServiceRoles`, renames propagate automatically. If a role is deleted, show a "Reassign role" inline picker on affected notification cards (mirrors the existing pattern in WorkflowDesigner).
+`NOTIFICATION_MATRIX` becomes a build-time seed only — exported, imported by `buildDefaultNotifications`, but no longer read at runtime by `PreviewContext`. `templateEngine.resolveTemplate` is generalised to accept either shape.
 
-## Files to touch
+## Files touched
 
-- `src/components/service-config/NotificationsManager.tsx` — full rewrite of UI + dialog + CRUD + channel tabs + role select.
-- `src/data/tradeLicenseTemplate.ts`, `src/data/renewalTemplate.ts` — seed shape: one row per channel, add `recipientRole`.
-- `src/components/service-config/WorkflowDesigner.tsx` — show notifications per state in the side panel.
-- `src/components/preview/PreviewContext.tsx` (and/or `notificationMatrix.ts` consumers) — merge user-defined notifications into the dispatcher so preview reflects changes.
-- Light type updates anywhere `Notification.channels` is referenced.
+- `src/data/tradeLicenseTemplate.ts`, `src/data/renewalTemplate.ts` — extend `TRADE_NOTIFICATIONS` / `RENEWAL_NOTIFICATIONS` seeds with the matrix-derived rows (or compute the union inside `buildDefaultNotifications`).
+- `src/components/service-config/NotificationsManager.tsx` — share `buildDefaultNotifications`, dispatch `notifications-updated`.
+- `src/components/service-config/WorkflowDesigner.tsx` — dispatch `notifications-updated`.
+- `src/lib/useServiceNotifications.ts` *(new)* — shared reader hook.
+- `src/components/preview/PreviewContext.tsx` — replace `emitEvent` with state-name dispatcher; consume the hook.
+- `src/components/preview/notifications/templateEngine.ts` — accept the shared `Notification` shape.
+- `src/components/preview/notifications/notificationMatrix.ts` — keep as the seed source; add `TRIGGER_TO_STATE` map and role-id mapping helpers.
 
 ## Out of scope
 
-- No backend / persistence beyond the existing `useModuleState` localStorage layer.
-- No real Push/SMS/Email delivery — preview simulation only.
+- No backend persistence beyond the existing `localStorage` layer.
+- No UI changes to `NotificationsPanel` or `MessagesDrawer`.
+- No new notification triggers — preview still fires only at real state changes the simulator already performs.
