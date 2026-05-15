@@ -526,8 +526,6 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Header moduleName={moduleName} onBack={onBack} view={view} setView={setView} />
-        <ScopeBar cfg={cfg} scope={scope} categories={categories}
-          activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm">
             <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
