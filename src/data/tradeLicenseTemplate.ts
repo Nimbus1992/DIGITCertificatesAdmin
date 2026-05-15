@@ -358,11 +358,17 @@ export const TRADE_NOTIFICATIONS: TradeNotification[] = [
     "An inspection has been scheduled for {businessName}. Application: {applicationNumber}."),
   mk("n3s", "Inspection Pending", "sms", "citizen", "Inspection Scheduled",
     "Inspection scheduled for application {applicationNumber}."),
+  mk("n3pc", "Inspection Pending", "push", "citizen", "Verification complete",
+    "Your application {applicationNumber} has been verified. Next step: site inspection."),
   mk("n3p", "Inspection Pending", "push", "field_inspector", "Inspection assigned",
     "Application {applicationNumber} ({businessName}) is ready for site visit."),
 
   mk("n4e", "Under Approval", "email", "citizen", "Application Under Approval",
     "Your application {applicationNumber} is under final approval."),
+  mk("n4s", "Under Approval", "sms", "citizen", "Inspection complete",
+    "Inspection completed for {applicationNumber}. Awaiting approver decision."),
+  mk("n4pc", "Under Approval", "push", "citizen", "Inspection complete",
+    "Inspection completed for {applicationNumber}. Awaiting approver decision."),
   mk("n4p", "Under Approval", "push", "approver", "Approval pending",
     "Application {applicationNumber} ({businessName}) is ready for your approval."),
 
@@ -370,24 +376,38 @@ export const TRADE_NOTIFICATIONS: TradeNotification[] = [
     "Hi {applicantName}, please pay the licence fee for application {applicationNumber} to proceed."),
   mk("n5s", "Payment Pending", "sms", "citizen", "Payment Required",
     "Pay licence fee for {applicationNumber} to proceed."),
+  mk("n5p", "Payment Pending", "push", "citizen", "Approved — payment due",
+    "Application {applicationNumber} approved. Pay the licence fee to receive your business license."),
 
   mk("n6e", "Paid", "email", "citizen", "Payment Received",
     "We have received your payment for application {applicationNumber}. Your licence will be issued shortly."),
   mk("n6s", "Paid", "sms", "citizen", "Payment Received",
     "Payment received for {applicationNumber}."),
+  mk("n6pc", "Paid", "push", "citizen", "Payment received",
+    "Payment received for {applicationNumber}. Your license will be issued shortly."),
+  mk("n6pa", "Paid", "push", "approver", "Payment received",
+    "Application {applicationNumber} has been paid — ready to issue license."),
 
   mk("n7e", "License Issued", "email", "citizen", "Business License Issued",
     "Congratulations {applicantName}, the Trade Licence for {businessName} has been issued. You can download it now."),
   mk("n7s", "License Issued", "sms", "citizen", "License Issued",
     "Trade Licence for {businessName} issued."),
+  mk("n7p", "License Issued", "push", "citizen", "License issued",
+    "Business license has been issued for {businessName}. You can download it now."),
 
   mk("n8e", "Sent Back", "email", "citizen", "Action Required on Your Application",
     "Your application {applicationNumber} has been sent back. Please review remarks and resubmit."),
   mk("n8s", "Sent Back", "sms", "citizen", "Action Required",
     "Application {applicationNumber} sent back. Please resubmit."),
+  mk("n8p", "Sent Back", "push", "citizen", "Action required",
+    "Application {applicationNumber} was sent back. Please review remarks and resubmit."),
 
   mk("n9e", "Rejected", "email", "citizen", "Application Rejected",
     "We regret to inform you that your Business License application {applicationNumber} has been rejected."),
+  mk("n9s", "Rejected", "sms", "citizen", "Application Rejected",
+    "Application {applicationNumber} has been rejected."),
+  mk("n9p", "Rejected", "push", "citizen", "Application rejected",
+    "Application {applicationNumber} has been rejected."),
 ];
 
 // ─── Documents (reflects what /lib/*Pdf.ts actually generates) ───────────────

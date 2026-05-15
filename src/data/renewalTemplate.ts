@@ -163,6 +163,8 @@ export const RENEWAL_NOTIFICATIONS: TradeNotification[] = [
     "Congratulations {applicantName}, your Business Licence for {businessName} has been renewed. You can download it now."),
   rmk("rn6s", "License Renewed", "sms", "citizen", "License Renewed",
     "Your licence for {businessName} has been renewed."),
+  rmk("rn6p", "License Renewed", "push", "citizen", "Renewal complete",
+    "License for {businessName} has been renewed."),
 
   rmk("rn7e", "Sent Back", "email", "citizen", "Action Required on Your Renewal",
     "Your renewal application {applicationNumber} has been sent back. Please review remarks and resubmit."),
