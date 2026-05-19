@@ -61,7 +61,8 @@ interface DesignDocument {
     enabled: boolean;
     credentialType: string;
     idMapping: string;
-    includeQR: boolean;
+    includeQR?: boolean;
+    mappedQrElementId?: string | null;
     scanScreenConfig?: ScanScreenConfig;
   };
 }
