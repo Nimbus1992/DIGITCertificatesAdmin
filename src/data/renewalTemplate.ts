@@ -205,12 +205,12 @@ export const RENEWAL_PAYMENT_STAGES: TradePaymentStageSeed[] = [
     id: "pay_renewal", name: "Renewal Payment",
     workflowState: "Payment Pending",
     fees: ["Renewal Fee"],
-    paymentType: "full",
-    methods: { online: true, offline: true, counter: false },
+    methods: { online: true, counter: false },
     gateway: "razorpay",
     generateReceipt: true,
     receiptTemplate: "Renewal Payment Receipt",
   },
+
 ];
 
 // ── Convenience exports ─────────────────────────────────────────────────────
