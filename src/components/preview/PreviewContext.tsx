@@ -584,27 +584,45 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     [combinedWorkflow]
   );
 
+  const ROLE_ID_TO_PREVIEW_MAP: Record<string, PreviewRole> = {
+    citizen: "citizen",
+    document_verifier: "documentVerifier",
+    documentVerifier: "documentVerifier",
+    field_inspector: "fieldInspector",
+    fieldInspector: "fieldInspector",
+    approver: "approver",
+  };
+
   const exposedWorkflowTransitions: WorkflowTransitionConfig[] = useMemo(
     () => combinedWorkflow.transitions.map(t => {
       const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
         ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
-      const previewRoles = ["citizen", "documentVerifier", "fieldInspector", "approver"] as const;
-      const role = (previewRoles as readonly string[]).includes(canonicalRoleId(wfTx.roleId))
-        ? (canonicalRoleId(wfTx.roleId) as PreviewRole)
-        : "any" as const;
-      // Build inline checklist by looking up checklist names from store-bound checklists is overkill
-      // for preview rendering; ChecklistDialog already pulls items from app.checklists state.
+      const canonical = canonicalRoleId(wfTx.roleId);
+      const role: PreviewRole | "any" = ROLE_ID_TO_PREVIEW_MAP[canonical] ?? "any";
+
+      // Resolve transition.checklistIds → flat list of {id,text} items from
+      // the configured checklists store (so edits in ChecklistBuilder appear).
+      const isRenewal = wfStore.renewal.transitions.some(x => x.id === t.id);
+      const modCfg = isRenewal ? cfg.renewal : cfg.issuance;
+      const items: { id: string; text: string }[] = [];
+      (wfTx.checklistIds ?? []).forEach((cid) => {
+        const cl = modCfg.checklists.find((c) => c.id === cid);
+        if (!cl) return;
+        cl.questions.forEach((q) => items.push({ id: `${cid}:${q.id}`, text: q.text }));
+      });
+
       return {
         id: t.id,
         name: t.name,
         fromStateId: t.fromStateId,
         toStateId: t.toStateId,
         role,
-        checklist: [],
+        checklist: items,
       };
     }),
-    [combinedWorkflow, wfStore]
+    [combinedWorkflow, wfStore, cfg]
   );
+
 
   const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
   const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
