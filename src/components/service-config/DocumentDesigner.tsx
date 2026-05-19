@@ -89,19 +89,6 @@ const DOC_TYPE_ICONS: Record<string, React.ElementType> = {
   custom: FileText,
 };
 
-const DYNAMIC_VARS = [
-  { value: "businessName", label: "Business Name" },
-  { value: "licenseNumber", label: "License Number" },
-  { value: "applicantName", label: "Applicant Name" },
-  { value: "approvalDate", label: "Approval Date" },
-  { value: "expiryDate", label: "Expiry Date" },
-  { value: "applicationNumber", label: "Application Number" },
-  { value: "wardNumber", label: "Ward Number" },
-  { value: "businessCategory", label: "Business Category" },
-  { value: "subCategory", label: "Sub Category" },
-  { value: "tradeType", label: "Trade Type (legacy)" },
-  { value: "inspectorName", label: "Inspector Name" },
-];
 
 import { TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_STATE_NAMES, isRenewalModule } from "@/data/renewalTemplate";
