@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
+import { useParams } from "react-router-dom";
 import { usePreview } from "../PreviewContext";
 import EmployeeTopBar from "./EmployeeTopBar";
+import { useServiceRoles } from "@/lib/useServiceRoles";
 import {
   Table,
   TableBody,
@@ -22,19 +24,6 @@ import {
 
 type Bucket = "pending" | "inProgress" | "approved" | "rejected";
 
-const ROLE_PENDING_STATES: Record<string, string[]> = {
-  documentVerifier: ["s1", "s_dv"],
-  fieldInspector: ["s_ip"],
-  approver: ["s3", "s5"],
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  documentVerifier: "Document Verifier",
-  fieldInspector: "Field Inspector",
-  approver: "Approver",
-  citizen: "Citizen",
-};
-
 const mapStateToBucket = (stateId: string): Bucket => {
   if (["s6", "s9"].includes(stateId)) return "approved";
   if (stateId === "s8") return "rejected";
@@ -50,9 +39,17 @@ const BUCKET_META: Record<Bucket, { label: string; dot: string; text: string; bg
 };
 
 const EmployeeHome: React.FC = () => {
-  const { applications, role, serviceName, setScreen } = usePreview();
+  const { applications, activeRoleId, serviceName, setScreen, workflowTransitions } = usePreview();
+  const [serviceRoles] = useServiceRoles(useParams().id ?? "service");
 
-  const pendingStates = ROLE_PENDING_STATES[role] ?? [];
+  // Pending states = states with an outgoing transition assigned to the active role.
+  const pendingStates = useMemo(() => {
+    const set = new Set<string>();
+    workflowTransitions.forEach((t) => {
+      if (t.roleId === activeRoleId) set.add(t.fromStateId);
+    });
+    return Array.from(set);
+  }, [workflowTransitions, activeRoleId]);
 
   const stats = useMemo(() => {
     const total = applications.length;
@@ -60,8 +57,9 @@ const EmployeeHome: React.FC = () => {
     const approved = applications.filter((a) => ["s6", "s9"].includes(a.currentStateId)).length;
     const rejected = applications.filter((a) => a.currentStateId === "s8").length;
     return { total, pending, approved, rejected };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applications, role]);
+  }, [applications, pendingStates]);
+
+  const activeRoleName = serviceRoles.find((r) => r.id === activeRoleId)?.name ?? "Employee";
 
   const recentRows = useMemo(() => {
     return [...applications]
