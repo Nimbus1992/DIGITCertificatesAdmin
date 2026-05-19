@@ -841,14 +841,26 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
           { state: targetState.name, actor, note: transition.name, at: Date.now() },
         ],
       };
-      // Auto-generate demand when transitioning into Payment Pending (any "Approve"-like action)
-      if (targetState.name === "Payment Pending") {
+      // Auto-generate demand from the configured payment stage that maps to
+      // the entered state, computing line items from configured fees. Falls
+      // back to the legacy hard-coded amount only if Payment Pending is hit
+      // without any configured stage (so demos never break silently).
+      const modCfg = cfgRef.current.forType(a.type);
+      const stage = findPaymentStageForState(targetState.name, modCfg.paymentStages);
+      if (stage) {
+        const computed = computeDemandForStage(stage, modCfg.fees, a.formData);
+        if (computed && computed.total > 0) {
+          updated.demand = { ...computed, generatedAt: Date.now() };
+          updated.paymentStatus = "pending";
+        }
+      } else if (targetState.name === "Payment Pending") {
         updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
         updated.paymentStatus = "pending";
       }
       updatedApp = updated;
       return updated;
     }));
+
 
     if (!updatedApp) return;
     const meta = { actionBy: ROLE_LABEL[role] };
