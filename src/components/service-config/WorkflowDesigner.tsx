@@ -179,6 +179,19 @@ const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
 
 };
 
+// Auto-attached documents per state — IDs mirror DocumentDesigner template seeds.
+const ISSUANCE_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":          ["doc-2", "doc-3"], // Application PDF, Acknowledgement
+  "Inspection Pending": ["doc-4"],          // Inspection Report
+  "Paid":               ["doc-5"],          // Payment Receipt
+  "License Issued":     ["doc-1"],          // License Certificate
+};
+const RENEWAL_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":       ["rdoc-2", "rdoc-3"], // Renewal Application PDF, Acknowledgement
+  "Paid":            ["rdoc-4"],            // Renewal Payment Receipt
+  "License Renewed": ["rdoc-1"],            // Renewed License Certificate
+};
+
 const buildSeedStates = (
   moduleName: string,
   notifications: SrcNotification[],
@@ -187,6 +200,7 @@ const buildSeedStates = (
   const renewal = isRenewalModule(moduleName);
   const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
   const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
+  const docMap = renewal ? RENEWAL_DOC_BY_STATE : ISSUANCE_DOC_BY_STATE;
   return states.map((s) => {
     const pos = layout[s.id] ?? { x: 60, y: 100 };
     const notificationIds = notifications.filter(n => n.workflowState === s.name).map(n => n.id);
@@ -200,8 +214,17 @@ const buildSeedStates = (
       y: pos.y,
       paymentStageId: stage?.id ?? null,
       notificationIds,
+      attachedDocumentIds: docMap[s.name] ?? [],
     };
   });
+};
+
+// Map legacy camelCase role keys in template seeds to canonical role IDs.
+const SEED_ROLE_MAP: Record<string, RoleId> = {
+  citizen:          "citizen",
+  documentVerifier: "document_verifier",
+  fieldInspector:   "field_inspector",
+  approver:         "approver",
 };
 
 const buildSeedTransitions = (
@@ -221,7 +244,7 @@ const buildSeedTransitions = (
       name: t.name,
       fromStateId: t.fromStateId,
       toStateId: t.toStateId,
-      roleId: (t.role as RoleId) ?? "approver",
+      roleId: SEED_ROLE_MAP[t.role as string] ?? "approver",
       checklistIds: matchedChecklists,
       conditionsEnabled: false,
     };
