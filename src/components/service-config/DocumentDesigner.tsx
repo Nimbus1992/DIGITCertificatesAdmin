@@ -448,6 +448,28 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [imageUploadTarget, setImageUploadTarget] = useState<string | null>(null); // element id or null for new
   const [showVCDesigner, setShowVCDesigner] = useState(false);
+  const [syncConfirmDocId, setSyncConfirmDocId] = useState<string | null>(null);
+
+  // Live form schema → variable catalog
+  const [formSteps, setFormSteps] = useState<WizardStep[]>(() =>
+    loadFormSteps(serviceId, "Issuance"),
+  );
+  useEffect(() => {
+    const refresh = () => setFormSteps(loadFormSteps(serviceId, "Issuance"));
+    refresh();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || (detail.serviceId === serviceId && detail.moduleName === "Issuance")) refresh();
+    };
+    window.addEventListener(FORM_UPDATED_EVENT, handler);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(FORM_UPDATED_EVENT, handler);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [serviceId]);
+  const varCatalog = useMemo(() => buildVarCatalog(formSteps), [formSteps]);
+  const firstFieldValue = varCatalog[0]?.options[0]?.value ?? "applicationNumber";
 
   // Undo/Redo
   const [history, setHistory] = useState<DesignDocument[][]>([]);
@@ -457,6 +479,25 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const activeDoc = documents.find((d) => d.id === activeDocId)!;
   const selectedElement = selectedElementId ? activeDoc.elements.find((e) => e.id === selectedElementId) : null;
   const qrElements = activeDoc?.elements.filter((e) => e.type === "qrcode") ?? [];
+
+  // Auto-seed Application PDF once from the live form
+  useEffect(() => {
+    const pending = documents.find(
+      (d) => d.type === "application_pdf" && !d.syncedFromForm,
+    );
+    if (!pending) return;
+    if (formSteps.length === 0) return;
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === pending.id
+          ? { ...d, elements: buildApplicationPdfElements(formSteps, d.name), syncedFromForm: true }
+          : d,
+      ),
+    );
+    // run once per service+module on first load with form data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formSteps]);
+
 
   // Auto-disable VC / clear mapped QR if the underlying QR elements are gone
   useEffect(() => {
