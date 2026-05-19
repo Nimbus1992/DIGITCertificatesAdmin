@@ -1157,19 +1157,44 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     </div>
 
                     {/* Dynamic field mapping */}
-                    {selectedElement.type === "dynamic" && (
-                      <div className="space-y-2 mb-4">
-                        <Label className="text-xs">Source Mapping</Label>
-                        <Select value={selectedElement.sourceMapping || ""} onValueChange={(v) => { updateElement(selectedElement.id, { sourceMapping: v, content: `{${v}}` }); }}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {DYNAMIC_VARS.map((v) => (
-                              <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                    {selectedElement.type === "dynamic" && (() => {
+                      const currentVal = selectedElement.sourceMapping || "";
+                      const knownLabel = findVarLabel(varCatalog, currentVal);
+                      const isStale = currentVal && !knownLabel;
+                      return (
+                        <div className="space-y-2 mb-4">
+                          <Label className="text-xs">Source Mapping</Label>
+                          <Select
+                            value={currentVal}
+                            onValueChange={(v) => { updateElement(selectedElement.id, { sourceMapping: v, content: `{${v}}` }); }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select a form field" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {isStale && (
+                                <SelectGroup>
+                                  <SelectLabel className="text-[10px] uppercase tracking-wider text-destructive">Removed</SelectLabel>
+                                  <SelectItem value={currentVal}>(removed) {currentVal}</SelectItem>
+                                </SelectGroup>
+                              )}
+                              {varCatalog.map((g) => (
+                                <SelectGroup key={g.group}>
+                                  <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.group}</SelectLabel>
+                                  {g.options.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isStale && (
+                            <p className="text-[10px] text-destructive">This field is no longer in the form. Pick a new one.</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
 
                     {/* Text / Dynamic styling */}
                     {(selectedElement.type === "text" || selectedElement.type === "dynamic") && (
