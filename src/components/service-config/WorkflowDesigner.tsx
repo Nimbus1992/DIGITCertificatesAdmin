@@ -179,6 +179,19 @@ const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
 
 };
 
+// Auto-attached documents per state — IDs mirror DocumentDesigner template seeds.
+const ISSUANCE_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":          ["doc-2", "doc-3"], // Application PDF, Acknowledgement
+  "Inspection Pending": ["doc-4"],          // Inspection Report
+  "Paid":               ["doc-5"],          // Payment Receipt
+  "License Issued":     ["doc-1"],          // License Certificate
+};
+const RENEWAL_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":       ["rdoc-2", "rdoc-3"], // Renewal Application PDF, Acknowledgement
+  "Paid":            ["rdoc-4"],            // Renewal Payment Receipt
+  "License Renewed": ["rdoc-1"],            // Renewed License Certificate
+};
+
 const buildSeedStates = (
   moduleName: string,
   notifications: SrcNotification[],
@@ -187,6 +200,7 @@ const buildSeedStates = (
   const renewal = isRenewalModule(moduleName);
   const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
   const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
+  const docMap = renewal ? RENEWAL_DOC_BY_STATE : ISSUANCE_DOC_BY_STATE;
   return states.map((s) => {
     const pos = layout[s.id] ?? { x: 60, y: 100 };
     const notificationIds = notifications.filter(n => n.workflowState === s.name).map(n => n.id);
@@ -200,8 +214,17 @@ const buildSeedStates = (
       y: pos.y,
       paymentStageId: stage?.id ?? null,
       notificationIds,
+      attachedDocumentIds: docMap[s.name] ?? [],
     };
   });
+};
+
+// Map legacy camelCase role keys in template seeds to canonical role IDs.
+const SEED_ROLE_MAP: Record<string, RoleId> = {
+  citizen:          "citizen",
+  documentVerifier: "document_verifier",
+  fieldInspector:   "field_inspector",
+  approver:         "approver",
 };
 
 const buildSeedTransitions = (
@@ -221,7 +244,7 @@ const buildSeedTransitions = (
       name: t.name,
       fromStateId: t.fromStateId,
       toStateId: t.toStateId,
-      roleId: (t.role as RoleId) ?? "approver",
+      roleId: SEED_ROLE_MAP[t.role as string] ?? "approver",
       checklistIds: matchedChecklists,
       conditionsEnabled: false,
     };
@@ -267,11 +290,11 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   );
 
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states-v3", serviceId, storageSuffix,
+    "workflow-states-v4", serviceId, storageSuffix,
     () => buildSeedStates(moduleName, buildSeedNotifications(moduleName), buildSeedPaymentStages(moduleName)),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions-v3", serviceId, storageSuffix,
+    "workflow-transitions-v4", serviceId, storageSuffix,
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
@@ -1090,47 +1113,64 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       </Select>
                     </div>
 
-                    {/* Checklist picker */}
+                    {/* Checklist picker (dropdown) */}
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Checklists to complete</Label>
-                      {checklists.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic">No checklists configured yet.</p>
-                      ) : (
-                        <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-md border p-2">
-                          {checklists.map(c => {
-                            const attached = selectedTransition.checklistIds.includes(c.id);
-                            return (
-                              <div key={c.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/40">
-                                <Checkbox
-                                  checked={attached}
-                                  onCheckedChange={() => {
-                                    const next = attached
-                                      ? selectedTransition.checklistIds.filter(id => id !== c.id)
-                                      : [...selectedTransition.checklistIds, c.id];
-                                    updateTransition(selectedTransition.id, { checklistIds: next });
-                                  }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="text-xs font-medium text-foreground truncate">{c.name || "(untitled)"}</p>
-                                    <button onClick={() => setEditingChecklist({
-                                      ...c, questions: c.questions.map(q => ({ ...q, options: q.options ? [...q.options] : undefined })),
-                                    })} className="text-muted-foreground hover:text-foreground" title="Edit">
-                                      <Pencil className="h-3 w-3" />
-                                    </button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+                            <span className="truncate">
+                              {selectedTransition.checklistIds.length === 0
+                                ? "None attached"
+                                : `${selectedTransition.checklistIds.length} attached`}
+                            </span>
+                            <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[320px] p-0" align="start">
+                          {checklists.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic p-3">No checklists configured yet.</p>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto p-1">
+                              {checklists.map(c => {
+                                const attached = selectedTransition.checklistIds.includes(c.id);
+                                return (
+                                  <div key={c.id} className="flex items-start gap-2 p-2 rounded hover:bg-muted/50">
+                                    <Checkbox
+                                      checked={attached}
+                                      onCheckedChange={() => {
+                                        const next = attached
+                                          ? selectedTransition.checklistIds.filter(id => id !== c.id)
+                                          : [...selectedTransition.checklistIds, c.id];
+                                        updateTransition(selectedTransition.id, { checklistIds: next });
+                                      }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs font-medium text-foreground truncate">{c.name || "(untitled)"}</p>
+                                        <button onClick={() => setEditingChecklist({
+                                          ...c, questions: c.questions.map(q => ({ ...q, options: q.options ? [...q.options] : undefined })),
+                                        })} className="text-muted-foreground hover:text-foreground shrink-0" title="Edit">
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {c.workflowState ? `${c.workflowState} · ` : ""}{c.questions.length} question{c.questions.length === 1 ? "" : "s"}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <p className="text-[10px] text-muted-foreground">{c.questions.length} question{c.questions.length === 1 ? "" : "s"}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                                );
+                              })}
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                       <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
                         onClick={() => createChecklistFor(selectedTransition.id)}>
                         <Plus className="h-3 w-3" /> New checklist
                       </Button>
                     </div>
+
 
                     <div className="border-t pt-4 space-y-2">
                       <div className="flex items-center justify-between">

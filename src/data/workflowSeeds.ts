@@ -27,6 +27,7 @@ export interface WorkflowStateRecord {
   y: number;
   paymentStageId: string | null;
   notificationIds: string[];
+  attachedDocumentIds?: string[];
 }
 
 export interface WorkflowTransitionRecord {
@@ -51,12 +52,34 @@ export const ISSUANCE_STATE_LAYOUT: Record<string, { x: number; y: number }> = {
   s8:   { x: 840,  y: 320 },
 };
 
+// Auto-attached documents per state — IDs mirror DocumentDesigner template seeds.
+const ISSUANCE_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":          ["doc-2", "doc-3"],
+  "Inspection Pending": ["doc-4"],
+  "Paid":               ["doc-5"],
+  "License Issued":     ["doc-1"],
+};
+const RENEWAL_DOC_BY_STATE: Record<string, string[]> = {
+  "Submitted":       ["rdoc-2", "rdoc-3"],
+  "Paid":            ["rdoc-4"],
+  "License Renewed": ["rdoc-1"],
+};
+
+// Map legacy camelCase role keys used in template seeds to canonical role IDs.
+const SEED_ROLE_MAP: Record<string, WorkflowRoleId> = {
+  citizen:          "citizen",
+  documentVerifier: "document_verifier",
+  fieldInspector:   "field_inspector",
+  approver:         "approver",
+};
+
 export const buildSeedStates = (moduleName: string): WorkflowStateRecord[] => {
   const renewal = isRenewalModule(moduleName);
   const states = renewal ? RENEWAL_WORKFLOW_STATES : TRADE_WORKFLOW_STATES;
   const layout = renewal ? RENEWAL_STATE_LAYOUT : ISSUANCE_STATE_LAYOUT;
   const notifications = renewal ? RENEWAL_NOTIFICATIONS : TRADE_NOTIFICATIONS;
   const stages = renewal ? RENEWAL_PAYMENT_STAGES : TRADE_PAYMENT_STAGES;
+  const docMap = renewal ? RENEWAL_DOC_BY_STATE : ISSUANCE_DOC_BY_STATE;
 
   return states.map((s) => {
     const pos = layout[s.id] ?? { x: 60, y: 100 };
@@ -71,6 +94,7 @@ export const buildSeedStates = (moduleName: string): WorkflowStateRecord[] => {
       y: pos.y,
       paymentStageId: stage?.id ?? null,
       notificationIds,
+      attachedDocumentIds: docMap[s.name] ?? [],
     };
   });
 };
@@ -91,7 +115,7 @@ export const buildSeedTransitions = (moduleName: string): WorkflowTransitionReco
       name: t.name,
       fromStateId: t.fromStateId,
       toStateId: t.toStateId,
-      roleId: (t.role as WorkflowRoleId) ?? "approver",
+      roleId: SEED_ROLE_MAP[t.role as string] ?? "approver",
       checklistIds: matchedChecklists,
       conditionsEnabled: false,
     };

@@ -24,9 +24,9 @@ const readArr = <T,>(key: string): T[] | null => {
 };
 
 const readModule = (serviceId: string, moduleName: string): ModuleWorkflow => {
-  const states = readArr<WorkflowStateRecord>(`workflow-states-v3:${serviceId}:${moduleName}`)
+  const states = readArr<WorkflowStateRecord>(`workflow-states-v4:${serviceId}:${moduleName}`)
     ?? buildSeedStates(moduleName);
-  const transitions = readArr<WorkflowTransitionRecord>(`workflow-transitions-v3:${serviceId}:${moduleName}`)
+  const transitions = readArr<WorkflowTransitionRecord>(`workflow-transitions-v4:${serviceId}:${moduleName}`)
     ?? buildSeedTransitions(moduleName);
   return { states, transitions };
 };
@@ -51,8 +51,8 @@ export function useServiceWorkflow(serviceId: string) {
     };
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
-      if (e.key.startsWith(`workflow-states-v3:${serviceId}:`)
-        || e.key.startsWith(`workflow-transitions-v3:${serviceId}:`)) reload();
+      if (e.key.startsWith(`workflow-states-v4:${serviceId}:`)
+        || e.key.startsWith(`workflow-transitions-v4:${serviceId}:`)) reload();
     };
     window.addEventListener(WORKFLOW_UPDATED_EVENT, onCustom as EventListener);
     window.addEventListener("storage", onStorage);
