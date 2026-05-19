@@ -220,8 +220,8 @@ interface PreviewContextValue {
   userDocuments: UserDocument[];
   addUserDocument: (name: string, type: string) => string;
   removeUserDocument: (id: string) => void;
-  submitApplication: (formData: Record<string, string>, documents: PreviewDocument[]) => string;
-  submitRenewal: (parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => string;
+  submitApplication: (formData: Record<string, string>, documents: PreviewDocument[]) => { id: string; paymentPending: boolean };
+  submitRenewal: (parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => { id: string; paymentPending: boolean };
   transitionApplication: (appId: string, transitionId: string) => void;
   payApplication: (appId: string) => void;
   issueLicense: (appId: string) => void;
