@@ -10,6 +10,7 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { useServiceNotifications, type SharedNotification } from "@/lib/useServiceNotifications";
 import { useServiceWorkflow } from "@/lib/useServiceWorkflow";
 import { canonicalRoleId } from "@/lib/useServiceRoles";
+import { usePreviewConfig, computeDemandForStage, findPaymentStageForState } from "@/lib/usePreviewConfig";
 
 // ─── Types ───────────────────────────────────────────────
 export type PreviewRole = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
@@ -542,6 +543,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   const wfStore = useServiceWorkflow(routeServiceId);
   const wfFor = useCallback((type: ApplicationType) => wfStore.forType(type), [wfStore]);
 
+  // ── Unified configurator subscription (roles/checklists/documents/fees/payments) ──
+  const cfg = usePreviewConfig(routeServiceId);
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
+
+
   /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
   const resolveStateId = useCallback(
     (type: ApplicationType, name: string, fallbackId: string): string => {
@@ -577,30 +584,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     [combinedWorkflow]
   );
 
-  const exposedWorkflowTransitions: WorkflowTransitionConfig[] = useMemo(
-    () => combinedWorkflow.transitions.map(t => {
-      const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
-        ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
-      const previewRoles = ["citizen", "documentVerifier", "fieldInspector", "approver"] as const;
-      const role = (previewRoles as readonly string[]).includes(canonicalRoleId(wfTx.roleId))
-        ? (canonicalRoleId(wfTx.roleId) as PreviewRole)
-        : "any" as const;
-      // Build inline checklist by looking up checklist names from store-bound checklists is overkill
-      // for preview rendering; ChecklistDialog already pulls items from app.checklists state.
-      return {
-        id: t.id,
-        name: t.name,
-        fromStateId: t.fromStateId,
-        toStateId: t.toStateId,
-        role,
-        checklist: [],
-      };
-    }),
-    [combinedWorkflow, wfStore]
-  );
-
-  const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
-  const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
+  const ROLE_ID_TO_PREVIEW_MAP: Record<string, PreviewRole> = {
     citizen: "citizen",
     document_verifier: "documentVerifier",
     documentVerifier: "documentVerifier",
@@ -608,6 +592,41 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     fieldInspector: "fieldInspector",
     approver: "approver",
   };
+
+  const exposedWorkflowTransitions: WorkflowTransitionConfig[] = useMemo(
+    () => combinedWorkflow.transitions.map(t => {
+      const wfTx = (wfStore.issuance.transitions.find(x => x.id === t.id)
+        ?? wfStore.renewal.transitions.find(x => x.id === t.id))!;
+      const canonical = canonicalRoleId(wfTx.roleId);
+      const role: PreviewRole | "any" = ROLE_ID_TO_PREVIEW_MAP[canonical] ?? "any";
+
+      // Resolve transition.checklistIds → flat list of {id,text} items from
+      // the configured checklists store (so edits in ChecklistBuilder appear).
+      const isRenewal = wfStore.renewal.transitions.some(x => x.id === t.id);
+      const modCfg = isRenewal ? cfg.renewal : cfg.issuance;
+      const items: { id: string; text: string }[] = [];
+      (wfTx.checklistIds ?? []).forEach((cid) => {
+        const cl = modCfg.checklists.find((c) => c.id === cid);
+        if (!cl) return;
+        cl.questions.forEach((q) => items.push({ id: `${cid}:${q.id}`, text: q.text }));
+      });
+
+      return {
+        id: t.id,
+        name: t.name,
+        fromStateId: t.fromStateId,
+        toStateId: t.toStateId,
+        role,
+        checklist: items,
+      };
+    }),
+    [combinedWorkflow, wfStore, cfg]
+  );
+
+
+  const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
+  const ROLE_ID_TO_PREVIEW = ROLE_ID_TO_PREVIEW_MAP;
+
 
   const fmtDateLocal = (ms: number) =>
     new Date(ms).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -822,14 +841,26 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
           { state: targetState.name, actor, note: transition.name, at: Date.now() },
         ],
       };
-      // Auto-generate demand when transitioning into Payment Pending (any "Approve"-like action)
-      if (targetState.name === "Payment Pending") {
+      // Auto-generate demand from the configured payment stage that maps to
+      // the entered state, computing line items from configured fees. Falls
+      // back to the legacy hard-coded amount only if Payment Pending is hit
+      // without any configured stage (so demos never break silently).
+      const modCfg = cfgRef.current.forType(a.type);
+      const stage = findPaymentStageForState(targetState.name, modCfg.paymentStages);
+      if (stage) {
+        const computed = computeDemandForStage(stage, modCfg.fees, a.formData);
+        if (computed && computed.total > 0) {
+          updated.demand = { ...computed, generatedAt: Date.now() };
+          updated.paymentStatus = "pending";
+        }
+      } else if (targetState.name === "Payment Pending") {
         updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
         updated.paymentStatus = "pending";
       }
       updatedApp = updated;
       return updated;
     }));
+
 
     if (!updatedApp) return;
     const meta = { actionBy: ROLE_LABEL[role] };

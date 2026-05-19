@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -16,16 +16,24 @@ interface Props {
 }
 
 const ChecklistDialog: React.FC<Props> = ({ open, onOpenChange, transition, applicationId }) => {
-  const { applications, toggleChecklist, transitionApplication } = usePreview();
+  const { applications, transitionApplication } = usePreview();
   const app = applications.find((a) => a.id === applicationId);
 
-  const items = useMemo(() => {
-    if (!transition || !app) return [];
-    return transition.checklist.map((c) => ({
-      ...c,
-      checked: app.checklists[app.currentStateId]?.find((i) => i.id === c.id)?.checked || false,
-    }));
-  }, [transition, app]);
+  // Pull configured checklist items off the transition (resolved live in
+  // PreviewContext from the ChecklistBuilder store).
+  const sourceItems = transition?.checklist ?? [];
+
+  // Local ephemeral check state — items are reset every time the dialog opens
+  // for a new transition. Avoids stale ticks across multiple actions.
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (open) setChecked({});
+  }, [open, transition?.id]);
+
+  const items = useMemo(
+    () => sourceItems.map((c) => ({ ...c, checked: !!checked[c.id] })),
+    [sourceItems, checked],
+  );
 
   if (!transition || !app) return null;
 
@@ -33,6 +41,8 @@ const ChecklistDialog: React.FC<Props> = ({ open, onOpenChange, transition, appl
   const total = items.length;
   const allDone = total === 0 || done === total;
   const progress = total === 0 ? 100 : (done / total) * 100;
+
+  const toggle = (id: string) => setChecked((p) => ({ ...p, [id]: !p[id] }));
 
   const handleConfirm = () => {
     transitionApplication(app.id, transition.id);
@@ -79,7 +89,7 @@ const ChecklistDialog: React.FC<Props> = ({ open, onOpenChange, transition, appl
               >
                 <Checkbox
                   checked={item.checked}
-                  onCheckedChange={() => toggleChecklist(app.id, app.currentStateId, item.id)}
+                  onCheckedChange={() => toggle(item.id)}
                   className={item.checked ? "border-emerald-600 data-[state=checked]:bg-emerald-600" : ""}
                 />
                 <span className={`text-sm ${item.checked ? "text-emerald-800 line-through" : "text-foreground"}`}>
