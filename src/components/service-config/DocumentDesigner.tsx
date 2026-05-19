@@ -1419,6 +1419,23 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={!!syncConfirmDocId} onOpenChange={(o) => !o && setSyncConfirmDocId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sync Application PDF with form?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This replaces the current Application PDF layout with one row per form field. Any custom edits to this document will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (syncConfirmDocId) { syncApplicationPdf(syncConfirmDocId); setSyncConfirmDocId(null); } }}>
+              Sync now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ImageUploadDialog
         open={showImageUpload}
         onOpenChange={setShowImageUpload}
