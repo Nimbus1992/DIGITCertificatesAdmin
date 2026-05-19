@@ -52,6 +52,28 @@ const RoleAccessSetup: React.FC<{ onComplete: () => void; onBack: () => void }> 
     });
   });
 
+  // Reconcile if roles are added/removed/renamed while this step is mounted.
+  React.useEffect(() => {
+    setConfigs((prev) => {
+      const next = roles.map((r) => {
+        const existing = prev.find((c) => c.roleId === r.id);
+        if (existing) return { ...existing, roleName: r.name };
+        const accessType: AccessType = isCitizenRole(r) ? "self_registration" : "pre_registered";
+        return {
+          roleId: r.id,
+          roleName: r.name,
+          accessType,
+          authMethod: accessType === "self_registration" ? "mobile_otp" : "email_password",
+          users: accessType === "pre_registered" ? [newUser()] : [],
+        } as RoleAccessConfig;
+      });
+      const same =
+        next.length === prev.length &&
+        next.every((n, i) => prev[i]?.roleId === n.roleId && prev[i]?.roleName === n.roleName);
+      return same ? prev : next;
+    });
+  }, [roles]);
+
   const [openRoleId, setOpenRoleId] = useState<string>(roles[0]?.id ?? "");
 
   const updateConfig = (roleId: string, updater: (c: RoleAccessConfig) => RoleAccessConfig) => {
