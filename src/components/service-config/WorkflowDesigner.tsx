@@ -44,6 +44,7 @@ interface WorkflowState {
   y: number;
   paymentStageId: string | null;
   notificationIds: string[];
+  attachedDocumentIds?: string[];
 }
 
 interface WorkflowTransition {
