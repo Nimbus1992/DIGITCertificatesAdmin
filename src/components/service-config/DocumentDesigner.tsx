@@ -1117,17 +1117,6 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               <Label>Document Name</Label>
               <Input value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Payment Receipt" className="mt-1" />
             </div>
-            <div>
-              <Label>Document Type</Label>
-              <Select value={newDocType} onValueChange={setNewDocType}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
