@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -20,7 +20,7 @@ import {
   ArrowLeft, Plus, Save, Rocket, Type, Variable, Image, Table, QrCode, PenTool,
   Trash2, Copy, Edit3, FileText, FileBadge, FileCheck, ClipboardList, Info,
   AlignLeft, AlignCenter, AlignRight, Bold, Upload, ChevronUp, ChevronDown,
-  Undo2, Redo2, Layers, Move, Eye,
+  Undo2, Redo2, Layers, Move, Eye, RefreshCw,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import DraggableElement from "./document/DraggableElement";
@@ -28,6 +28,8 @@ import InlineTextEditor from "./document/InlineTextEditor";
 import ImageUploadDialog, { InlineImageUpload } from "./document/ImageUploadDialog";
 import SignatureDialog from "./document/SignatureDialog";
 import VCScreenDesigner, { type ScanScreenConfig, defaultScanScreenConfig } from "./document/VCScreenDesigner";
+import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
+import type { WizardStep } from "@/data/wizardForm";
 
 // ── Types ──────────────────────────────────────────────
 
