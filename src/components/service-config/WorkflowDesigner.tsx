@@ -921,49 +921,113 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     </Button>
                   </div>
 
-                  {/* Notifications picker */}
+                  {/* Notifications picker (dropdown) */}
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notifications on entry</Label>
-                    {notifications.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No notifications configured yet.</p>
-                    ) : (
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-md border p-2">
-                        {notifications.map(n => {
-                          const attached = selectedState.notificationIds.includes(n.id);
-                          return (
-                            <div key={n.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/40">
-                              <Checkbox
-                                checked={attached}
-                                onCheckedChange={() => {
-                                  const next = attached
-                                    ? selectedState.notificationIds.filter(id => id !== n.id)
-                                    : [...selectedState.notificationIds, n.id];
-                                  updateState(selectedState.id, { notificationIds: next });
-                                }}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-xs font-medium text-foreground truncate">{n.subject || "(untitled)"}</p>
-                                  <button onClick={() => setEditingNotif({ ...n })}
-                                    className="text-muted-foreground hover:text-foreground" title="Edit">
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+                          <span className="truncate">
+                            {selectedState.notificationIds.length === 0
+                              ? "None attached"
+                              : `${selectedState.notificationIds.length} attached`}
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[320px] p-0" align="start">
+                        {notifications.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic p-3">No notifications configured yet.</p>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto p-1">
+                            {notifications.map(n => {
+                              const attached = selectedState.notificationIds.includes(n.id);
+                              return (
+                                <div key={n.id} className="flex items-start gap-2 p-2 rounded hover:bg-muted/50">
+                                  <Checkbox
+                                    checked={attached}
+                                    onCheckedChange={() => {
+                                      const next = attached
+                                        ? selectedState.notificationIds.filter(id => id !== n.id)
+                                        : [...selectedState.notificationIds, n.id];
+                                      updateState(selectedState.id, { notificationIds: next });
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-xs font-medium text-foreground truncate">{n.subject || n.message?.slice(0, 40) || "(untitled)"}</p>
+                                      <button onClick={() => setEditingNotif({ ...n })}
+                                        className="text-muted-foreground hover:text-foreground shrink-0" title="Edit">
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                    <div className="flex gap-1.5 mt-0.5">
+                                      <span className="text-[9px] uppercase text-muted-foreground">{n.channel}</span>
+                                      <span className="text-[9px] uppercase text-muted-foreground">· {roleName(n.recipientRole)}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex gap-1.5 mt-0.5">
-                                  <span className="text-[9px] uppercase text-muted-foreground">{n.channel}</span>
-                                  <span className="text-[9px] uppercase text-muted-foreground">· {n.recipientRole}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                              );
+                            })}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
                       onClick={() => createNotificationFor(selectedState.id)}>
                       <Plus className="h-3 w-3" /> New notification
                     </Button>
                   </div>
+
+                  {/* Attached documents (dropdown) */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attached documents</Label>
+                    {(() => {
+                      const attachedIds = (selectedState.attachedDocumentIds ?? []).filter(id => configuredDocs.some(d => d.id === id));
+                      const attachedNames = attachedIds.map(id => configuredDocs.find(d => d.id === id)?.name).filter(Boolean) as string[];
+                      return (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+                              <span className="truncate text-left">
+                                {attachedNames.length === 0 ? "None attached" : attachedNames.join(", ")}
+                              </span>
+                              <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0" align="start">
+                            {configuredDocs.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic p-3">
+                                No documents configured yet — add them in Document Designer.
+                              </p>
+                            ) : (
+                              <div className="max-h-64 overflow-y-auto p-1">
+                                {configuredDocs.map(d => {
+                                  const checked = attachedIds.includes(d.id);
+                                  return (
+                                    <label key={d.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={() => {
+                                          const next = checked
+                                            ? attachedIds.filter(id => id !== d.id)
+                                            : [...attachedIds, d.id];
+                                          updateState(selectedState.id, { attachedDocumentIds: next });
+                                        }}
+                                      />
+                                      <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="text-xs text-foreground truncate">{d.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })()}
+                  </div>
+
 
                   <div className="border-t pt-3">
                     <Button variant="outline" size="sm" className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
