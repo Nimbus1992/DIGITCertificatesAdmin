@@ -1205,6 +1205,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       <NotificationEditDialog
         value={editingNotif}
         workflowStates={WORKFLOW_STATE_NAMES}
+        roles={ROLE_OPTIONS}
         moduleName={moduleName}
         onClose={() => setEditingNotif(null)}
         onSave={(n) => {
