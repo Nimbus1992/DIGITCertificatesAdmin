@@ -779,8 +779,18 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setUserDocuments(prev => prev.filter(d => d.id !== id));
   }, []);
 
+  const computeInitialDemand = useCallback((type: ApplicationType, stateName: string, formData: Record<string, string>) => {
+    const modCfg = cfgRef.current.forType(type);
+    const stage = findPaymentStageForState(stateName, modCfg.paymentStages);
+    if (!stage) return null;
+    const computed = computeDemandForStage(stage, modCfg.fees, formData);
+    if (!computed || computed.total <= 0) return null;
+    return { ...computed, generatedAt: Date.now() };
+  }, []);
+
   const submitApplication = useCallback((formData: Record<string, string>, documents: PreviewDocument[]) => {
     const appNumber = buildAppNumber("TL");
+    const demand = computeInitialDemand("NEW", "Submitted", formData);
     const app: PreviewApplication = {
       id: crypto.randomUUID(),
       applicationNumber: appNumber,
@@ -790,8 +800,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       formData,
       documents,
       checklists: {},
-      demand: null,
-      paymentStatus: null,
+      demand,
+      paymentStatus: demand ? "pending" : null,
       paymentDetails: null,
       timeline: [{ state: "Submitted", actor: "Citizen", note: "Application created", at: Date.now() }],
       license: null,
@@ -799,11 +809,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     };
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
-    return app.id;
-  }, [serviceName, dispatchByState, startStateId]);
+    return { id: app.id, paymentPending: !!demand };
+  }, [serviceName, dispatchByState, startStateId, computeInitialDemand]);
 
   const submitRenewal = useCallback((parentAppId: string, formData: Record<string, string>, documents: PreviewDocument[]) => {
     const appNumber = buildAppNumber("TL-RNW");
+    const demand = computeInitialDemand("RENEWAL", "Submitted", formData);
     const app: PreviewApplication = {
       id: crypto.randomUUID(),
       applicationNumber: appNumber,
@@ -814,8 +825,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       formData,
       documents,
       checklists: {},
-      demand: null,
-      paymentStatus: null,
+      demand,
+      paymentStatus: demand ? "pending" : null,
       paymentDetails: null,
       timeline: [{ state: "Submitted", actor: "Citizen", note: "Renewal request created", at: Date.now() }],
       license: null,
@@ -823,8 +834,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     };
     setApplications(prev => [app, ...prev]);
     dispatchByState(app, "Submitted");
-    return app.id;
-  }, [serviceName, dispatchByState, startStateId]);
+    return { id: app.id, paymentPending: !!demand };
+  }, [serviceName, dispatchByState, startStateId, computeInitialDemand]);
 
   const transitionApplication = useCallback((appId: string, transitionId: string) => {
     const app = applicationsRef.current.find(a => a.id === appId);
