@@ -60,6 +60,9 @@ const GoLive: React.FC = () => {
   return (
     <div className="bg-background px-4 py-12">
       <div className="max-w-lg mx-auto">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="gap-1 mb-6 -ml-2">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </Button>
         <div className="text-center mb-8 animate-slide-up">
           <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
             <Rocket className="h-7 w-7 text-accent" />
