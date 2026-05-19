@@ -209,7 +209,6 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
                           <p className="font-medium text-foreground">{s.name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{s.workflowState}</p>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">{s.paymentType}</Badge>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {s.fees.map((f) => (
@@ -218,10 +217,10 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
                       </div>
                       <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                         {s.methods.online && <span className="flex items-center gap-0.5"><CreditCard className="h-3 w-3" /> Online</span>}
-                        {s.methods.offline && <span className="flex items-center gap-0.5"><Building className="h-3 w-3" /> Offline</span>}
                         {s.methods.counter && <span className="flex items-center gap-0.5"><Landmark className="h-3 w-3" /> Counter</span>}
                         {s.generateReceipt && <span className="flex items-center gap-0.5"><Receipt className="h-3 w-3" /> Receipt</span>}
                       </div>
+
                       <div className="flex gap-2 pt-1">
                         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openEdit(s)}>
                           <Pencil className="h-3 w-3 mr-1" /> Edit
