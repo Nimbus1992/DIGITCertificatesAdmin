@@ -115,11 +115,18 @@ export interface UserDocument {
   uploadedAt: number;
 }
 
+export interface DemandLine {
+  feeId: string;
+  name: string;
+  amount: number;
+}
+
 export interface DemandInfo {
   fee: number;
   tax: number;
   total: number;
   generatedAt: number;
+  lines?: DemandLine[];
 }
 
 export interface PaymentDetails {
