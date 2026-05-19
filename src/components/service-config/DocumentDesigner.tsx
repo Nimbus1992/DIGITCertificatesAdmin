@@ -59,6 +59,8 @@ interface DesignDocument {
   type: "certificate" | "application_pdf" | "acknowledgement" | "inspection_report" | "custom";
   elements: DocumentElement[];
   generateWhen: string;
+  /** True once the Application PDF has been auto-populated from the live form. */
+  syncedFromForm?: boolean;
   verifiableCredential: {
     enabled: boolean;
     credentialType: string;
