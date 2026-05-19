@@ -123,7 +123,130 @@ const uid = () => `el-${++elCounter}`;
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 792;
 
-// ── Template Documents ─────────────────────────────────
+// ── Form-field catalog & Application PDF generator ────
+
+const SYSTEM_VARS: { value: string; label: string }[] = [
+  { value: "applicationNumber", label: "Application Number" },
+  { value: "applicationStatus", label: "Application Status" },
+  { value: "submittedOn", label: "Submitted On" },
+  { value: "approvalDate", label: "Approval Date" },
+  { value: "expiryDate", label: "Expiry Date" },
+  { value: "licenseNumber", label: "License Number" },
+  { value: "inspectorName", label: "Inspector Name" },
+];
+
+interface VarOption { value: string; label: string }
+interface VarGroup { group: string; options: VarOption[] }
+
+const buildVarCatalog = (steps: WizardStep[]): VarGroup[] => {
+  const groups: VarGroup[] = [];
+  steps.forEach((step) => {
+    step.subScreens.forEach((sub) => {
+      const options = sub.fields
+        .filter((f) => f.type !== "file")
+        .map((f) => ({ value: f.id, label: f.label || f.id }));
+      if (options.length === 0) return;
+      groups.push({ group: `${step.name} › ${sub.title}`, options });
+    });
+  });
+  groups.push({ group: "System Variables", options: SYSTEM_VARS });
+  return groups;
+};
+
+const findVarLabel = (catalog: VarGroup[], value?: string): string | null => {
+  if (!value) return null;
+  for (const g of catalog) {
+    const hit = g.options.find((o) => o.value === value);
+    if (hit) return hit.label;
+  }
+  return null;
+};
+
+/** Generate a stacked Application PDF layout from the live form schema. */
+const buildApplicationPdfElements = (
+  steps: WizardStep[],
+  docTitle = "Application Form",
+): DocumentElement[] => {
+  const els: DocumentElement[] = [];
+  const left = 60;
+  const labelW = 200;
+  const valueX = 280;
+  const valueW = 220;
+  const pageW = 440;
+  let y = 40;
+  let n = 0;
+  const nid = () => `app-${Date.now().toString(36)}-${++n}`;
+
+  els.push({
+    id: nid(), type: "text", content: docTitle,
+    x: left, y, width: pageW, height: 32,
+    style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" },
+  });
+  y += 44;
+  els.push({
+    id: nid(), type: "dynamic", content: "{applicationNumber}",
+    x: left, y, width: labelW, height: 20,
+    style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicationNumber",
+  });
+  els.push({
+    id: nid(), type: "dynamic", content: "{submittedOn}",
+    x: valueX, y, width: valueW, height: 20,
+    style: { ...defaultStyle, alignment: "right" }, sourceMapping: "submittedOn",
+  });
+  y += 32;
+
+  steps.forEach((step) => {
+    els.push({
+      id: nid(), type: "text", content: step.name,
+      x: left, y, width: pageW, height: 22,
+      style: { ...defaultStyle, fontSize: 14, fontWeight: "bold", color: "#0b4f6c" },
+    });
+    y += 26;
+    step.subScreens.forEach((sub) => {
+      const fields = sub.fields.filter((f) => f.type !== "file");
+      if (fields.length === 0) return;
+      if (sub.title && step.subScreens.length > 1) {
+        els.push({
+          id: nid(), type: "text", content: sub.title,
+          x: left, y, width: pageW, height: 18,
+          style: { ...defaultStyle, fontSize: 11, fontWeight: "bold", color: "#6b7280" },
+        });
+        y += 22;
+      }
+      fields.forEach((f) => {
+        els.push({
+          id: nid(), type: "text", content: `${f.label || f.id}:`,
+          x: left, y, width: labelW, height: 18,
+          style: { ...defaultStyle, fontSize: 11, color: "#374151" },
+        });
+        els.push({
+          id: nid(), type: "dynamic", content: `{${f.id}}`,
+          x: valueX, y, width: valueW, height: 18,
+          style: { ...defaultStyle, fontSize: 11 }, sourceMapping: f.id,
+        });
+        y += 22;
+      });
+      y += 4;
+    });
+    y += 4;
+  });
+
+  els.push({
+    id: nid(), type: "text",
+    content: "Declaration: I hereby declare that the information provided is true and correct.",
+    x: left, y, width: pageW, height: 30,
+    style: { ...defaultStyle, fontSize: 10, color: "#6b7280" },
+  });
+  y += 40;
+  els.push({
+    id: nid(), type: "signature", content: "Applicant Signature",
+    x: left, y, width: 200, height: 60, style: { ...defaultStyle },
+  });
+
+  return els;
+};
+
+
 
 const createTemplateDocuments = (): DesignDocument[] => [
   {
