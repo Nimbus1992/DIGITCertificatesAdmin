@@ -169,9 +169,10 @@ const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
   const src = isRenewalModule(moduleName) ? RENEWAL_PAYMENT_STAGES : TRADE_PAYMENT_STAGES;
   return src.map(s => ({
     id: s.id, name: s.name, workflowState: s.workflowState, fees: [...s.fees],
-    paymentType: s.paymentType, methods: { ...s.methods }, gateway: s.gateway,
+    methods: { online: s.methods.online, counter: s.methods.counter }, gateway: s.gateway,
     generateReceipt: s.generateReceipt, receiptTemplate: s.receiptTemplate,
   }));
+
 };
 
 const buildSeedStates = (
