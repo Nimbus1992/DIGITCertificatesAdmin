@@ -1,8 +1,10 @@
 import React from "react";
+import { useParams } from "react-router-dom";
 import { usePreview } from "../PreviewContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FilePlus, RefreshCw, Filter, X } from "lucide-react";
 import EmployeeTopBar from "./EmployeeTopBar";
+import { useServiceRoles } from "@/lib/useServiceRoles";
 
 export const getStatusStyle = (stateId: string): { bg: string; text: string; dot: string; label?: string } => {
   switch (stateId) {
