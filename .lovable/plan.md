@@ -1,123 +1,123 @@
-## Goal
+## What's actually broken (root cause)
 
-Every change made in a configurator (Form, Roles, Workflow, Checklists, Notifications, Documents, Fees, Payments) must be reflected immediately in the **Service Preview**, with no page reload. Today the wiring is partial — this plan closes the gaps and defines the test matrix to validate it.
+I traced the three gaps end-to-end:
 
----
+### 1. Hazard Surcharge never appears
+- Seed is correct: `fee_haz` is conditional on `isHazardous = "Yes"`, mapped into the `License Payment` stage (entered on **Payment Pending**).
+- `evalConditional` in `usePreviewConfig.ts` reads `formData.isHazardous` correctly.
+- BUT `PaymentScreen.tsx` only renders `fee` total + flat "License Fee" label — it ignores `demand.lines`. So even when the surcharge IS added, the user can't see it.
+- Also `License Fee` is `type: "formula"` and the evaluator is a placeholder returning a flat `1000`, so the demand totals look static regardless of inputs.
 
-## Current state — what's already wired vs not
+### 2. "Application Payment" stage (Submitted) not reflected
+- Stage `pay_app` is mapped to workflow state **Submitted**, but the citizen wizard goes Draft → Submitted via `submitApplication`, NOT via `transitionApplication`. The demand-from-stage code only fires inside `transitionApplication`, so the Submitted-stage payment is silently skipped.
+- After submit, the citizen is also not routed to the PaymentScreen even when `paymentStatus === "pending"`.
 
-| Configurator | Storage key | Read by preview? | Gap |
-|---|---|---|---|
-| Form Builder | `formbuilder:<sid>:<module>` (formStorage) | ✅ via `loadFormSteps` + `FORM_UPDATED_EVENT` + storage event | — |
-| Workflow Designer | `workflow-states-v4:<sid>:<module>` / `workflow-transitions-v4:<sid>:<module>` | ✅ via `useServiceWorkflow` | Acting role + attached docs per state not read by preview |
-| Notifications | `notifications:<sid>:<module>` | ✅ via `useServiceNotifications` (dispatched on state entry) | — |
-| Roles | `roles:<sid>:<module>` | ⚠ Read by `PreviewSidebar` for role chooser only | Transitions still hard-mapped to 4 preview roles (`citizen / DV / FI / approver`); custom roles collapse to `"any"` and aren't actionable in employee inbox |
-| Checklists | `checklists:<sid>:<module>` | ❌ Preview uses inline checklist items shipped on transition; ignores configured `checklistIds` | Need to resolve `transition.checklistIds` → checklist items at dispatch time |
-| Documents | `documents:<sid>:<module>` | ❌ Preview hard-codes Application PDF, Demand Notice, Receipt, Certificate generation | Need to drive citizen "My Documents" + state-bound auto-generation from configured docs (`generateWhen` + `WorkflowState.attachedDocumentIds`) |
-| Fees | `fees:<sid>:<module>` | ❌ Preview hard-codes `{ fee:1000, tax:100, total:1100 }` | Need to compute demand from configured fees (flat + slab + tax) |
-| Payments | `payment-stages:<sid>:<module>` | ❌ Demand always triggers on entry to "Payment Pending" with a hard-coded amount | Need to use the stage mapped to the entered state, with that stage's fee list |
+### 3. Documents don't match the configured PDF
+- Auto-generated docs use `applicationPdf / demandNoticePdf / invoicePdf / licensePdf` keyed by `doc.kind`. Custom documents created in the Document Designer (which carry a template HTML, not a known `kind`) fall through and render a generic blank PDF, so the file the citizen downloads doesn't match the designer preview.
+- `attachedDocumentIds` on a state references docs by id, but the generator only honors `generateWhen` matching the state name — id-based attachment isn't wired.
 
----
+## Fixes (small, surgical)
 
-## Implementation plan
+1. **PaymentScreen** — render `demand.lines` as a table (name + amount), keep tax + total below. Also fall back gracefully when `lines` is empty.
+2. **License Fee formula** — evaluate as `shopArea * 10` (₹10/sq ft) so it actually varies; document the rule next to the seed.
+3. **submitApplication** — after moving to Submitted, run the same `findPaymentStageForState` + `computeDemandForStage` block already used in `transitionApplication`, and if `paymentStatus === "pending"` push the citizen to the PaymentScreen.
+4. **Document generation** — in `dispatchByState`/state-entry hook:
+   - Resolve both `state.attachedDocumentIds` and any `doc.generateWhen === state.name`.
+   - For docs with no matching `kind`, render the designer's HTML template through a generic html→pdf helper (reuse jspdf `.html()` already in `licensePdf`) so the file matches the preview.
 
-### 1. Single source of truth for "config → preview"
+## Preview QA Harness — how to test thoroughly
 
-Create `src/lib/usePreviewConfig.ts` that returns, per service+module:
-```ts
-{ roles, workflow, checklists, notifications, documents, fees, paymentStages }
+A one-off "test by clicking" approach won't scale. I'll add an internal **`/service/:sid/preview-qa`** route (dev-only link from the configure page) that runs a scripted matrix and reports pass/fail per cell. This becomes the single source of truth for "does every configurator still wire into preview".
+
+### Architecture
+- Reuses the existing `PreviewProvider` in headless mode (mounted off-screen).
+- A new `runPreviewQA(serviceId)` helper drives the provider via its public actions (`createApplication`, `submitApplication`, `transitionApplication`, `payApplication`, `uploadDocument`, …) and asserts on the resulting state snapshot.
+- Each test mutates a configurator via `useModuleState` writers, runs the scenario, then restores.
+- Results render as a table: ✅ / ❌ / ⏭, with expected vs actual diffs.
+
+### Test matrix (35 automated cases)
+
+**Form Builder (5)**
+- F1 New required field on step 1 → wizard blocks submit until filled.
+- F2 Mark field optional → submit succeeds without it.
+- F3 Delete a step → existing draft loads, new draft has one fewer step.
+- F4 Dependent dropdown (category by tradeType) → child options change with parent.
+- F5 `showIf` field hides when condition false, included in formData when true.
+
+**Roles (4)**
+- R1 Rename canonical role → label updates in PreviewSidebar + inbox header.
+- R2 Add custom role with workflow permission → appears in persona switcher, can act on transitions assigned to it.
+- R3 Remove a role used by a transition → transition shows "Unassigned" badge, button disabled.
+- R4 Toggle `isCitizen` flag → role appears under citizen tab only.
+
+**Workflow (5)**
+- W1 Add new state + transition → state appears in inbox filters; transition button visible to the right role.
+- W2 Change `actingRole` → only that persona sees actionable button.
+- W3 Re-point transition `toState` → app lands in new state after action.
+- W4 Mark state `end` → no further transitions offered; status frozen.
+- W5 Remove a state referenced by a payment stage → demand skipped, no crash.
+
+**Checklists (3)**
+- C1 Add item to checklist on "Verify Application" → dialog shows item, action blocked until checked.
+- C2 Remove checklist from transition's `checklistIds` → dialog skipped, transition fires.
+- C3 Mark item optional → action allowed without checking it.
+
+**Notifications (3)**
+- N1 Add citizen-SMS on "Payment Pending" → SMS toast + Messages drawer entry on entry.
+- N2 Change recipient citizen → approver → only approver persona gets bell entry.
+- N3 Edit template token `{{amount}}` → resolves to current demand total.
+
+**Documents (4)**
+- D1 Add custom doc with `generateWhen: License Issued` → appears in My Documents after issuance; rendered PDF matches designer template (hash compare on first 500 chars).
+- D2 Attach existing doc to a state via `attachedDocumentIds` → generated on entry even without matching `generateWhen`.
+- D3 Delete Demand Notice doc → entering Payment Pending no longer adds it; demand object still exists.
+- D4 Rename doc → label in My Documents updates without reload.
+
+**Fees (4)**
+- Fe1 Change Application Fee base → next demand reflects new amount.
+- Fe2 Slab fee tied to `shopArea` → app with area=50 vs 600 produces different totals.
+- Fe3 **Hazard Surcharge — isHazardous=Yes adds 1500; =No does not.** ← directly covers the reported bug.
+- Fe4 Add tax rate to a fee → `tax` line updates accordingly.
+
+**Payments (3)**
+- P1 **Application Payment stage triggers on Submitted entry, PaymentScreen reachable.** ← covers reported bug.
+- P2 Move stage from Payment Pending → custom state → demand auto-generates only on the new state.
+- P3 Two stages with separate fees → two PaymentScreens in sequence; receipts generated per stage.
+
+**Cross-cutting (4)**
+- X1 Renewal-scoped change does not affect Issuance apps.
+- X2 `workflowScope: by_category` → only matching-category apps see edited workflow.
+- X3 Hard refresh → all preview state restored from localStorage.
+- X4 Reset Demo clears apps but keeps configuration.
+
+### Output
+
 ```
-Each field is a memoized array sourced from the same `useModuleState` keys the configurators write to. This eliminates drift and gives the preview one hook to subscribe to.
+Preview QA — Trade License (service: trade-license-mp6c297v)
 
-### 2. Reactive subscription
+Form Builder    5/5  ✅
+Roles           4/4  ✅
+Workflow        4/5  ❌  W5: crash when stage references removed state
+Checklists      3/3  ✅
+Notifications   3/3  ✅
+Documents       3/4  ❌  D1: PDF body mismatch (custom template not rendered)
+Fees            3/4  ❌  Fe3: Hazard Surcharge not in demand.lines
+Payments        2/3  ❌  P1: PaymentScreen never opened after Submitted
+Cross-cutting   4/4  ✅
+                ───
+                31/35 — 4 regressions
+```
 
-`useModuleState` already persists to localStorage. Add a thin `MODULE_STATE_EVENT` custom event (mirroring `FORM_UPDATED_EVENT`) dispatched on every setter. `usePreviewConfig` listens to it + `storage` event, so changes propagate live to the preview even when the configurator is open in a different tab or panel.
-
-### 3. Wire each configurator into the preview
-
-**3a. Checklists** — In `PreviewContext.transitionApplication`, after resolving the transition, look up `transition.checklistIds` against `checklists` from `usePreviewConfig`, and use those items in `ChecklistDialog`. Fallback to the transition's inline checklist for legacy data.
-
-**3b. Documents** — Replace hard-coded doc generation:
-- On entering a state, walk `WorkflowState.attachedDocumentIds` + any doc whose `generateWhen === state.name`. Generate each via the existing pdf builders (`applicationPdf`, `demandNoticePdf`, `invoicePdf`, `licensePdf`) keyed by `doc.kind`.
-- For custom documents from the Designer, render as a simple titled PDF using the document template HTML.
-- Surface them in citizen "My Documents" via `getCitizenDocuments`.
-
-**3c. Fees + Payments** — Replace the literal demand:
-- When entering the state mapped by a payment stage, compute demand from that stage's `feeIds` resolved against `fees`. Sum base + tax per fee. Slab fees evaluate against form fields (`shopArea`, `employees`, `turnover`).
-- If no payment stage is configured, skip demand generation (don't fake one).
-
-**3d. Roles** — Extend `PreviewSidebar` so any role with `permissions` that include "act on workflow" appears as a switchable persona, not just the canonical four. In `exposedWorkflowTransitions`, keep `roleId` as-is (string), and gate transition buttons by `roleId === currentRoleId` instead of the hard-coded `PreviewRole` union. Citizen / officer split stays (citizen = role with `isCitizen` flag).
-
-**3e. Form** — already wired; no change.
-
-**3f. Workflow** — already wired; no change beyond 3a–3d above.
-
-### 4. Reset / migration
-
-Bump the preview's in-memory cache key when `usePreviewConfig` detects a schema change so stale demo applications don't reference missing states/fees.
-
----
-
-## Test matrix
-
-For each row: change in configurator → expected preview behavior. Cover Issuance and Renewal modules.
-
-### Form Builder
-1. Add a new field to step 1 → reload-free, citizen wizard shows new field with validation.
-2. Mark an existing field optional → submit without filling it succeeds.
-3. Delete a step → wizard collapses; existing draft apps don't break.
-4. Add dependent dropdown (depends_on) → child resets when parent changes.
-
-### Roles
-5. Rename a role → label updates in PreviewSidebar persona switcher and Employee inbox header.
-6. Add a custom role "Reviewer" with workflow permission → appears as persona; can act on a transition assigned to it.
-7. Remove a role used by a transition → transition shows "Unassigned" badge and is blocked in preview.
-
-### Workflow
-8. Add a new state + transition → state appears in employee inbox filters; transition button shows for the right role.
-9. Change `actingRole` of a state → only that role's persona sees actionable items for apps in that state.
-10. Re-point a transition to a different `toState` → moving an app through it lands in the new state.
-11. Mark a state as `end` → app status freezes; no further transitions offered.
-
-### Checklists
-12. Add an item to a checklist linked to "Verify Application" → ChecklistDialog for that transition shows the new item; the action is blocked until all checked.
-13. Remove a checklist from a transition's `checklistIds` → dialog skipped; transition fires immediately.
-
-### Notifications
-14. Add a citizen-SMS notification on "Payment Pending" → entering that state pops the SMS alert + Messages drawer entry.
-15. Change recipient from citizen to approver → entry now pushes to bell only when the approver persona is active.
-16. Edit template tokens (`{{amount}}`) → resolved with the current app's demand total.
-
-### Documents
-17. Add a custom document with `generateWhen: License Issued` → appears in citizen My Documents after issuance.
-18. Attach an existing document to a state via `attachedDocumentIds` → generated on entry even without `generateWhen`.
-19. Delete the Demand Notice doc → entering Payment Pending no longer adds a demand PDF (but demand object still computed).
-
-### Fees
-20. Change Trade License Fee base amount → next demand reflects new total.
-21. Add a slab fee tied to `shopArea` → demand varies with applicant's form value.
-22. Add tax rate to a fee → demand `tax` line updates.
-
-### Payments
-23. Move the payment stage from "Payment Pending" to a custom "Awaiting Fee" state → demand auto-generates only when the new state is entered.
-24. Add a second stage with its own fees → both stages trigger on their respective state entries; citizen sees two payment screens in sequence.
-
-### Cross-cutting
-25. With both Issuance and Renewal enabled, changes scoped to Renewal only affect Renewal apps.
-26. With `workflowScope = by_category`, editing a category-scoped workflow only changes preview for apps of that category.
-27. Hard refresh preserves everything (localStorage round-trip).
-28. Reset Demo clears apps but keeps configuration.
-
----
+Click any failing row to expand → expected vs actual JSON + a "Reproduce" button that leaves the harness pre-seeded for manual inspection.
 
 ## Files touched
 
-- **new** `src/lib/usePreviewConfig.ts` — unified subscription hook
-- `src/lib/moduleStorage.ts` — emit `MODULE_STATE_EVENT` on writes
-- `src/components/preview/PreviewContext.tsx` — replace hard-coded checklist/doc/fee/payment logic; broaden role gating
-- `src/components/preview/PreviewSidebar.tsx` — render all workflow-actor roles
-- `src/components/preview/employee/ChecklistDialog.tsx` — resolve items from configured checklist
-- `src/components/preview/citizen/PaymentScreen.tsx` + `DemandNoticeView.tsx` — show computed line items
-- `src/components/preview/citizen/MyDocuments.tsx` — list configured documents
+- `src/components/preview/citizen/PaymentScreen.tsx` — render `demand.lines`.
+- `src/components/preview/PreviewContext.tsx` — `submitApplication` runs payment-stage demand; doc generator honors `attachedDocumentIds` + custom html templates; route to PaymentScreen on pending demand.
+- `src/lib/usePreviewConfig.ts` — formula evaluator for `Area * Rate`.
+- `src/lib/previewPdf.ts` (new) — generic html→pdf for custom documents.
+- `src/pages/PreviewQA.tsx` (new) + `src/lib/previewQa/*.ts` (new) — harness + 35 test cases.
+- `src/App.tsx` — route `/service/:sid/preview-qa`.
+- `src/pages/ServiceConfig.tsx` — small "Run Preview QA" link next to the Preview button.
 
-No backend changes. No schema changes — `WorkflowStateRecord.attachedDocumentIds` and `WorkflowTransitionRecord.checklistIds` already exist from the previous turn.
+No backend changes. No schema changes.
