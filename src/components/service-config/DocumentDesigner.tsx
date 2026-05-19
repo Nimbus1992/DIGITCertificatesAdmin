@@ -61,7 +61,8 @@ interface DesignDocument {
     enabled: boolean;
     credentialType: string;
     idMapping: string;
-    includeQR: boolean;
+    includeQR?: boolean;
+    mappedQrElementId?: string | null;
     scanScreenConfig?: ScanScreenConfig;
   };
 }
@@ -317,7 +318,6 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [newDocName, setNewDocName] = useState("");
-  const [newDocType, setNewDocType] = useState<string>("certificate");
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [imageUploadTarget, setImageUploadTarget] = useState<string | null>(null); // element id or null for new
   const [showVCDesigner, setShowVCDesigner] = useState(false);
@@ -329,6 +329,41 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
 
   const activeDoc = documents.find((d) => d.id === activeDocId)!;
   const selectedElement = selectedElementId ? activeDoc.elements.find((e) => e.id === selectedElementId) : null;
+  const qrElements = activeDoc?.elements.filter((e) => e.type === "qrcode") ?? [];
+
+  // Auto-disable VC / clear mapped QR if the underlying QR elements are gone
+  useEffect(() => {
+    if (!activeDoc) return;
+    const vc = activeDoc.verifiableCredential;
+    if (qrElements.length === 0 && (vc.enabled || vc.mappedQrElementId)) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, enabled: false, mappedQrElementId: null } }
+            : d
+        )
+      );
+      return;
+    }
+    if (vc.mappedQrElementId && !qrElements.some((q) => q.id === vc.mappedQrElementId)) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, mappedQrElementId: qrElements[0]?.id ?? null } }
+            : d
+        )
+      );
+    }
+    if (vc.enabled && qrElements.length === 1 && !vc.mappedQrElementId) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, mappedQrElementId: qrElements[0].id } }
+            : d
+        )
+      );
+    }
+  }, [qrElements.length, activeDocId, activeDoc?.verifiableCredential.enabled, activeDoc?.verifiableCredential.mappedQrElementId]);
 
   const pushHistory = useCallback((docs: DesignDocument[]) => {
     setHistory((prev) => {
@@ -368,17 +403,16 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const doc: DesignDocument = {
       id: `doc-${Date.now()}`,
       name: newDocName.trim(),
-      type: newDocType as DesignDocument["type"],
+      type: "custom",
       elements: [],
       generateWhen: "Submitted",
-      verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+      verifiableCredential: { enabled: false, credentialType: "", idMapping: "", mappedQrElementId: null },
     };
     setDocumentsWithHistory((prev) => [...prev, doc]);
     setActiveDocId(doc.id);
     setSelectedElementId(null);
     setShowCreateModal(false);
     setNewDocName("");
-    setNewDocType("certificate");
   };
 
   const duplicateDocument = (id: string) => {
@@ -734,7 +768,7 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <div
                     key={doc.id}
-                    className={`group relative rounded-md px-3 py-2.5 cursor-pointer transition-colors ${isActive ? "bg-accent/10 border-l-2 border-l-accent" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
+                    className={`group rounded-md px-3 py-2.5 cursor-pointer transition-colors ${isActive ? "bg-accent/10 border-l-2 border-l-accent" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
                     onClick={() => { setActiveDocId(doc.id); setSelectedElementId(null); setEditingTextId(null); }}
                   >
                     <div className="flex items-start gap-2">
@@ -755,17 +789,17 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                         )}
                         <p className="text-[10px] text-muted-foreground">{DOC_TYPE_LABELS[doc.type]}</p>
                       </div>
-                    </div>
-                    <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingDocId(doc.id); setEditingName(doc.name); }}>
-                        <Edit3 className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); duplicateDocument(doc.id); }}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDocId(doc.id); }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingDocId(doc.id); setEditingName(doc.name); }}>
+                          <Edit3 className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); duplicateDocument(doc.id); }}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDocId(doc.id); }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1060,45 +1094,69 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               {/* Verifiable Credential */}
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Verifiable Credential</h3>
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Enable VC</Label>
-                  <Switch checked={activeDoc.verifiableCredential.enabled} onCheckedChange={(v) => updateVC("enabled", v)} />
-                </div>
-                {activeDoc.verifiableCredential.enabled && (
-                  <div className="space-y-3 pl-1 border-l-2 border-accent/20 ml-1">
-                    <div>
-                      <Label className="text-xs">Credential Type</Label>
-                      <Input value={activeDoc.verifiableCredential.credentialType} onChange={(e) => updateVC("credentialType", e.target.value)} className="h-8 text-xs mt-1" placeholder="e.g. TradeCredential" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Credential ID Mapping</Label>
-                      <Select value={activeDoc.verifiableCredential.idMapping} onValueChange={(v) => updateVC("idMapping", v)}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select mapping" /></SelectTrigger>
-                        <SelectContent>
-                          {CREDENTIAL_ID_OPTIONS.map((o) => (
-                            <SelectItem key={o} value={o}>{o}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Verification URL</Label>
-                      <Input value={`https://verify.digit.org/${activeDoc.id}`} readOnly className="h-8 text-xs mt-1 bg-muted/50 text-muted-foreground" />
-                    </div>
+                {qrElements.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Add a QR Code element to the document to enable Verifiable Credential.
+                  </p>
+                ) : (
+                  <>
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs">Include QR Code</Label>
-                      <Switch checked={activeDoc.verifiableCredential.includeQR} onCheckedChange={(v) => updateVC("includeQR", v)} />
+                      <Label className="text-xs">Enable VC</Label>
+                      <Switch checked={activeDoc.verifiableCredential.enabled} onCheckedChange={(v) => updateVC("enabled", v)} />
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-1.5 text-xs"
-                      onClick={() => setShowVCDesigner(true)}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      Design Verification Screen
-                    </Button>
-                  </div>
+                    {activeDoc.verifiableCredential.enabled && (
+                      <div className="space-y-3 pl-1 border-l-2 border-accent/20 ml-1">
+                        <div>
+                          <Label className="text-xs">Credential Type</Label>
+                          <Input value={activeDoc.verifiableCredential.credentialType} onChange={(e) => updateVC("credentialType", e.target.value)} className="h-8 text-xs mt-1" placeholder="e.g. TradeCredential" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Credential ID Mapping</Label>
+                          <Select value={activeDoc.verifiableCredential.idMapping} onValueChange={(v) => updateVC("idMapping", v)}>
+                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select mapping" /></SelectTrigger>
+                            <SelectContent>
+                              {CREDENTIAL_ID_OPTIONS.map((o) => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Verification URL</Label>
+                          <Input value={`https://verify.digit.org/${activeDoc.id}`} readOnly className="h-8 text-xs mt-1 bg-muted/50 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Mapped QR Element</Label>
+                          <Select
+                            value={activeDoc.verifiableCredential.mappedQrElementId ?? "none"}
+                            onValueChange={(v) => updateVC("mappedQrElementId", v === "none" ? null : v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select QR" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {qrElements.map((q, i) => (
+                                <SelectItem key={q.id} value={q.id}>
+                                  QR Code {i + 1} ({Math.round(q.x)}, {Math.round(q.y)})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            The VC payload will be encoded into the selected QR Code element.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 text-xs"
+                          onClick={() => setShowVCDesigner(true)}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Design Verification Screen
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1117,17 +1175,6 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             <div>
               <Label>Document Name</Label>
               <Input value={newDocName} onChange={(e) => setNewDocName(e.target.value)} placeholder="e.g. Payment Receipt" className="mt-1" />
-            </div>
-            <div>
-              <Label>Document Type</Label>
-              <Select value={newDocType} onValueChange={setNewDocType}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>
