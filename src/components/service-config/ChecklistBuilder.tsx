@@ -126,6 +126,46 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
     );
   };
 
+  const HAS_OPTIONS: FieldType[] = ["dropdown", "radio", "checkbox"];
+
+  const changeFieldType = (checklistId: string, q: Question, newType: FieldType) => {
+    const needsOptions = HAS_OPTIONS.includes(newType);
+    const nextOptions = needsOptions
+      ? (q.options && q.options.length > 0 ? q.options : ["", ""])
+      : undefined;
+    updateQuestion(checklistId, q.id, { fieldType: newType, options: nextOptions });
+  };
+
+  const addOption = (checklistId: string, questionId: string) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: [...(q.options ?? []), ""] } : q) }
+          : cl
+      )
+    );
+  };
+
+  const updateOption = (checklistId: string, questionId: string, index: number, value: string) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: (q.options ?? []).map((o, i) => i === index ? value : o) } : q) }
+          : cl
+      )
+    );
+  };
+
+  const removeOption = (checklistId: string, questionId: string, index: number) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: (q.options ?? []).filter((_, i) => i !== index) } : q) }
+          : cl
+      )
+    );
+  };
+
   const removeQuestion = (checklistId: string, questionId: string) => {
     setChecklists((prev) =>
       prev.map((cl) =>

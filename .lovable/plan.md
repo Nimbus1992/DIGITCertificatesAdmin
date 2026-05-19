@@ -1,24 +1,23 @@
-## Plan: Simplify Payment Setup
+## Goal
+When a question's field type is Dropdown, Radio, or Checkbox in the Checklist builder, allow the configurator to define the selectable options for that question.
 
-### Changes to `src/components/service-config/PaymentsConfigurator.tsx`
+## Changes (single file: `src/components/service-config/ChecklistBuilder.tsx`)
 
-1. **Remove Payment Type construct entirely**
-   - Drop the `PaymentType` type, the `paymentType` field on `PaymentStage`, and the entire "Payment Type" radio group from the sheet.
-   - Remove the `paymentType` badge from the stage card.
+1. **Options editor sub-section** inside each question card, shown only when `fieldType` is `dropdown`, `radio`, or `checkbox`.
+   - Renders a vertical list of option rows. Each row: a small index marker, an `Input` for the option label, and a trash icon to remove.
+   - "Add option" outline button below the list.
+   - When the field type switches to one of these three, auto-seed with two empty options (`["", ""]`) if `options` is missing/empty so the user sees the editor immediately.
+   - When the field type switches to `text` or `file_upload`, clear `options` to `undefined`.
 
-2. **Restrict Payment Method to Online + Counter**
-   - Remove the `offline` option from the methods checklist (keep only `online` and `counter`).
-   - Remove the offline indicator from the card display.
-   - Default new stages to `{ online: true, counter: false }`.
+2. **Helpers** added inside the component:
+   - `addOption(checklistId, questionId)` — append `""`.
+   - `updateOption(checklistId, questionId, index, value)` — replace at index.
+   - `removeOption(checklistId, questionId, index)` — splice; keep a minimum of 1 row (disable trash when only 1 left).
 
-3. **Conditional Payment Gateway**
-   - Only render the Payment Gateway selector when `draft.methods.online` is true. If only `counter` is selected, hide the gateway field entirely (no gateway needed).
+3. **Field-type change handler** wraps `updateQuestion` so it also resets/initializes `options` per rule above (instead of calling `updateQuestion` directly from the `Select`).
 
-### Supporting data updates
+4. **Visual summary**: on the question header row, when options exist, show a tiny muted count (e.g. `3 options`) next to the type badge.
 
-4. **`src/data/tradeLicenseTemplate.ts` & `src/data/renewalTemplate.ts`**
-   - Remove `paymentType` and the `offline` method from `TRADE_PAYMENT_STAGES` / `RENEWAL_PAYMENT_STAGES` seed entries and their TypeScript shape, so saved stages and new defaults stay consistent.
-
-### Out of scope
-- Preview/runtime payment behavior is not changed — only the setup UI and seed shapes.
-- No migration for users with previously persisted `paymentType`/`offline` values; the field is simply ignored on load.
+## Out of scope
+- No changes to seed templates, preview rendering, or the checklist runtime dialog. Existing seeded questions already carry `options` and continue to work.
+- No validation beyond the min-1 row rule (empty option strings are allowed while editing).
