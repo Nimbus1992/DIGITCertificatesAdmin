@@ -349,38 +349,38 @@ const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
 
 const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
   // Document Verifier picks up Submitted -> Under Document Verification (auto-claim) and then Verify Application moves to Inspection Pending
-  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", checklist: [] },
-  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", checklist: [
+  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", roleId: "document_verifier", checklist: [] },
+  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", roleId: "document_verifier", checklist: [
     { id: "cdv1", text: "Applicant details verified" },
     { id: "cdv2", text: "All documents verified" },
     { id: "cdv3", text: "Business details valid" },
   ]},
-  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", checklist: [
+  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", roleId: "document_verifier", checklist: [
     { id: "csb1", text: "Reason for sending back recorded" },
   ]},
 
   // Field Inspector
-  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", checklist: [
+  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", roleId: "field_inspector", checklist: [
     { id: "cfi1", text: "Site visited" },
     { id: "cfi2", text: "Business exists" },
     { id: "cfi3", text: "Compliance verified" },
   ]},
-  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", checklist: [
+  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", roleId: "field_inspector", checklist: [
     { id: "csb2", text: "Inspection issues recorded" },
   ]},
 
   // Approver
-  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", checklist: [
+  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", roleId: "approver", checklist: [
     { id: "cap1", text: "All previous steps completed" },
     { id: "cap2", text: "Inspection passed" },
     { id: "cap3", text: "Fee structure confirmed" },
   ]},
-  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", checklist: [
+  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", roleId: "approver", checklist: [
     { id: "crj1", text: "Rejection reason documented" },
   ]},
 
   // Citizen
-  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", checklist: [] },
+  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", roleId: "citizen", checklist: [] },
 ];
 
 const ROLE_LABEL: Record<PreviewRole, string> = {
