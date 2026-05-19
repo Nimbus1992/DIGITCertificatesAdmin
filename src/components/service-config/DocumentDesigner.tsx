@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -20,7 +20,7 @@ import {
   ArrowLeft, Plus, Save, Rocket, Type, Variable, Image, Table, QrCode, PenTool,
   Trash2, Copy, Edit3, FileText, FileBadge, FileCheck, ClipboardList, Info,
   AlignLeft, AlignCenter, AlignRight, Bold, Upload, ChevronUp, ChevronDown,
-  Undo2, Redo2, Layers, Move, Eye,
+  Undo2, Redo2, Layers, Move, Eye, RefreshCw,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import DraggableElement from "./document/DraggableElement";
@@ -28,6 +28,8 @@ import InlineTextEditor from "./document/InlineTextEditor";
 import ImageUploadDialog, { InlineImageUpload } from "./document/ImageUploadDialog";
 import SignatureDialog from "./document/SignatureDialog";
 import VCScreenDesigner, { type ScanScreenConfig, defaultScanScreenConfig } from "./document/VCScreenDesigner";
+import { loadFormSteps, FORM_UPDATED_EVENT } from "@/lib/formStorage";
+import type { WizardStep } from "@/data/wizardForm";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -57,6 +59,8 @@ interface DesignDocument {
   type: "certificate" | "application_pdf" | "acknowledgement" | "inspection_report" | "custom";
   elements: DocumentElement[];
   generateWhen: string;
+  /** True once the Application PDF has been auto-populated from the live form. */
+  syncedFromForm?: boolean;
   verifiableCredential: {
     enabled: boolean;
     credentialType: string;
@@ -85,19 +89,6 @@ const DOC_TYPE_ICONS: Record<string, React.ElementType> = {
   custom: FileText,
 };
 
-const DYNAMIC_VARS = [
-  { value: "businessName", label: "Business Name" },
-  { value: "licenseNumber", label: "License Number" },
-  { value: "applicantName", label: "Applicant Name" },
-  { value: "approvalDate", label: "Approval Date" },
-  { value: "expiryDate", label: "Expiry Date" },
-  { value: "applicationNumber", label: "Application Number" },
-  { value: "wardNumber", label: "Ward Number" },
-  { value: "businessCategory", label: "Business Category" },
-  { value: "subCategory", label: "Sub Category" },
-  { value: "tradeType", label: "Trade Type (legacy)" },
-  { value: "inspectorName", label: "Inspector Name" },
-];
 
 import { TRADE_STATE_NAMES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_STATE_NAMES, isRenewalModule } from "@/data/renewalTemplate";
@@ -119,7 +110,130 @@ const uid = () => `el-${++elCounter}`;
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 792;
 
-// ── Template Documents ─────────────────────────────────
+// ── Form-field catalog & Application PDF generator ────
+
+const SYSTEM_VARS: { value: string; label: string }[] = [
+  { value: "applicationNumber", label: "Application Number" },
+  { value: "applicationStatus", label: "Application Status" },
+  { value: "submittedOn", label: "Submitted On" },
+  { value: "approvalDate", label: "Approval Date" },
+  { value: "expiryDate", label: "Expiry Date" },
+  { value: "licenseNumber", label: "License Number" },
+  { value: "inspectorName", label: "Inspector Name" },
+];
+
+interface VarOption { value: string; label: string }
+interface VarGroup { group: string; options: VarOption[] }
+
+const buildVarCatalog = (steps: WizardStep[]): VarGroup[] => {
+  const groups: VarGroup[] = [];
+  steps.forEach((step) => {
+    step.subScreens.forEach((sub) => {
+      const options = sub.fields
+        .filter((f) => f.type !== "file")
+        .map((f) => ({ value: f.id, label: f.label || f.id }));
+      if (options.length === 0) return;
+      groups.push({ group: `${step.name} › ${sub.title}`, options });
+    });
+  });
+  groups.push({ group: "System Variables", options: SYSTEM_VARS });
+  return groups;
+};
+
+const findVarLabel = (catalog: VarGroup[], value?: string): string | null => {
+  if (!value) return null;
+  for (const g of catalog) {
+    const hit = g.options.find((o) => o.value === value);
+    if (hit) return hit.label;
+  }
+  return null;
+};
+
+/** Generate a stacked Application PDF layout from the live form schema. */
+const buildApplicationPdfElements = (
+  steps: WizardStep[],
+  docTitle = "Application Form",
+): DocumentElement[] => {
+  const els: DocumentElement[] = [];
+  const left = 60;
+  const labelW = 200;
+  const valueX = 280;
+  const valueW = 220;
+  const pageW = 440;
+  let y = 40;
+  let n = 0;
+  const nid = () => `app-${Date.now().toString(36)}-${++n}`;
+
+  els.push({
+    id: nid(), type: "text", content: docTitle,
+    x: left, y, width: pageW, height: 32,
+    style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" },
+  });
+  y += 44;
+  els.push({
+    id: nid(), type: "dynamic", content: "{applicationNumber}",
+    x: left, y, width: labelW, height: 20,
+    style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicationNumber",
+  });
+  els.push({
+    id: nid(), type: "dynamic", content: "{submittedOn}",
+    x: valueX, y, width: valueW, height: 20,
+    style: { ...defaultStyle, alignment: "right" }, sourceMapping: "submittedOn",
+  });
+  y += 32;
+
+  steps.forEach((step) => {
+    els.push({
+      id: nid(), type: "text", content: step.name,
+      x: left, y, width: pageW, height: 22,
+      style: { ...defaultStyle, fontSize: 14, fontWeight: "bold", color: "#0b4f6c" },
+    });
+    y += 26;
+    step.subScreens.forEach((sub) => {
+      const fields = sub.fields.filter((f) => f.type !== "file");
+      if (fields.length === 0) return;
+      if (sub.title && step.subScreens.length > 1) {
+        els.push({
+          id: nid(), type: "text", content: sub.title,
+          x: left, y, width: pageW, height: 18,
+          style: { ...defaultStyle, fontSize: 11, fontWeight: "bold", color: "#6b7280" },
+        });
+        y += 22;
+      }
+      fields.forEach((f) => {
+        els.push({
+          id: nid(), type: "text", content: `${f.label || f.id}:`,
+          x: left, y, width: labelW, height: 18,
+          style: { ...defaultStyle, fontSize: 11, color: "#374151" },
+        });
+        els.push({
+          id: nid(), type: "dynamic", content: `{${f.id}}`,
+          x: valueX, y, width: valueW, height: 18,
+          style: { ...defaultStyle, fontSize: 11 }, sourceMapping: f.id,
+        });
+        y += 22;
+      });
+      y += 4;
+    });
+    y += 4;
+  });
+
+  els.push({
+    id: nid(), type: "text",
+    content: "Declaration: I hereby declare that the information provided is true and correct.",
+    x: left, y, width: pageW, height: 30,
+    style: { ...defaultStyle, fontSize: 10, color: "#6b7280" },
+  });
+  y += 40;
+  els.push({
+    id: nid(), type: "signature", content: "Applicant Signature",
+    x: left, y, width: 200, height: 60, style: { ...defaultStyle },
+  });
+
+  return els;
+};
+
+
 
 const createTemplateDocuments = (): DesignDocument[] => [
   {
@@ -321,6 +435,28 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [imageUploadTarget, setImageUploadTarget] = useState<string | null>(null); // element id or null for new
   const [showVCDesigner, setShowVCDesigner] = useState(false);
+  const [syncConfirmDocId, setSyncConfirmDocId] = useState<string | null>(null);
+
+  // Live form schema → variable catalog
+  const [formSteps, setFormSteps] = useState<WizardStep[]>(() =>
+    loadFormSteps(serviceId, "Issuance"),
+  );
+  useEffect(() => {
+    const refresh = () => setFormSteps(loadFormSteps(serviceId, "Issuance"));
+    refresh();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || (detail.serviceId === serviceId && detail.moduleName === "Issuance")) refresh();
+    };
+    window.addEventListener(FORM_UPDATED_EVENT, handler);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(FORM_UPDATED_EVENT, handler);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [serviceId]);
+  const varCatalog = useMemo(() => buildVarCatalog(formSteps), [formSteps]);
+  const firstFieldValue = varCatalog[0]?.options[0]?.value ?? "applicationNumber";
 
   // Undo/Redo
   const [history, setHistory] = useState<DesignDocument[][]>([]);
@@ -330,6 +466,25 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const activeDoc = documents.find((d) => d.id === activeDocId)!;
   const selectedElement = selectedElementId ? activeDoc.elements.find((e) => e.id === selectedElementId) : null;
   const qrElements = activeDoc?.elements.filter((e) => e.type === "qrcode") ?? [];
+
+  // Auto-seed Application PDF once from the live form
+  useEffect(() => {
+    const pending = documents.find(
+      (d) => d.type === "application_pdf" && !d.syncedFromForm,
+    );
+    if (!pending) return;
+    if (formSteps.length === 0) return;
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === pending.id
+          ? { ...d, elements: buildApplicationPdfElements(formSteps, d.name), syncedFromForm: true }
+          : d,
+      ),
+    );
+    // run once per service+module on first load with form data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formSteps]);
+
 
   // Auto-disable VC / clear mapped QR if the underlying QR elements are gone
   useEffect(() => {
@@ -457,6 +612,20 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     );
   };
 
+  const syncApplicationPdf = (docId: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    setDocumentsWithHistory((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, elements: buildApplicationPdfElements(formSteps, d.name), syncedFromForm: true }
+          : d,
+      ),
+    );
+    setSelectedElementId(null);
+    toast({ title: "Application PDF synced", description: `Rebuilt from ${formSteps.reduce((n, s) => n + s.subScreens.reduce((m, ss) => m + ss.fields.length, 0), 0)} form fields.` });
+  };
+
   // ── Element operations ───────────────────────────────
 
   const addElement = (type: DocumentElement["type"]) => {
@@ -468,13 +637,13 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const el: DocumentElement = {
       id: uid(),
       type,
-      content: type === "dynamic" ? "{fieldName}" : type === "qrcode" ? "QR Code" : type === "signature" ? "Signature" : type === "table" ? "Data Table" : "New Text",
+      content: type === "dynamic" ? `{${firstFieldValue}}` : type === "qrcode" ? "QR Code" : type === "signature" ? "Signature" : type === "table" ? "Data Table" : "New Text",
       x: 60,
       y: 40 + activeDoc.elements.length * 30,
       width: type === "qrcode" ? 80 : type === "signature" ? 200 : 440,
       height: type === "qrcode" ? 80 : type === "table" ? 100 : type === "signature" ? 60 : 24,
       style: { ...defaultStyle },
-      sourceMapping: type === "dynamic" ? "businessName" : undefined,
+      sourceMapping: type === "dynamic" ? firstFieldValue : undefined,
     };
     setDocumentsWithHistory((prev) =>
       prev.map((d) => (d.id === activeDocId ? { ...d, elements: [...d.elements, el] } : d))
@@ -859,6 +1028,21 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               <Upload className="h-4 w-4" />
               Upload
             </Button>
+            {activeDoc?.type === "application_pdf" && (
+              <>
+                <Separator orientation="vertical" className="h-6 mx-1" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs ml-auto"
+                  onClick={() => setSyncConfirmDocId(activeDoc.id)}
+                  title="Rebuild this PDF layout from the current form fields"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Sync with form
+                </Button>
+              </>
+            )}
           </div>
           {/* Canvas */}
           <div className="flex-1 overflow-auto flex items-start justify-center p-6">
@@ -960,19 +1144,44 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     </div>
 
                     {/* Dynamic field mapping */}
-                    {selectedElement.type === "dynamic" && (
-                      <div className="space-y-2 mb-4">
-                        <Label className="text-xs">Source Mapping</Label>
-                        <Select value={selectedElement.sourceMapping || ""} onValueChange={(v) => { updateElement(selectedElement.id, { sourceMapping: v, content: `{${v}}` }); }}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {DYNAMIC_VARS.map((v) => (
-                              <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                    {selectedElement.type === "dynamic" && (() => {
+                      const currentVal = selectedElement.sourceMapping || "";
+                      const knownLabel = findVarLabel(varCatalog, currentVal);
+                      const isStale = currentVal && !knownLabel;
+                      return (
+                        <div className="space-y-2 mb-4">
+                          <Label className="text-xs">Source Mapping</Label>
+                          <Select
+                            value={currentVal}
+                            onValueChange={(v) => { updateElement(selectedElement.id, { sourceMapping: v, content: `{${v}}` }); }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select a form field" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {isStale && (
+                                <SelectGroup>
+                                  <SelectLabel className="text-[10px] uppercase tracking-wider text-destructive">Removed</SelectLabel>
+                                  <SelectItem value={currentVal}>(removed) {currentVal}</SelectItem>
+                                </SelectGroup>
+                              )}
+                              {varCatalog.map((g) => (
+                                <SelectGroup key={g.group}>
+                                  <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.group}</SelectLabel>
+                                  {g.options.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {isStale && (
+                            <p className="text-[10px] text-destructive">This field is no longer in the form. Pick a new one.</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+
 
                     {/* Text / Dynamic styling */}
                     {(selectedElement.type === "text" || selectedElement.type === "dynamic") && (
@@ -1193,6 +1402,23 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={deleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!syncConfirmDocId} onOpenChange={(o) => !o && setSyncConfirmDocId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sync Application PDF with form?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This replaces the current Application PDF layout with one row per form field. Any custom edits to this document will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (syncConfirmDocId) { syncApplicationPdf(syncConfirmDocId); setSyncConfirmDocId(null); } }}>
+              Sync now
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
