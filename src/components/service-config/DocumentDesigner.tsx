@@ -329,6 +329,41 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
 
   const activeDoc = documents.find((d) => d.id === activeDocId)!;
   const selectedElement = selectedElementId ? activeDoc.elements.find((e) => e.id === selectedElementId) : null;
+  const qrElements = activeDoc?.elements.filter((e) => e.type === "qrcode") ?? [];
+
+  // Auto-disable VC / clear mapped QR if the underlying QR elements are gone
+  useEffect(() => {
+    if (!activeDoc) return;
+    const vc = activeDoc.verifiableCredential;
+    if (qrElements.length === 0 && (vc.enabled || vc.mappedQrElementId)) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, enabled: false, mappedQrElementId: null } }
+            : d
+        )
+      );
+      return;
+    }
+    if (vc.mappedQrElementId && !qrElements.some((q) => q.id === vc.mappedQrElementId)) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, mappedQrElementId: qrElements[0]?.id ?? null } }
+            : d
+        )
+      );
+    }
+    if (vc.enabled && qrElements.length === 1 && !vc.mappedQrElementId) {
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === activeDocId
+            ? { ...d, verifiableCredential: { ...d.verifiableCredential, mappedQrElementId: qrElements[0].id } }
+            : d
+        )
+      );
+    }
+  }, [qrElements.length, activeDocId, activeDoc?.verifiableCredential.enabled, activeDoc?.verifiableCredential.mappedQrElementId]);
 
   const pushHistory = useCallback((docs: DesignDocument[]) => {
     setHistory((prev) => {
