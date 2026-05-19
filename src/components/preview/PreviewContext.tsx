@@ -79,7 +79,10 @@ export interface WorkflowTransitionConfig {
   name: string;
   fromStateId: string;
   toStateId: string;
+  /** Legacy persona bucket — kept for any callers still keyed off it. */
   role: PreviewRole | "any";
+  /** Canonical service-role id (e.g. "document_verifier", "approver", or a custom id). */
+  roleId: string;
   checklist: { id: string; text: string }[];
 }
 
