@@ -69,14 +69,13 @@ interface SrcNotification {
   channel: "email" | "sms" | "push"; recipientRole: string;
   tag: string; tagColor: string;
 }
-type PaymentType = "full" | "partial" | "multiple";
 type Gateway = "razorpay" | "paygov" | "custom";
 interface SrcPaymentStage {
   id: string; name: string; workflowState: string; fees: string[];
-  paymentType: PaymentType;
-  methods: { online: boolean; offline: boolean; counter: boolean };
+  methods: { online: boolean; counter: boolean };
   gateway: Gateway; generateReceipt: boolean; receiptTemplate?: string;
 }
+
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -170,9 +169,10 @@ const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
   const src = isRenewalModule(moduleName) ? RENEWAL_PAYMENT_STAGES : TRADE_PAYMENT_STAGES;
   return src.map(s => ({
     id: s.id, name: s.name, workflowState: s.workflowState, fees: [...s.fees],
-    paymentType: s.paymentType, methods: { ...s.methods }, gateway: s.gateway,
+    methods: { online: s.methods.online, counter: s.methods.counter }, gateway: s.gateway,
     generateReceipt: s.generateReceipt, receiptTemplate: s.receiptTemplate,
   }));
+
 };
 
 const buildSeedStates = (
@@ -500,8 +500,9 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       name: "",
       workflowState: st?.name ?? "",
       fees: [],
-      paymentType: "full",
-      methods: { online: true, offline: false, counter: false },
+      methods: { online: true, counter: false },
+
+
       gateway: "razorpay",
       generateReceipt: false,
     });
@@ -1526,20 +1527,9 @@ const PaymentStageEditDialog: React.FC<{
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Payment Type</Label>
-            <Select value={draft.paymentType} onValueChange={(v) => update({ paymentType: v as PaymentType })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Full</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="multiple">Multiple</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>Methods</Label>
             <div className="flex gap-3">
-              {(["online", "offline", "counter"] as const).map(m => (
+              {(["online", "counter"] as const).map(m => (
                 <label key={m} className="flex items-center gap-2 cursor-pointer text-sm">
                   <Checkbox checked={draft.methods[m]} onCheckedChange={() => toggleMethod(m)} />
                   <span className="capitalize">{m}</span>
@@ -1547,17 +1537,20 @@ const PaymentStageEditDialog: React.FC<{
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Gateway</Label>
-            <Select value={draft.gateway} onValueChange={(v) => update({ gateway: v as Gateway })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="razorpay">Razorpay</SelectItem>
-                <SelectItem value="paygov">PayGov</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {draft.methods.online && (
+            <div className="space-y-1.5">
+              <Label>Gateway</Label>
+              <Select value={draft.gateway} onValueChange={(v) => update({ gateway: v as Gateway })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="razorpay">Razorpay</SelectItem>
+                  <SelectItem value="paygov">PayGov</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <Switch checked={draft.generateReceipt} onCheckedChange={(v) => update({ generateReceipt: v })} />
             <Label>Generate Receipt</Label>

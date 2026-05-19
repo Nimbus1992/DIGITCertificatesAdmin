@@ -44,7 +44,6 @@ const GATEWAY_OPTIONS = [
   { value: "custom", label: "Custom" },
 ] as const;
 
-type PaymentType = "full" | "partial" | "multiple";
 type Gateway = "razorpay" | "paygov" | "custom";
 
 interface PaymentStage {
@@ -52,8 +51,7 @@ interface PaymentStage {
   name: string;
   workflowState: string;
   fees: string[];
-  paymentType: PaymentType;
-  methods: { online: boolean; offline: boolean; counter: boolean };
+  methods: { online: boolean; counter: boolean };
   gateway: Gateway;
   generateReceipt: boolean;
   receiptTemplate?: string;
@@ -68,8 +66,7 @@ const buildDefaultStages = (moduleName: string): PaymentStage[] => {
     name: s.name,
     workflowState: s.workflowState,
     fees: [...s.fees],
-    paymentType: s.paymentType,
-    methods: { ...s.methods },
+    methods: { online: s.methods.online, counter: s.methods.counter },
     gateway: s.gateway,
     generateReceipt: s.generateReceipt,
     receiptTemplate: s.receiptTemplate,
@@ -81,11 +78,11 @@ const emptyStage = (): PaymentStage => ({
   name: "",
   workflowState: "",
   fees: [],
-  paymentType: "full",
-  methods: { online: true, offline: false, counter: false },
+  methods: { online: true, counter: false },
   gateway: "razorpay",
   generateReceipt: false,
 });
+
 
 /* ── component ── */
 interface Props {
@@ -212,7 +209,6 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
                           <p className="font-medium text-foreground">{s.name}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{s.workflowState}</p>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">{s.paymentType}</Badge>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {s.fees.map((f) => (
@@ -221,10 +217,10 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
                       </div>
                       <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
                         {s.methods.online && <span className="flex items-center gap-0.5"><CreditCard className="h-3 w-3" /> Online</span>}
-                        {s.methods.offline && <span className="flex items-center gap-0.5"><Building className="h-3 w-3" /> Offline</span>}
                         {s.methods.counter && <span className="flex items-center gap-0.5"><Landmark className="h-3 w-3" /> Counter</span>}
                         {s.generateReceipt && <span className="flex items-center gap-0.5"><Receipt className="h-3 w-3" /> Receipt</span>}
                       </div>
+
                       <div className="flex gap-2 pt-1">
                         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openEdit(s)}>
                           <Pencil className="h-3 w-3 mr-1" /> Edit
@@ -290,23 +286,10 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               ))}
             </div>
 
-            {/* payment type */}
-            <div className="space-y-2">
-              <Label>Payment Type</Label>
-              <RadioGroup value={draft.paymentType} onValueChange={(v) => updateDraft({ paymentType: v as PaymentType })}>
-                {(["full", "partial", "multiple"] as const).map((t) => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer">
-                    <RadioGroupItem value={t} />
-                    <span className="text-sm capitalize">{t} Payment</span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-
             {/* payment method */}
             <div className="space-y-2">
               <Label>Payment Method</Label>
-              {(["online", "offline", "counter"] as const).map((m) => (
+              {(["online", "counter"] as const).map((m) => (
                 <label key={m} className="flex items-center gap-2 cursor-pointer">
                   <Checkbox checked={draft.methods[m]} onCheckedChange={() => toggleMethod(m)} />
                   <span className="text-sm capitalize">{m}</span>
@@ -314,18 +297,21 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               ))}
             </div>
 
-            {/* gateway */}
-            <div className="space-y-1.5">
-              <Label>Payment Gateway</Label>
-              <Select value={draft.gateway} onValueChange={(v) => updateDraft({ gateway: v as Gateway })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {GATEWAY_OPTIONS.map((g) => (
-                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* gateway - only when online enabled */}
+            {draft.methods.online && (
+              <div className="space-y-1.5">
+                <Label>Payment Gateway</Label>
+                <Select value={draft.gateway} onValueChange={(v) => updateDraft({ gateway: v as Gateway })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {GATEWAY_OPTIONS.map((g) => (
+                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
 
             {/* receipt */}
             <div className="space-y-2">

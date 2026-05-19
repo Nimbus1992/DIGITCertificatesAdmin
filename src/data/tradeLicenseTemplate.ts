@@ -489,8 +489,7 @@ export interface TradePaymentStageSeed {
   name: string;
   workflowState: string;
   fees: string[];
-  paymentType: "full" | "partial" | "multiple";
-  methods: { online: boolean; offline: boolean; counter: boolean };
+  methods: { online: boolean; counter: boolean };
   gateway: "razorpay" | "paygov" | "custom";
   generateReceipt: boolean;
   receiptTemplate?: string;
@@ -501,8 +500,7 @@ export const TRADE_PAYMENT_STAGES: TradePaymentStageSeed[] = [
     id: "pay_app", name: "Application Payment",
     workflowState: "Submitted",
     fees: ["Application Fee"],
-    paymentType: "full",
-    methods: { online: true, offline: true, counter: false },
+    methods: { online: true, counter: false },
     gateway: "razorpay",
     generateReceipt: true,
     receiptTemplate: "Payment Receipt",
@@ -511,13 +509,13 @@ export const TRADE_PAYMENT_STAGES: TradePaymentStageSeed[] = [
     id: "pay_lic", name: "License Payment",
     workflowState: "Payment Pending",
     fees: ["Inspection Fee", "Hazard Surcharge", "License Fee"],
-    paymentType: "full",
-    methods: { online: true, offline: true, counter: true },
+    methods: { online: true, counter: true },
     gateway: "paygov",
     generateReceipt: true,
     receiptTemplate: "Payment Receipt",
   },
 ];
+
 
 // Convenience exports for configurator constant lists
 export const TRADE_STATE_NAMES: string[] = TRADE_WORKFLOW_STATES.map((s) => s.name);
