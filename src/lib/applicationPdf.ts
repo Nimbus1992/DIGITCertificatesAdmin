@@ -1,11 +1,12 @@
 import { jsPDF } from "jspdf";
 import type { PreviewApplication, FormSectionConfig, WorkflowStateConfig } from "@/components/preview/PreviewContext";
+import { makePager, drawWrapped, finalizePageFooters } from "./pdfUtils";
+import { resolvePdfBranding, drawHeaderLogo, hexToRgb } from "./pdfBranding";
 
 const fmtDateTime = (ts: number) =>
   new Date(ts).toLocaleString("en-IN", {
     day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
-
 
 interface DownloadOptions {
   includeDocuments?: boolean;
@@ -22,46 +23,33 @@ export function downloadApplicationPdf(
   const { includeDocuments = false, includeChecklists = false } = options;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const M = 40; // margin
-  let y = M;
+  const M = 40;
+  const branding = resolvePdfBranding();
+  const [pr, pg, pb] = hexToRgb(branding.primaryColorHex);
 
-  const ensureSpace = (needed: number) => {
-    if (y + needed > H - M - 30) {
-      addFooter();
-      doc.addPage();
-      y = M;
-    }
-  };
-
-  const addFooter = () => {
+  const drawHeader = () => {
+    doc.setFillColor(pr, pg, pb);
+    doc.rect(0, 0, W, 70, "F");
+    drawHeaderLogo(doc, branding, M, 14, 42, 42);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text(`${serviceName} — Application`, M + 54, 32);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(140, 140, 140);
-    doc.text(
-      `Generated ${fmtDateTime(Date.now())} • DIGIT Studio Preview`,
-      W / 2, H - 24, { align: "center" }
-    );
+    doc.setFontSize(10);
+    doc.text(app.applicationNumber, M + 54, 50);
+    doc.text(`Status: ${app.status}`, W - M, 50, { align: "right" });
+    doc.setTextColor(20, 20, 20);
   };
 
-  // Header banner
-  doc.setFillColor(11, 79, 108);
-  doc.rect(0, 0, W, 70, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(`${serviceName} — Application`, M, 32);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(app.applicationNumber, M, 52);
-  doc.text(`Status: ${app.status}`, W - M, 52, { align: "right" });
-  y = 100;
+  const pager = makePager(doc, {
+    marginTop: 90,
+    marginBottom: 60,
+    onNewPage: () => drawHeader(),
+  });
+  drawHeader();
 
-  doc.setTextColor(20, 20, 20);
-
-  // Quick info
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  // ── Quick info ───────────────────────────────────────
   const meta: [string, string][] = [
     ["Type", app.type === "RENEWAL" ? "Renewal" : "New Application"],
     ["Submitted", fmtDateTime(app.createdAt)],
@@ -70,133 +58,125 @@ export function downloadApplicationPdf(
   if (app.paymentStatus) meta.push(["Payment", app.paymentStatus === "paid" ? "Paid" : "Pending"]);
   if (app.license) meta.push(["License No.", app.license.number]);
 
+  doc.setFontSize(10);
   meta.forEach(([k, v]) => {
-    ensureSpace(16);
+    pager.ensureSpace(16);
     doc.setFont("helvetica", "bold");
-    doc.text(k, M, y);
+    doc.text(k, M, pager.y);
     doc.setFont("helvetica", "normal");
-    doc.text(String(v), M + 110, y, { maxWidth: W - M - 110 });
-    y += 16;
+    drawWrapped(doc, String(v), M + 110, pager.y, { maxWidth: W - M - 110, lineHeight: 14, pager });
+    // Trailing micro-gap between rows
+    pager.y += 4;
   });
-  y += 6;
+  pager.y += 4;
 
-  // Form sections
+  const sectionHeader = (label: string) => {
+    pager.ensureSpace(30);
+    doc.setFillColor(240, 248, 250);
+    doc.rect(M, pager.y - 12, W - M * 2, 22, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(pr, pg, pb);
+    doc.setFontSize(11);
+    doc.text(label.toUpperCase(), M + 8, pager.y + 3);
+    doc.setTextColor(20, 20, 20);
+    doc.setFontSize(10);
+    pager.y += 22;
+  };
+
+  // ── Form sections ────────────────────────────────────
   formSections.forEach((section) => {
     const fields = section.fields.filter((f) => app.formData[f.id]);
     if (fields.length === 0) return;
-    ensureSpace(40);
-    doc.setFillColor(240, 248, 250);
-    doc.rect(M, y - 12, W - M * 2, 22, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 79, 108);
-    doc.setFontSize(11);
-    doc.text(section.name.toUpperCase(), M + 8, y + 3);
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(10);
-    y += 22;
+    sectionHeader(section.name);
     fields.forEach((f) => {
-      ensureSpace(16);
+      pager.ensureSpace(16);
+      const rowStartY = pager.y;
       doc.setFont("helvetica", "bold");
-      doc.text(f.label, M + 8, y);
+      doc.text(f.label, M + 8, rowStartY, { maxWidth: 160 });
       doc.setFont("helvetica", "normal");
-      doc.text(String(app.formData[f.id]), M + 180, y, { maxWidth: W - M - 200 });
-      y += 16;
+      drawWrapped(doc, String(app.formData[f.id]), M + 180, rowStartY, {
+        maxWidth: W - M - 200, lineHeight: 14, pager,
+      });
+      pager.y += 4;
     });
-    y += 6;
+    pager.y += 6;
   });
 
-  // Documents
+  // ── Documents ────────────────────────────────────────
   if (includeDocuments && app.documents.length > 0) {
-    ensureSpace(40);
-    doc.setFillColor(240, 248, 250);
-    doc.rect(M, y - 12, W - M * 2, 22, "F");
+    sectionHeader("Documents");
+    pager.ensureSpace(20);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 79, 108);
-    doc.setFontSize(11);
-    doc.text("DOCUMENTS", M + 8, y + 3);
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(10);
-    y += 22;
-
-    // Table header
-    doc.setFont("helvetica", "bold");
-    doc.text("Type", M + 8, y);
-    doc.text("File", M + 160, y);
-    doc.text("Status", W - M - 80, y);
-    y += 4;
+    doc.text("Type", M + 8, pager.y);
+    doc.text("File", M + 160, pager.y);
+    doc.text("Status", W - M - 80, pager.y);
+    pager.y += 4;
     doc.setDrawColor(200, 200, 200);
-    doc.line(M, y, W - M, y);
-    y += 12;
+    doc.line(M, pager.y, W - M, pager.y);
+    pager.y += 12;
     doc.setFont("helvetica", "normal");
 
     app.documents.forEach((d) => {
-      ensureSpace(16);
-      doc.text(d.type, M + 8, y, { maxWidth: 140 });
-      doc.text(d.name, M + 160, y, { maxWidth: 200 });
-      doc.text(d.status + (d.reused ? " (Reused)" : ""), W - M - 80, y);
-      y += 14;
+      pager.ensureSpace(16);
+      const rowY = pager.y;
+      drawWrapped(doc, d.type, M + 8, rowY, { maxWidth: 140, lineHeight: 14 });
+      drawWrapped(doc, d.name, M + 160, rowY, { maxWidth: 200, lineHeight: 14 });
+      doc.text(d.status + (d.reused ? " (Reused)" : ""), W - M - 80, rowY);
+      // Advance based on the tallest column
+      const lines = Math.max(
+        (doc.splitTextToSize(d.type, 140) as string[]).length,
+        (doc.splitTextToSize(d.name, 200) as string[]).length,
+        1,
+      );
+      pager.y = rowY + lines * 14 + 2;
     });
-    y += 10;
+    pager.y += 10;
   }
 
-  // Checklists
+  // ── Checklists ───────────────────────────────────────
   if (includeChecklists && Object.keys(app.checklists).length > 0) {
-    ensureSpace(40);
-    doc.setFillColor(240, 248, 250);
-    doc.rect(M, y - 12, W - M * 2, 22, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 79, 108);
-    doc.setFontSize(11);
-    doc.text("CHECKLISTS", M + 8, y + 3);
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(10);
-    y += 22;
-
+    sectionHeader("Checklists");
     Object.entries(app.checklists).forEach(([stateId, items]) => {
       const stateName = workflowStates.find((s) => s.id === stateId)?.name ?? stateId;
-      ensureSpace(20);
+      pager.ensureSpace(20);
       doc.setFont("helvetica", "bold");
-      doc.text(stateName, M + 8, y);
-      y += 14;
+      doc.text(stateName, M + 8, pager.y);
+      pager.y += 14;
       doc.setFont("helvetica", "normal");
       items.forEach((it) => {
-        ensureSpace(14);
-        doc.text(`${it.checked ? "[x]" : "[ ]"}  ${it.text}`, M + 16, y, { maxWidth: W - M - 24 });
-        y += 14;
+        drawWrapped(doc, `${it.checked ? "[x]" : "[ ]"}  ${it.text}`, M + 16, pager.y, {
+          maxWidth: W - M - 24, lineHeight: 14, pager,
+        });
+        pager.y += 2;
       });
-      y += 6;
+      pager.y += 6;
     });
   }
 
-  // Timeline
+  // ── Timeline ─────────────────────────────────────────
   if (app.timeline.length > 0) {
-    ensureSpace(40);
-    doc.setFillColor(240, 248, 250);
-    doc.rect(M, y - 12, W - M * 2, 22, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(11, 79, 108);
-    doc.setFontSize(11);
-    doc.text("TIMELINE", M + 8, y + 3);
-    doc.setTextColor(20, 20, 20);
-    doc.setFontSize(10);
-    y += 22;
+    sectionHeader("Timeline");
     app.timeline.forEach((t) => {
-      ensureSpace(16);
+      pager.ensureSpace(18);
+      const rowY = pager.y;
       doc.setFont("helvetica", "bold");
-      doc.text(t.state, M + 8, y);
+      doc.text(t.state, M + 8, rowY, { maxWidth: 160 });
       doc.setFont("helvetica", "normal");
-      doc.text(`${t.actor} • ${fmtDateTime(t.at)}`, M + 180, y, { maxWidth: W - M - 200 });
-      y += 14;
+      drawWrapped(doc, `${t.actor} • ${fmtDateTime(t.at)}`, M + 180, rowY, {
+        maxWidth: W - M - 200, lineHeight: 14, pager,
+      });
+      pager.y += 2;
       if (t.note) {
-        ensureSpace(14);
         doc.setTextColor(110, 110, 110);
-        doc.text(t.note, M + 16, y, { maxWidth: W - M - 24 });
+        drawWrapped(doc, t.note, M + 16, pager.y, {
+          maxWidth: W - M - 24, lineHeight: 14, pager,
+        });
         doc.setTextColor(20, 20, 20);
-        y += 14;
+        pager.y += 2;
       }
     });
   }
 
-  addFooter();
+  finalizePageFooters(doc, `Generated ${fmtDateTime(Date.now())}`);
   doc.save(`${app.applicationNumber}.pdf`);
 }
