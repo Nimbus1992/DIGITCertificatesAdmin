@@ -50,10 +50,19 @@ const PaymentScreen: React.FC = () => {
         <div className="border rounded-xl p-4 bg-card">
           <p className="text-xs font-semibold text-accent mb-3">Fee Breakdown</p>
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">License Fee</dt>
-              <dd className="font-medium text-foreground">₹{app.demand.fee.toLocaleString()}</dd>
-            </div>
+            {app.demand.lines && app.demand.lines.length > 0 ? (
+              app.demand.lines.map((line) => (
+                <div key={line.feeId} className="flex justify-between">
+                  <dt className="text-muted-foreground">{line.name}</dt>
+                  <dd className="font-medium text-foreground">₹{line.amount.toLocaleString()}</dd>
+                </div>
+              ))
+            ) : (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">License Fee</dt>
+                <dd className="font-medium text-foreground">₹{app.demand.fee.toLocaleString()}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Tax (10%)</dt>
               <dd className="font-medium text-foreground">₹{app.demand.tax.toLocaleString()}</dd>

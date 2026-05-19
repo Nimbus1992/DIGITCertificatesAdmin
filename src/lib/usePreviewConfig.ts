@@ -254,12 +254,19 @@ const evalSlab = (fee: PreviewFee, formData: Record<string, string>): number => 
   return fee.slabs[0].amount;
 };
 
+// "License Fee" type: "formula" → Area × ₹10/sq ft (with sensible floor).
+const evalFormula = (_fee: PreviewFee, formData: Record<string, string>): number => {
+  const area = parseFloat(formData.shopArea ?? "0") || 0;
+  const computed = Math.round(area * 10);
+  return computed > 0 ? computed : 1000;
+};
+
 const evalFee = (fee: PreviewFee, formData: Record<string, string>): number => {
   switch (fee.type) {
     case "fixed":       return fee.amount ?? 0;
     case "slab":        return evalSlab(fee, formData);
     case "conditional": return evalConditional(fee, formData);
-    case "formula":     return 1000; // placeholder evaluator
+    case "formula":     return evalFormula(fee, formData);
   }
 };
 
