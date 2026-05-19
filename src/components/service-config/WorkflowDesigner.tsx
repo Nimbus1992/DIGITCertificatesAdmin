@@ -290,11 +290,11 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   );
 
   const [states, setStates] = useModuleState<WorkflowState[]>(
-    "workflow-states-v3", serviceId, storageSuffix,
+    "workflow-states-v4", serviceId, storageSuffix,
     () => buildSeedStates(moduleName, buildSeedNotifications(moduleName), buildSeedPaymentStages(moduleName)),
   );
   const [transitions, setTransitions] = useModuleState<WorkflowTransition[]>(
-    "workflow-transitions-v3", serviceId, storageSuffix,
+    "workflow-transitions-v4", serviceId, storageSuffix,
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
