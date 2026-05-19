@@ -69,14 +69,13 @@ interface SrcNotification {
   channel: "email" | "sms" | "push"; recipientRole: string;
   tag: string; tagColor: string;
 }
-type PaymentType = "full" | "partial" | "multiple";
 type Gateway = "razorpay" | "paygov" | "custom";
 interface SrcPaymentStage {
   id: string; name: string; workflowState: string; fees: string[];
-  paymentType: PaymentType;
-  methods: { online: boolean; offline: boolean; counter: boolean };
+  methods: { online: boolean; counter: boolean };
   gateway: Gateway; generateReceipt: boolean; receiptTemplate?: string;
 }
+
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Text" },
