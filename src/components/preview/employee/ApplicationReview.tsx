@@ -20,7 +20,7 @@ import EmployeeTopBar from "./EmployeeTopBar";
 
 const ApplicationReview: React.FC = () => {
   const {
-    role, screen, applications, setScreen, formSections, serviceName,
+    role, activeRoleId, screen, applications, setScreen, formSections, serviceName,
     workflowStates, workflowTransitions,
     issueLicense, completeRenewal,
   } = usePreview();
@@ -37,9 +37,9 @@ const ApplicationReview: React.FC = () => {
   const availableTransitions = useMemo(() => {
     if (!app) return [];
     return workflowTransitions.filter(
-      (t) => t.fromStateId === app.currentStateId && (t.role === role || t.role === "any")
+      (t) => t.fromStateId === app.currentStateId && (t.roleId === activeRoleId || t.role === "any")
     );
-  }, [workflowTransitions, app, role]);
+  }, [workflowTransitions, app, activeRoleId]);
 
   const parentLicenseApp = app?.parentLicenseId
     ? applications.find((a) => a.id === app.parentLicenseId)
@@ -47,15 +47,22 @@ const ApplicationReview: React.FC = () => {
 
   if (!app) return <div className="p-6 text-sm text-muted-foreground">Application not found.</div>;
 
-  const canIssueLicense = role === "approver" && app.currentStateId === "s5";
+  // The active role can issue a license if any of its transitions exit s5.
+  const canIssueLicense =
+    app.currentStateId === "s5" &&
+    workflowTransitions.some((t) => t.fromStateId === "s5" && t.roleId === activeRoleId);
   const isRenewal = app.type === "RENEWAL";
   const statusStyle = getStatusStyle(app.currentStateId);
   const stripColor = statusStyle.dot;
   const uploadedBy = app.formData.fullName || app.formData.f1 || "Citizen";
 
-  // Doc verification gating
+  // Doc verification gating: any role that owns the verification transition.
   const allDocsVerified = app.documents.length === 0 || app.documents.every((d) => d.status === "Verified");
-  const canReviewDocs = role === "documentVerifier" && (app.currentStateId === "s_dv" || app.currentStateId === "s1");
+  const canReviewDocs =
+    (app.currentStateId === "s_dv" || app.currentStateId === "s1") &&
+    workflowTransitions.some(
+      (t) => t.fromStateId === app.currentStateId && t.roleId === activeRoleId
+    );
 
   const isTransitionBlocked = (t: WorkflowTransitionConfig) => {
     if (t.id === "t_verify_app" && !allDocsVerified) return true;
