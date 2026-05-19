@@ -199,7 +199,10 @@ export interface PreviewScreen {
 
 interface PreviewContextValue {
   role: PreviewRole;
-  setRole: (r: PreviewRole) => void;
+  /** Canonical service-role id of the currently-selected role (e.g. "document_verifier", "approver", "issuer"). */
+  activeRoleId: string;
+  /** Activate a role. Pass roleId for any non-citizen role so queues filter correctly. */
+  setRole: (r: PreviewRole, roleId?: string) => void;
   deviceMode: DeviceMode;
   setDeviceMode: (d: DeviceMode) => void;
   screen: PreviewScreen;
