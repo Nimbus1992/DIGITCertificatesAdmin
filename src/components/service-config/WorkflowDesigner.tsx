@@ -11,6 +11,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
@@ -20,7 +23,7 @@ import {
   ArrowLeft, Plus, Bell, Check, Circle, Play,
   Square, Save, ChevronRight, ChevronLeft,
   Info, Trash2, IndianRupee, UserCog, Pencil, ClipboardCheck, CreditCard,
-  ZoomIn, ZoomOut, Maximize2,
+  ZoomIn, ZoomOut, Maximize2, ChevronDown, FileText,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useServiceRoles, canonicalRoleId } from "@/lib/useServiceRoles";
@@ -41,6 +44,7 @@ interface WorkflowState {
   y: number;
   paymentStageId: string | null;
   notificationIds: string[];
+  attachedDocumentIds?: string[];
 }
 
 interface WorkflowTransition {
@@ -271,6 +275,34 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
+  /* ---- Configured documents (read-only mirror of Document Designer) ---- */
+  const docKey = `documents:${serviceId}:${moduleName}`;
+  const readDocs = useCallback((): { id: string; name: string }[] => {
+    try {
+      const raw = localStorage.getItem(docKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((d) => d && typeof d.id === "string")
+          .map((d) => ({ id: d.id as string, name: (d.name as string) || "Untitled" }));
+      }
+    } catch { /* ignore */ }
+    return [];
+  }, [docKey]);
+  const [configuredDocs, setConfiguredDocs] = useState<{ id: string; name: string }[]>(() => readDocs());
+  useEffect(() => {
+    setConfiguredDocs(readDocs());
+    const onStorage = (e: StorageEvent) => { if (e.key === docKey) setConfiguredDocs(readDocs()); };
+    const onFocus = () => setConfiguredDocs(readDocs());
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [docKey, readDocs]);
+
   /* ---- Roles (shared across modules of this service) ---- */
   const [serviceRoles] = useServiceRoles(serviceId, moduleName);
   const ROLE_OPTIONS = serviceRoles.map((r) => ({ id: r.id, name: r.name }));
@@ -477,7 +509,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       subject: "",
       message: "",
       channel: "email",
-      recipientRole: "citizen",
+      recipientRole: fallbackRoleId,
       tag,
       tagColor: tagColors[tag] ?? "bg-muted text-muted-foreground",
     };
@@ -889,49 +921,113 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                     </Button>
                   </div>
 
-                  {/* Notifications picker */}
+                  {/* Notifications picker (dropdown) */}
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notifications on entry</Label>
-                    {notifications.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No notifications configured yet.</p>
-                    ) : (
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-md border p-2">
-                        {notifications.map(n => {
-                          const attached = selectedState.notificationIds.includes(n.id);
-                          return (
-                            <div key={n.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/40">
-                              <Checkbox
-                                checked={attached}
-                                onCheckedChange={() => {
-                                  const next = attached
-                                    ? selectedState.notificationIds.filter(id => id !== n.id)
-                                    : [...selectedState.notificationIds, n.id];
-                                  updateState(selectedState.id, { notificationIds: next });
-                                }}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-xs font-medium text-foreground truncate">{n.subject || "(untitled)"}</p>
-                                  <button onClick={() => setEditingNotif({ ...n })}
-                                    className="text-muted-foreground hover:text-foreground" title="Edit">
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+                          <span className="truncate">
+                            {selectedState.notificationIds.length === 0
+                              ? "None attached"
+                              : `${selectedState.notificationIds.length} attached`}
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[320px] p-0" align="start">
+                        {notifications.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic p-3">No notifications configured yet.</p>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto p-1">
+                            {notifications.map(n => {
+                              const attached = selectedState.notificationIds.includes(n.id);
+                              return (
+                                <div key={n.id} className="flex items-start gap-2 p-2 rounded hover:bg-muted/50">
+                                  <Checkbox
+                                    checked={attached}
+                                    onCheckedChange={() => {
+                                      const next = attached
+                                        ? selectedState.notificationIds.filter(id => id !== n.id)
+                                        : [...selectedState.notificationIds, n.id];
+                                      updateState(selectedState.id, { notificationIds: next });
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-xs font-medium text-foreground truncate">{n.subject || n.message?.slice(0, 40) || "(untitled)"}</p>
+                                      <button onClick={() => setEditingNotif({ ...n })}
+                                        className="text-muted-foreground hover:text-foreground shrink-0" title="Edit">
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                    <div className="flex gap-1.5 mt-0.5">
+                                      <span className="text-[9px] uppercase text-muted-foreground">{n.channel}</span>
+                                      <span className="text-[9px] uppercase text-muted-foreground">· {roleName(n.recipientRole)}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex gap-1.5 mt-0.5">
-                                  <span className="text-[9px] uppercase text-muted-foreground">{n.channel}</span>
-                                  <span className="text-[9px] uppercase text-muted-foreground">· {n.recipientRole}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                              );
+                            })}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                     <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs"
                       onClick={() => createNotificationFor(selectedState.id)}>
                       <Plus className="h-3 w-3" /> New notification
                     </Button>
                   </div>
+
+                  {/* Attached documents (dropdown) */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attached documents</Label>
+                    {(() => {
+                      const attachedIds = (selectedState.attachedDocumentIds ?? []).filter(id => configuredDocs.some(d => d.id === id));
+                      const attachedNames = attachedIds.map(id => configuredDocs.find(d => d.id === id)?.name).filter(Boolean) as string[];
+                      return (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+                              <span className="truncate text-left">
+                                {attachedNames.length === 0 ? "None attached" : attachedNames.join(", ")}
+                              </span>
+                              <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0" align="start">
+                            {configuredDocs.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic p-3">
+                                No documents configured yet — add them in Document Designer.
+                              </p>
+                            ) : (
+                              <div className="max-h-64 overflow-y-auto p-1">
+                                {configuredDocs.map(d => {
+                                  const checked = attachedIds.includes(d.id);
+                                  return (
+                                    <label key={d.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={() => {
+                                          const next = checked
+                                            ? attachedIds.filter(id => id !== d.id)
+                                            : [...attachedIds, d.id];
+                                          updateState(selectedState.id, { attachedDocumentIds: next });
+                                        }}
+                                      />
+                                      <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="text-xs text-foreground truncate">{d.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })()}
+                  </div>
+
 
                   <div className="border-t pt-3">
                     <Button variant="outline" size="sm" className="w-full gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
@@ -1109,6 +1205,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       <NotificationEditDialog
         value={editingNotif}
         workflowStates={WORKFLOW_STATE_NAMES}
+        roles={ROLE_OPTIONS}
         moduleName={moduleName}
         onClose={() => setEditingNotif(null)}
         onSave={(n) => {
@@ -1305,11 +1402,12 @@ const AddStateDialog: React.FC<{
 const NotificationEditDialog: React.FC<{
   value: SrcNotification | null;
   workflowStates: string[];
+  roles: { id: string; name: string }[];
   moduleName: string;
   onClose: () => void;
   onSave: (n: SrcNotification) => void;
   onDelete: (id: string) => void;
-}> = ({ value, workflowStates, moduleName, onClose, onSave, onDelete }) => {
+}> = ({ value, workflowStates, roles, moduleName, onClose, onSave, onDelete }) => {
   const [draft, setDraft] = useState<SrcNotification | null>(value);
   useEffect(() => { setDraft(value); }, [value]);
   if (!draft) return null;
@@ -1337,15 +1435,27 @@ const NotificationEditDialog: React.FC<{
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Workflow State</Label>
-            <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
-              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-              <SelectContent>
-                {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Workflow State *</Label>
+              <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Recipient Role *</Label>
+              <Select value={draft.recipientRole} onValueChange={(v) => setDraft(d => d ? { ...d, recipientRole: v } : d)}>
+                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
           {draft.channel === "email" && (
             <div className="space-y-1.5">
               <Label>Subject</Label>
@@ -1374,7 +1484,7 @@ const NotificationEditDialog: React.FC<{
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button className="bg-accent text-accent-foreground hover:bg-accent/90"
-              disabled={!draft.workflowState || !draft.message.trim() || (draft.channel === "email" && !draft.subject.trim())}
+              disabled={!draft.workflowState || !draft.recipientRole || !draft.message.trim() || (draft.channel === "email" && !draft.subject.trim())}
               onClick={() => onSave(draft)}>Save</Button>
           </div>
         </DialogFooter>
