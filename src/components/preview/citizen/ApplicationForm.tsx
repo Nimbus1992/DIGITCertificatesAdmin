@@ -250,11 +250,15 @@ const ApplicationForm: React.FC = () => {
   const handleNext = () => {
     if (isReview) {
       if (!declaration) { toast.error("Please confirm the declaration"); return; }
-      const appId = isRenewal && parentApp
+      const result = isRenewal && parentApp
         ? submitRenewal(parentApp.id, formData, docs)
         : submitApplication(formData, docs);
       try { sessionStorage.removeItem(draftKey); } catch { /* ignore */ }
-      setScreen({ type: "success", applicationId: appId });
+      if (result.paymentPending) {
+        setScreen({ type: "payment", applicationId: result.id });
+      } else {
+        setScreen({ type: "success", applicationId: result.id });
+      }
       return;
     }
     if (!subValid) {
