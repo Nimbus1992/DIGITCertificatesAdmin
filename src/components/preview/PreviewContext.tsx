@@ -625,14 +625,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
 
   const PREVIEW_ROLE_IDS = new Set<PreviewRole>(["citizen", "documentVerifier", "fieldInspector", "approver"]);
-  const ROLE_ID_TO_PREVIEW: Record<string, PreviewRole> = {
-    citizen: "citizen",
-    document_verifier: "documentVerifier",
-    documentVerifier: "documentVerifier",
-    field_inspector: "fieldInspector",
-    fieldInspector: "fieldInspector",
-    approver: "approver",
-  };
+  const ROLE_ID_TO_PREVIEW = ROLE_ID_TO_PREVIEW_MAP;
+
 
   const fmtDateLocal = (ms: number) =>
     new Date(ms).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
