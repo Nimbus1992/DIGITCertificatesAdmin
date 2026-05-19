@@ -625,6 +625,20 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     );
   };
 
+  const syncApplicationPdf = (docId: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    setDocumentsWithHistory((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, elements: buildApplicationPdfElements(formSteps, d.name), syncedFromForm: true }
+          : d,
+      ),
+    );
+    setSelectedElementId(null);
+    toast({ title: "Application PDF synced", description: `Rebuilt from ${formSteps.reduce((n, s) => n + s.subScreens.reduce((m, ss) => m + ss.fields.length, 0), 0)} form fields.` });
+  };
+
   // ── Element operations ───────────────────────────────
 
   const addElement = (type: DocumentElement["type"]) => {
