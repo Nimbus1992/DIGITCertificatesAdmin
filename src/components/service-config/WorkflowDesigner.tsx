@@ -275,6 +275,34 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
 
+  /* ---- Configured documents (read-only mirror of Document Designer) ---- */
+  const docKey = `documents:${serviceId}:${moduleName}`;
+  const readDocs = useCallback((): { id: string; name: string }[] => {
+    try {
+      const raw = localStorage.getItem(docKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((d) => d && typeof d.id === "string")
+          .map((d) => ({ id: d.id as string, name: (d.name as string) || "Untitled" }));
+      }
+    } catch { /* ignore */ }
+    return [];
+  }, [docKey]);
+  const [configuredDocs, setConfiguredDocs] = useState<{ id: string; name: string }[]>(() => readDocs());
+  useEffect(() => {
+    setConfiguredDocs(readDocs());
+    const onStorage = (e: StorageEvent) => { if (e.key === docKey) setConfiguredDocs(readDocs()); };
+    const onFocus = () => setConfiguredDocs(readDocs());
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [docKey, readDocs]);
+
   /* ---- Roles (shared across modules of this service) ---- */
   const [serviceRoles] = useServiceRoles(serviceId, moduleName);
   const ROLE_OPTIONS = serviceRoles.map((r) => ({ id: r.id, name: r.name }));
