@@ -627,6 +627,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         fromStateId: t.fromStateId,
         toStateId: t.toStateId,
         role,
+        roleId: canonical,
         checklist: items,
       };
     }),
