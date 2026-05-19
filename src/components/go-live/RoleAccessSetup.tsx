@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import HelperText from "@/components/onboarding/HelperText";
 import { onboardingGuidance } from "@/data/onboardingGuidance";
 import { useOnboarding, type AccessType, type RoleAuthMethod, type RoleAccessConfig, type RoleUser } from "@/contexts/OnboardingContext";
-import { getServiceRoles } from "@/lib/serviceRoles";
+import { useServiceRoles, isCitizenRole } from "@/lib/useServiceRoles";
 
 const ACCESS_OPTIONS: { value: AccessType; label: string; description: string }[] = [
   { value: "self_registration", label: "Self Registration", description: "Users sign up themselves" },
@@ -29,14 +29,19 @@ const RoleAccessSetup: React.FC<{ onComplete: () => void; onBack: () => void }> 
   const { state, updateService, getActiveService } = useOnboarding();
   const guidance = onboardingGuidance.roleAccess ?? onboardingGuidance.addUsers;
   const activeService = getActiveService();
-  const roles = useMemo(() => getServiceRoles(activeService?.templateId), [activeService?.templateId]);
+  // Pull roles from the live store so any custom role added in Roles & Access shows up here.
+  const [storedRoles] = useServiceRoles(activeService?.id ?? "", "Issuance");
+  const roles = useMemo(
+    () => storedRoles.map((r) => ({ id: r.id, name: r.name, description: r.description, permissions: r.permissions })),
+    [storedRoles],
+  );
 
   const [configs, setConfigs] = useState<RoleAccessConfig[]>(() => {
     const existing = activeService?.roleAccess ?? [];
     return roles.map((r) => {
       const found = existing.find((e) => e.roleId === r.id);
-      if (found) return found;
-      const accessType: AccessType = r.id === "citizen" || r.id === "applicant" ? "self_registration" : "pre_registered";
+      if (found) return { ...found, roleName: r.name };
+      const accessType: AccessType = isCitizenRole(r) ? "self_registration" : "pre_registered";
       return {
         roleId: r.id,
         roleName: r.name,
