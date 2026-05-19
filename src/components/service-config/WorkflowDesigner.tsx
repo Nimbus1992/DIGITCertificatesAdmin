@@ -509,7 +509,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       subject: "",
       message: "",
       channel: "email",
-      recipientRole: "citizen",
+      recipientRole: fallbackRoleId,
       tag,
       tagColor: tagColors[tag] ?? "bg-muted text-muted-foreground",
     };
