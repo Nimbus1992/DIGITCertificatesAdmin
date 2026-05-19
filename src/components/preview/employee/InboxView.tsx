@@ -105,7 +105,11 @@ const InboxView: React.FC = () => {
               <path d="M75 25v3M75 36v3M68 32h3M79 32h3" stroke="hsl(45 90% 60%)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <p className="text-sm font-semibold text-foreground">Inbox zero!</p>
-            <p className="text-xs text-muted-foreground mt-1">No applications in your queue.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {roleStateIds && roleStateIds.length === 0
+                ? `No cases assigned to ${activeRoleName} in the current workflow.`
+                : "No applications in your queue."}
+            </p>
           </div>
         ) : (
           <div className="rounded-xl overflow-hidden bg-card border border-border/50 shadow-sm">
