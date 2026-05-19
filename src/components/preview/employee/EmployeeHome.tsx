@@ -133,7 +133,7 @@ const EmployeeHome: React.FC = () => {
         {/* Header */}
         <div className="mb-8">
           <p className="text-[11px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
-            {ROLE_LABEL[role] ?? "Employee"}
+            {activeRoleName}
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Licenses &amp; Permits
