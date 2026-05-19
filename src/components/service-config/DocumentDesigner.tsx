@@ -368,17 +368,16 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const doc: DesignDocument = {
       id: `doc-${Date.now()}`,
       name: newDocName.trim(),
-      type: newDocType as DesignDocument["type"],
+      type: "custom",
       elements: [],
       generateWhen: "Submitted",
-      verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+      verifiableCredential: { enabled: false, credentialType: "", idMapping: "", mappedQrElementId: null },
     };
     setDocumentsWithHistory((prev) => [...prev, doc]);
     setActiveDocId(doc.id);
     setSelectedElementId(null);
     setShowCreateModal(false);
     setNewDocName("");
-    setNewDocType("certificate");
   };
 
   const duplicateDocument = (id: string) => {
