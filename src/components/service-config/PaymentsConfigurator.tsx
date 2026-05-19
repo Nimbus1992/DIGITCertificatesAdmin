@@ -286,23 +286,10 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               ))}
             </div>
 
-            {/* payment type */}
-            <div className="space-y-2">
-              <Label>Payment Type</Label>
-              <RadioGroup value={draft.paymentType} onValueChange={(v) => updateDraft({ paymentType: v as PaymentType })}>
-                {(["full", "partial", "multiple"] as const).map((t) => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer">
-                    <RadioGroupItem value={t} />
-                    <span className="text-sm capitalize">{t} Payment</span>
-                  </label>
-                ))}
-              </RadioGroup>
-            </div>
-
             {/* payment method */}
             <div className="space-y-2">
               <Label>Payment Method</Label>
-              {(["online", "offline", "counter"] as const).map((m) => (
+              {(["online", "counter"] as const).map((m) => (
                 <label key={m} className="flex items-center gap-2 cursor-pointer">
                   <Checkbox checked={draft.methods[m]} onCheckedChange={() => toggleMethod(m)} />
                   <span className="text-sm capitalize">{m}</span>
@@ -310,18 +297,21 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               ))}
             </div>
 
-            {/* gateway */}
-            <div className="space-y-1.5">
-              <Label>Payment Gateway</Label>
-              <Select value={draft.gateway} onValueChange={(v) => updateDraft({ gateway: v as Gateway })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {GATEWAY_OPTIONS.map((g) => (
-                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* gateway - only when online enabled */}
+            {draft.methods.online && (
+              <div className="space-y-1.5">
+                <Label>Payment Gateway</Label>
+                <Select value={draft.gateway} onValueChange={(v) => updateDraft({ gateway: v as Gateway })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {GATEWAY_OPTIONS.map((g) => (
+                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
 
             {/* receipt */}
             <div className="space-y-2">
