@@ -500,8 +500,8 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       name: "",
       workflowState: st?.name ?? "",
       fees: [],
-      fees: [],
       methods: { online: true, counter: false },
+
 
       gateway: "razorpay",
       generateReceipt: false,
