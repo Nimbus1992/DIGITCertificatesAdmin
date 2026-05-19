@@ -636,13 +636,13 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     const el: DocumentElement = {
       id: uid(),
       type,
-      content: type === "dynamic" ? "{fieldName}" : type === "qrcode" ? "QR Code" : type === "signature" ? "Signature" : type === "table" ? "Data Table" : "New Text",
+      content: type === "dynamic" ? `{${firstFieldValue}}` : type === "qrcode" ? "QR Code" : type === "signature" ? "Signature" : type === "table" ? "Data Table" : "New Text",
       x: 60,
       y: 40 + activeDoc.elements.length * 30,
       width: type === "qrcode" ? 80 : type === "signature" ? 200 : 440,
       height: type === "qrcode" ? 80 : type === "table" ? 100 : type === "signature" ? 60 : 24,
       style: { ...defaultStyle },
-      sourceMapping: type === "dynamic" ? "businessName" : undefined,
+      sourceMapping: type === "dynamic" ? firstFieldValue : undefined,
     };
     setDocumentsWithHistory((prev) =>
       prev.map((d) => (d.id === activeDocId ? { ...d, elements: [...d.elements, el] } : d))
