@@ -411,6 +411,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     [currentService?.templateSetup?.categoriesList, currentService?.templateSetup?.subcategoriesList],
   );
   const [role, setRole] = useState<PreviewRole>("citizen");
+  const [activeRoleId, setActiveRoleId] = useState<string>("citizen");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("mobile");
   const [screen, setScreen] = useState<PreviewScreen>({ type: "catalogue" });
   const [applications, setApplications] = useState<PreviewApplication[]>([]);
@@ -1080,8 +1081,16 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     toast.success("Demo reset", { description: "All applications, documents and notifications cleared." });
   }, [role]);
 
-  const handleSetRole = useCallback((r: PreviewRole) => {
+  const handleSetRole = useCallback((r: PreviewRole, roleId?: string) => {
     setRole(r);
+    // Default the canonical role id from the persona when the caller doesn't pass one.
+    setActiveRoleId(
+      roleId
+        ?? (r === "citizen" ? "citizen"
+          : r === "documentVerifier" ? "document_verifier"
+          : r === "fieldInspector" ? "field_inspector"
+          : "approver")
+    );
     if (r === "citizen") {
       setScreen({ type: "catalogue" });
       setDeviceMode("mobile");
@@ -1093,7 +1102,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   return (
     <PreviewContext.Provider value={{
-      role, setRole: handleSetRole, deviceMode, setDeviceMode,
+      role, activeRoleId, setRole: handleSetRole, deviceMode, setDeviceMode,
       screen, setScreen,
       applications, notifications, unreadCount, markNotificationsRead,
       messages, unreadMessagesCount, markMessagesRead,
