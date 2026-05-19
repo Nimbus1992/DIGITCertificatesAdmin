@@ -543,6 +543,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   const wfStore = useServiceWorkflow(routeServiceId);
   const wfFor = useCallback((type: ApplicationType) => wfStore.forType(type), [wfStore]);
 
+  // ── Unified configurator subscription (roles/checklists/documents/fees/payments) ──
+  const cfg = usePreviewConfig(routeServiceId);
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
+
+
   /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
   const resolveStateId = useCallback(
     (type: ApplicationType, name: string, fallbackId: string): string => {
