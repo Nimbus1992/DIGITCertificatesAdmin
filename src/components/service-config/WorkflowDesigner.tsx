@@ -1527,20 +1527,9 @@ const PaymentStageEditDialog: React.FC<{
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Payment Type</Label>
-            <Select value={draft.paymentType} onValueChange={(v) => update({ paymentType: v as PaymentType })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="full">Full</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="multiple">Multiple</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>Methods</Label>
             <div className="flex gap-3">
-              {(["online", "offline", "counter"] as const).map(m => (
+              {(["online", "counter"] as const).map(m => (
                 <label key={m} className="flex items-center gap-2 cursor-pointer text-sm">
                   <Checkbox checked={draft.methods[m]} onCheckedChange={() => toggleMethod(m)} />
                   <span className="capitalize">{m}</span>
@@ -1548,17 +1537,20 @@ const PaymentStageEditDialog: React.FC<{
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Gateway</Label>
-            <Select value={draft.gateway} onValueChange={(v) => update({ gateway: v as Gateway })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="razorpay">Razorpay</SelectItem>
-                <SelectItem value="paygov">PayGov</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {draft.methods.online && (
+            <div className="space-y-1.5">
+              <Label>Gateway</Label>
+              <Select value={draft.gateway} onValueChange={(v) => update({ gateway: v as Gateway })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="razorpay">Razorpay</SelectItem>
+                  <SelectItem value="paygov">PayGov</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <Switch checked={draft.generateReceipt} onCheckedChange={(v) => update({ generateReceipt: v })} />
             <Label>Generate Receipt</Label>
