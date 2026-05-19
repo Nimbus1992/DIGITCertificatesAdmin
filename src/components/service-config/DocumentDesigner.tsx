@@ -1041,6 +1041,21 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               <Upload className="h-4 w-4" />
               Upload
             </Button>
+            {activeDoc?.type === "application_pdf" && (
+              <>
+                <Separator orientation="vertical" className="h-6 mx-1" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs ml-auto"
+                  onClick={() => setSyncConfirmDocId(activeDoc.id)}
+                  title="Rebuild this PDF layout from the current form fields"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Sync with form
+                </Button>
+              </>
+            )}
           </div>
           {/* Canvas */}
           <div className="flex-1 overflow-auto flex items-start justify-center p-6">
