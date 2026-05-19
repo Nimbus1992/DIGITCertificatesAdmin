@@ -1402,11 +1402,12 @@ const AddStateDialog: React.FC<{
 const NotificationEditDialog: React.FC<{
   value: SrcNotification | null;
   workflowStates: string[];
+  roles: { id: string; name: string }[];
   moduleName: string;
   onClose: () => void;
   onSave: (n: SrcNotification) => void;
   onDelete: (id: string) => void;
-}> = ({ value, workflowStates, moduleName, onClose, onSave, onDelete }) => {
+}> = ({ value, workflowStates, roles, moduleName, onClose, onSave, onDelete }) => {
   const [draft, setDraft] = useState<SrcNotification | null>(value);
   useEffect(() => { setDraft(value); }, [value]);
   if (!draft) return null;
@@ -1434,15 +1435,27 @@ const NotificationEditDialog: React.FC<{
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Workflow State</Label>
-            <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
-              <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-              <SelectContent>
-                {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Workflow State *</Label>
+              <Select value={draft.workflowState} onValueChange={(v) => setDraft(d => d ? { ...d, workflowState: v, tag: v, tagColor: tagColors[v] ?? d.tagColor } : d)}>
+                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectContent>
+                  {workflowStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Recipient Role *</Label>
+              <Select value={draft.recipientRole} onValueChange={(v) => setDraft(d => d ? { ...d, recipientRole: v } : d)}>
+                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
           {draft.channel === "email" && (
             <div className="space-y-1.5">
               <Label>Subject</Label>
