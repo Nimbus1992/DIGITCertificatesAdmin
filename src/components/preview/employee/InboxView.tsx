@@ -1,8 +1,10 @@
 import React from "react";
+import { useParams } from "react-router-dom";
 import { usePreview } from "../PreviewContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FilePlus, RefreshCw, Filter, X } from "lucide-react";
 import EmployeeTopBar from "./EmployeeTopBar";
+import { useServiceRoles } from "@/lib/useServiceRoles";
 
 export const getStatusStyle = (stateId: string): { bg: string; text: string; dot: string; label?: string } => {
   switch (stateId) {
@@ -31,13 +33,18 @@ const StatusPill: React.FC<{ stateId: string; label: string }> = ({ stateId, lab
 };
 
 const InboxView: React.FC = () => {
-  const { applications, setScreen, role, screen } = usePreview();
+  const { applications, setScreen, role, activeRoleId, screen, workflowTransitions } = usePreview();
+  const [serviceRoles] = useServiceRoles(useParams().id ?? "service");
 
-  const roleStates: Record<string, string[]> = {
-    documentVerifier: ["s1", "s_dv"],
-    fieldInspector: ["s_ip"],
-    approver: ["s3", "s5"],
-  };
+  // Pending states for the active role = states with an outgoing transition assigned to that role.
+  const roleStateIds = React.useMemo(() => {
+    if (role === "citizen") return null;
+    const set = new Set<string>();
+    workflowTransitions.forEach((t) => {
+      if (t.roleId === activeRoleId) set.add(t.fromStateId);
+    });
+    return Array.from(set);
+  }, [workflowTransitions, role, activeRoleId]);
 
   // Honor explicit filter from screen state, otherwise use role queue
   const explicitFilter = screen.type === "inbox" ? screen.filterStates : undefined;
@@ -45,18 +52,15 @@ const InboxView: React.FC = () => {
 
   const items = explicitFilter
     ? applications.filter((a) => explicitFilter.includes(a.currentStateId))
-    : roleStates[role]
-    ? applications.filter((a) => roleStates[role].includes(a.currentStateId))
+    : roleStateIds
+    ? applications.filter((a) => roleStateIds.includes(a.currentStateId))
     : applications;
 
-  const roleLabel: Record<string, string> = {
-    documentVerifier: "Document Verifier",
-    fieldInspector: "Field Inspector",
-    approver: "Approver",
-    citizen: "All",
-  };
+  const activeRoleName =
+    serviceRoles.find((r) => r.id === activeRoleId)?.name
+    ?? (role === "citizen" ? "All" : "Employee");
 
-  const filterLabel = explicitLabel ?? `${roleLabel[role]} queue`;
+  const filterLabel = explicitLabel ?? `${activeRoleName} queue`;
 
   return (
     <div className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 via-background to-sky-50/40">
@@ -101,7 +105,11 @@ const InboxView: React.FC = () => {
               <path d="M75 25v3M75 36v3M68 32h3M79 32h3" stroke="hsl(45 90% 60%)" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <p className="text-sm font-semibold text-foreground">Inbox zero!</p>
-            <p className="text-xs text-muted-foreground mt-1">No applications in your queue.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {roleStateIds && roleStateIds.length === 0
+                ? `No cases assigned to ${activeRoleName} in the current workflow.`
+                : "No applications in your queue."}
+            </p>
           </div>
         ) : (
           <div className="rounded-xl overflow-hidden bg-card border border-border/50 shadow-sm">

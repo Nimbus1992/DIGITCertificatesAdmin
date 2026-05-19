@@ -46,3 +46,7 @@ const LEGACY_ROLE_ID_MAP: Record<string, string> = {
   fieldInspector: "field_inspector",
 };
 export const canonicalRoleId = (id: string) => LEGACY_ROLE_ID_MAP[id] ?? id;
+
+/** Citizen-side persona: any role that can create an application. */
+export const isCitizenRole = (r: { permissions: string[] }) =>
+  r.permissions.includes("create_application");

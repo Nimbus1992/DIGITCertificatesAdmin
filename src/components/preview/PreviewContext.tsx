@@ -79,7 +79,10 @@ export interface WorkflowTransitionConfig {
   name: string;
   fromStateId: string;
   toStateId: string;
+  /** Legacy persona bucket — kept for any callers still keyed off it. */
   role: PreviewRole | "any";
+  /** Canonical service-role id (e.g. "document_verifier", "approver", or a custom id). */
+  roleId: string;
   checklist: { id: string; text: string }[];
 }
 
@@ -196,7 +199,10 @@ export interface PreviewScreen {
 
 interface PreviewContextValue {
   role: PreviewRole;
-  setRole: (r: PreviewRole) => void;
+  /** Canonical service-role id of the currently-selected role (e.g. "document_verifier", "approver", "issuer"). */
+  activeRoleId: string;
+  /** Activate a role. Pass roleId for any non-citizen role so queues filter correctly. */
+  setRole: (r: PreviewRole, roleId?: string) => void;
   deviceMode: DeviceMode;
   setDeviceMode: (d: DeviceMode) => void;
   screen: PreviewScreen;
@@ -346,38 +352,38 @@ const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
 
 const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
   // Document Verifier picks up Submitted -> Under Document Verification (auto-claim) and then Verify Application moves to Inspection Pending
-  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", checklist: [] },
-  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", checklist: [
+  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", roleId: "document_verifier", checklist: [] },
+  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", roleId: "document_verifier", checklist: [
     { id: "cdv1", text: "Applicant details verified" },
     { id: "cdv2", text: "All documents verified" },
     { id: "cdv3", text: "Business details valid" },
   ]},
-  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", checklist: [
+  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", roleId: "document_verifier", checklist: [
     { id: "csb1", text: "Reason for sending back recorded" },
   ]},
 
   // Field Inspector
-  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", checklist: [
+  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", roleId: "field_inspector", checklist: [
     { id: "cfi1", text: "Site visited" },
     { id: "cfi2", text: "Business exists" },
     { id: "cfi3", text: "Compliance verified" },
   ]},
-  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", checklist: [
+  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", roleId: "field_inspector", checklist: [
     { id: "csb2", text: "Inspection issues recorded" },
   ]},
 
   // Approver
-  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", checklist: [
+  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", roleId: "approver", checklist: [
     { id: "cap1", text: "All previous steps completed" },
     { id: "cap2", text: "Inspection passed" },
     { id: "cap3", text: "Fee structure confirmed" },
   ]},
-  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", checklist: [
+  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", roleId: "approver", checklist: [
     { id: "crj1", text: "Rejection reason documented" },
   ]},
 
   // Citizen
-  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", checklist: [] },
+  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", roleId: "citizen", checklist: [] },
 ];
 
 const ROLE_LABEL: Record<PreviewRole, string> = {
@@ -405,6 +411,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     [currentService?.templateSetup?.categoriesList, currentService?.templateSetup?.subcategoriesList],
   );
   const [role, setRole] = useState<PreviewRole>("citizen");
+  const [activeRoleId, setActiveRoleId] = useState<string>("citizen");
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("mobile");
   const [screen, setScreen] = useState<PreviewScreen>({ type: "catalogue" });
   const [applications, setApplications] = useState<PreviewApplication[]>([]);
@@ -624,6 +631,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         fromStateId: t.fromStateId,
         toStateId: t.toStateId,
         role,
+        roleId: canonical,
         checklist: items,
       };
     }),
@@ -1073,8 +1081,16 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     toast.success("Demo reset", { description: "All applications, documents and notifications cleared." });
   }, [role]);
 
-  const handleSetRole = useCallback((r: PreviewRole) => {
+  const handleSetRole = useCallback((r: PreviewRole, roleId?: string) => {
     setRole(r);
+    // Default the canonical role id from the persona when the caller doesn't pass one.
+    setActiveRoleId(
+      roleId
+        ?? (r === "citizen" ? "citizen"
+          : r === "documentVerifier" ? "document_verifier"
+          : r === "fieldInspector" ? "field_inspector"
+          : "approver")
+    );
     if (r === "citizen") {
       setScreen({ type: "catalogue" });
       setDeviceMode("mobile");
@@ -1086,7 +1102,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
 
   return (
     <PreviewContext.Provider value={{
-      role, setRole: handleSetRole, deviceMode, setDeviceMode,
+      role, activeRoleId, setRole: handleSetRole, deviceMode, setDeviceMode,
       screen, setScreen,
       applications, notifications, unreadCount, markNotificationsRead,
       messages, unreadMessagesCount, markMessagesRead,

@@ -1,123 +1,67 @@
-## What's actually broken (root cause)
+# Preview fixes: personas, PDFs, and viewport fit
 
-I traced the three gaps end-to-end:
+## 1. Two-persona preview model (Citizen + Employee)
 
-### 1. Hazard Surcharge never appears
-- Seed is correct: `fee_haz` is conditional on `isHazardous = "Yes"`, mapped into the `License Payment` stage (entered on **Payment Pending**).
-- `evalConditional` in `usePreviewConfig.ts` reads `formData.isHazardous` correctly.
-- BUT `PaymentScreen.tsx` only renders `fee` total + flat "License Fee" label — it ignores `demand.lines`. So even when the surcharge IS added, the user can't see it.
-- Also `License Fee` is `type: "formula"` and the evaluator is a placeholder returning a flat `1000`, so the demand totals look static regardless of inputs.
+**Problem.** Custom roles all fall back to "approver" persona, so Approver and any custom role (e.g. "Issuer") light up together and share the same queue.
 
-### 2. "Application Payment" stage (Submitted) not reflected
-- Stage `pay_app` is mapped to workflow state **Submitted**, but the citizen wizard goes Draft → Submitted via `submitApplication`, NOT via `transitionApplication`. The demand-from-stage code only fires inside `transitionApplication`, so the Submitted-stage payment is silently skipped.
-- After submit, the citizen is also not routed to the PaymentScreen even when `paymentStatus === "pending"`.
+**Approach.** Collapse `PreviewRole` to two personas — **Citizen** and **Employee** — and drive employee behavior entirely from the workflow. The "active role" is now the role's own id; queues, action buttons, and stats are computed from which transitions are assigned to that role id. Default roles keep working because their seeded ids already own transitions; a brand-new custom role automatically shows the right cases the moment the configurator assigns it a transition.
 
-### 3. Documents don't match the configured PDF
-- Auto-generated docs use `applicationPdf / demandNoticePdf / invoicePdf / licensePdf` keyed by `doc.kind`. Custom documents created in the Document Designer (which carry a template HTML, not a known `kind`) fall through and render a generic blank PDF, so the file the citizen downloads doesn't match the designer preview.
-- `attachedDocumentIds` on a state references docs by id, but the generator only honors `generateWhen` matching the state name — id-based attachment isn't wired.
+**Behavior**
+- **Sidebar**: roles grouped into Citizen bucket (roles with `create_application` permission) and Employee bucket (everyone else). Active highlight bound to the role's own id — no more shared highlight.
+- **Inbox**: pending list = applications whose `currentStateId` has an outgoing transition with `roleId === activeRoleId`. Empty state: "No cases assigned to {Role name}."
+- **Employee Home**: pending count uses the same workflow-derived set; approved/rejected buckets stay state-driven.
+- **Application Review**: action buttons filter by `t.roleId === activeRoleId || "any"`. State-specific gates (Issue License on `s5`, etc.) stay tied to state ids, not persona.
+- **Notifications**: add a generic `Employee` recipient bucket so custom roles still receive notifications.
 
-## Fixes (small, surgical)
+**Files**: `PreviewContext.tsx`, `PreviewSidebar.tsx`, `employee/InboxView.tsx`, `employee/EmployeeHome.tsx`, `employee/ApplicationReview.tsx`, `useServiceRoles.ts`, `notifications/notificationMatrix.ts`.
 
-1. **PaymentScreen** — render `demand.lines` as a table (name + amount), keep tax + total below. Also fall back gracefully when `lines` is empty.
-2. **License Fee formula** — evaluate as `shopArea * 10` (₹10/sq ft) so it actually varies; document the rule next to the seed.
-3. **submitApplication** — after moving to Submitted, run the same `findPaymentStageForState` + `computeDemandForStage` block already used in `transitionApplication`, and if `paymentStatus === "pending"` push the citizen to the PaymentScreen.
-4. **Document generation** — in `dispatchByState`/state-entry hook:
-   - Resolve both `state.attachedDocumentIds` and any `doc.generateWhen === state.name`.
-   - For docs with no matching `kind`, render the designer's HTML template through a generic html→pdf helper (reuse jspdf `.html()` already in `licensePdf`) so the file matches the preview.
+## 2. PDF overflow — all default PDFs
 
-## Preview QA Harness — how to test thoroughly
+**Problem.** `licensePdf`, `demandNoticePdf`, `invoicePdf` advance `y` by a fixed amount and never call `addPage()`; `applicationPdf` has partial `ensureSpace`. Long values or many rows run off the page.
 
-A one-off "test by clicking" approach won't scale. I'll add an internal **`/service/:sid/preview-qa`** route (dev-only link from the configure page) that runs a scripted matrix and reports pass/fail per cell. This becomes the single source of truth for "does every configurator still wire into preview".
+**Approach.** Add a shared helper module `src/lib/pdfUtils.ts` and refactor all four PDFs to use it.
 
-### Architecture
-- Reuses the existing `PreviewProvider` in headless mode (mounted off-screen).
-- A new `runPreviewQA(serviceId)` helper drives the provider via its public actions (`createApplication`, `submitApplication`, `transitionApplication`, `payApplication`, `uploadDocument`, …) and asserts on the resulting state snapshot.
-- Each test mutates a configurator via `useModuleState` writers, runs the scenario, then restores.
-- Results render as a table: ✅ / ❌ / ⏭, with expected vs actual diffs.
+- `makePager(doc)` → returns `{ ensureSpace(neededHeight), addPage(), y, resetY() }`. `ensureSpace` calls `addPage()` and redraws the header strip/footer when the remaining page space is less than `neededHeight`.
+- `drawWrapped(doc, text, x, y, { maxWidth, lineHeight, font })` → uses `doc.splitTextToSize(text, maxWidth)`, returns the new `y` after drawing all wrapped lines. Replaces every hand-rolled `y += 16` block.
+- `drawKeyValueRow(doc, label, value, ...)` and `drawTableRow(doc, cells, ...)` helpers built on top, both pager-aware so long values wrap and split across pages cleanly.
+- Footer ("Page X of Y") drawn in a finalize pass via `doc.getNumberOfPages()`.
 
-### Test matrix (35 automated cases)
+Apply to `applicationPdf.ts`, `licensePdf.ts`, `demandNoticePdf.ts`, `invoicePdf.ts`. Remove their fixed `y += N` patterns and the inconsistent margins.
 
-**Form Builder (5)**
-- F1 New required field on step 1 → wizard blocks submit until filled.
-- F2 Mark field optional → submit succeeds without it.
-- F3 Delete a step → existing draft loads, new draft has one fewer step.
-- F4 Dependent dropdown (category by tradeType) → child options change with parent.
-- F5 `showIf` field hides when condition false, included in formData when true.
+## 3. Branding logo in default PDFs
 
-**Roles (4)**
-- R1 Rename canonical role → label updates in PreviewSidebar + inbox header.
-- R2 Add custom role with workflow permission → appears in persona switcher, can act on transitions assigned to it.
-- R3 Remove a role used by a transition → transition shows "Unassigned" badge, button disabled.
-- R4 Toggle `isCitizen` flag → role appears under citizen tab only.
+**Problem.** Each PDF draws a 4-square emblem placeholder; no actual logo is pulled from branding & theming. User wants the real logo when present, an obvious upload placeholder when not.
 
-**Workflow (5)**
-- W1 Add new state + transition → state appears in inbox filters; transition button visible to the right role.
-- W2 Change `actingRole` → only that persona sees actionable button.
-- W3 Re-point transition `toState` → app lands in new state after action.
-- W4 Mark state `end` → no further transitions offered; status frozen.
-- W5 Remove a state referenced by a payment stage → demand skipped, no crash.
+**Approach.** New `src/lib/pdfBranding.ts`:
 
-**Checklists (3)**
-- C1 Add item to checklist on "Verify Application" → dialog shows item, action blocked until checked.
-- C2 Remove checklist from transition's `checklistIds` → dialog skipped, transition fires.
-- C3 Mark item optional → action allowed without checking it.
+- `resolvePdfBranding()` reads from `localStorage` / `useBranding` source: `{ logoDataUrl?, portalName, primaryColorHsl }`. Logo is stored as a data URL (or fetched and converted to one once and cached) so `doc.addImage()` can render it without a network round-trip.
+- `drawHeaderLogo(doc, x, y, w, h)` → if `logoDataUrl` exists, calls `doc.addImage(...)` inside a try/catch. On failure or absence, draws a dashed rounded rectangle with centered text "Upload logo in Branding & Theme" so the gap is obviously a placeholder, not a finished design.
+- Replace the 4-square emblem block in all four PDFs with `drawHeaderLogo(...)`. Header strip color comes from `primaryColorHsl` so PDFs match the configured theme.
 
-**Notifications (3)**
-- N1 Add citizen-SMS on "Payment Pending" → SMS toast + Messages drawer entry on entry.
-- N2 Change recipient citizen → approver → only approver persona gets bell entry.
-- N3 Edit template token `{{amount}}` → resolves to current demand total.
+If Branding & Theme doesn't yet persist the logo as a data URL, add a small one-time conversion in the branding save path (no schema change — same `localStorage` key, just store the data URL alongside the existing field).
 
-**Documents (4)**
-- D1 Add custom doc with `generateWhen: License Issued` → appears in My Documents after issuance; rendered PDF matches designer template (hash compare on first 500 chars).
-- D2 Attach existing doc to a state via `attachedDocumentIds` → generated on entry even without matching `generateWhen`.
-- D3 Delete Demand Notice doc → entering Payment Pending no longer adds it; demand object still exists.
-- D4 Rename doc → label in My Documents updates without reload.
+## 4. Viewport fit — every screen and CTA visible at 100%
 
-**Fees (4)**
-- Fe1 Change Application Fee base → next demand reflects new amount.
-- Fe2 Slab fee tied to `shopArea` → app with area=50 vs 600 produces different totals.
-- Fe3 **Hazard Surcharge — isHazardous=Yes adds 1500; =No does not.** ← directly covers the reported bug.
-- Fe4 Add tax rate to a fee → `tax` line updates accordingly.
+**Problem.** Some screens require zoom-out to reach CTAs. Likely causes (to confirm during implementation): fixed-height containers without overflow, sticky footers hidden behind the preview chrome, `min-w` widths that exceed the mobile/tablet frame, modal/dialog footers cut off.
 
-**Payments (3)**
-- P1 **Application Payment stage triggers on Submitted entry, PaymentScreen reachable.** ← covers reported bug.
-- P2 Move stage from Payment Pending → custom state → demand auto-generates only on the new state.
-- P3 Two stages with separate fees → two PaymentScreens in sequence; receipts generated per stage.
+**Approach.** Apply a consistent layout shell pattern across all preview and configurator screens:
 
-**Cross-cutting (4)**
-- X1 Renewal-scoped change does not affect Issuance apps.
-- X2 `workflowScope: by_category` → only matching-category apps see edited workflow.
-- X3 Hard refresh → all preview state restored from localStorage.
-- X4 Reset Demo clears apps but keeps configuration.
+- **Page shell**: `flex flex-col h-full min-h-0` on the outermost container; scrollable body uses `flex-1 overflow-y-auto min-h-0`; primary action bar lives in a non-shrinking `shrink-0 border-t` footer so CTAs are always visible regardless of content height.
+- **No fixed-height blocks** in scrollable regions — replace `h-[NNNpx]` with `min-h-0` + `flex-1` where appropriate.
+- **Dialogs**: convert oversize forms to the pattern `DialogContent` → header (shrink-0) → scrollable body (`flex-1 overflow-y-auto`) → footer (shrink-0) so CTAs stay in view.
+- **MobileFrame preview**: ensure the inner scroll container, not the frame, scrolls; the frame itself never grows beyond viewport.
 
-### Output
+**Files (initial audit pass)**: `components/preview/MobileFrame.tsx`, `ServicePreview.tsx`, `citizen/ApplicationForm.tsx`, `citizen/PaymentScreen.tsx`, `employee/ApplicationReview.tsx`, `service-config/WorkflowDesigner.tsx`, `service-config/DocumentDesigner.tsx`, `service-config/FeesConfigurator.tsx`. Add more during implementation only where the audit finds a hidden CTA.
 
-```
-Preview QA — Trade License (service: trade-license-mp6c297v)
+I will sweep these screens, fix the layout pattern, and verify by checking the preview at 1280×720, 1024×768, and the mobile frame to confirm every primary CTA stays visible without zooming.
 
-Form Builder    5/5  ✅
-Roles           4/4  ✅
-Workflow        4/5  ❌  W5: crash when stage references removed state
-Checklists      3/3  ✅
-Notifications   3/3  ✅
-Documents       3/4  ❌  D1: PDF body mismatch (custom template not rendered)
-Fees            3/4  ❌  Fe3: Hazard Surcharge not in demand.lines
-Payments        2/3  ❌  P1: PaymentScreen never opened after Submitted
-Cross-cutting   4/4  ✅
-                ───
-                31/35 — 4 regressions
-```
+## Verification
 
-Click any failing row to expand → expected vs actual JSON + a "Reproduce" button that leaves the harness pre-seeded for manual inspection.
+1. Default Trade License — Document Verifier, Field Inspector, Approver each show their existing queues unchanged.
+2. Add custom role "Issuer" with transition `s5 → s6` → Issuer shows only `s5` cases; Approver no longer co-highlights.
+3. Reassign transition Approver → Issuer → case moves between queues without reload.
+4. Long applicant names, many documents, many fee lines → all PDFs paginate cleanly with no clipping; "Page X of Y" footer correct.
+5. Logo uploaded in Branding & Theme → appears in all four PDFs; logo cleared → dashed "Upload logo" placeholder appears.
+6. At 1280×720 and inside the mobile preview frame, every screen's primary CTA is reachable without browser zoom-out.
 
-## Files touched
-
-- `src/components/preview/citizen/PaymentScreen.tsx` — render `demand.lines`.
-- `src/components/preview/PreviewContext.tsx` — `submitApplication` runs payment-stage demand; doc generator honors `attachedDocumentIds` + custom html templates; route to PaymentScreen on pending demand.
-- `src/lib/usePreviewConfig.ts` — formula evaluator for `Area * Rate`.
-- `src/lib/previewPdf.ts` (new) — generic html→pdf for custom documents.
-- `src/pages/PreviewQA.tsx` (new) + `src/lib/previewQa/*.ts` (new) — harness + 35 test cases.
-- `src/App.tsx` — route `/service/:sid/preview-qa`.
-- `src/pages/ServiceConfig.tsx` — small "Run Preview QA" link next to the Preview button.
-
-No backend changes. No schema changes.
+No backend or schema changes.
