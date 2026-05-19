@@ -1094,45 +1094,69 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               {/* Verifiable Credential */}
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Verifiable Credential</h3>
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Enable VC</Label>
-                  <Switch checked={activeDoc.verifiableCredential.enabled} onCheckedChange={(v) => updateVC("enabled", v)} />
-                </div>
-                {activeDoc.verifiableCredential.enabled && (
-                  <div className="space-y-3 pl-1 border-l-2 border-accent/20 ml-1">
-                    <div>
-                      <Label className="text-xs">Credential Type</Label>
-                      <Input value={activeDoc.verifiableCredential.credentialType} onChange={(e) => updateVC("credentialType", e.target.value)} className="h-8 text-xs mt-1" placeholder="e.g. TradeCredential" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Credential ID Mapping</Label>
-                      <Select value={activeDoc.verifiableCredential.idMapping} onValueChange={(v) => updateVC("idMapping", v)}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select mapping" /></SelectTrigger>
-                        <SelectContent>
-                          {CREDENTIAL_ID_OPTIONS.map((o) => (
-                            <SelectItem key={o} value={o}>{o}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Verification URL</Label>
-                      <Input value={`https://verify.digit.org/${activeDoc.id}`} readOnly className="h-8 text-xs mt-1 bg-muted/50 text-muted-foreground" />
-                    </div>
+                {qrElements.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Add a QR Code element to the document to enable Verifiable Credential.
+                  </p>
+                ) : (
+                  <>
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs">Include QR Code</Label>
-                      <Switch checked={activeDoc.verifiableCredential.includeQR} onCheckedChange={(v) => updateVC("includeQR", v)} />
+                      <Label className="text-xs">Enable VC</Label>
+                      <Switch checked={activeDoc.verifiableCredential.enabled} onCheckedChange={(v) => updateVC("enabled", v)} />
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-1.5 text-xs"
-                      onClick={() => setShowVCDesigner(true)}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      Design Verification Screen
-                    </Button>
-                  </div>
+                    {activeDoc.verifiableCredential.enabled && (
+                      <div className="space-y-3 pl-1 border-l-2 border-accent/20 ml-1">
+                        <div>
+                          <Label className="text-xs">Credential Type</Label>
+                          <Input value={activeDoc.verifiableCredential.credentialType} onChange={(e) => updateVC("credentialType", e.target.value)} className="h-8 text-xs mt-1" placeholder="e.g. TradeCredential" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Credential ID Mapping</Label>
+                          <Select value={activeDoc.verifiableCredential.idMapping} onValueChange={(v) => updateVC("idMapping", v)}>
+                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select mapping" /></SelectTrigger>
+                            <SelectContent>
+                              {CREDENTIAL_ID_OPTIONS.map((o) => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Verification URL</Label>
+                          <Input value={`https://verify.digit.org/${activeDoc.id}`} readOnly className="h-8 text-xs mt-1 bg-muted/50 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Mapped QR Element</Label>
+                          <Select
+                            value={activeDoc.verifiableCredential.mappedQrElementId ?? "none"}
+                            onValueChange={(v) => updateVC("mappedQrElementId", v === "none" ? null : v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select QR" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {qrElements.map((q, i) => (
+                                <SelectItem key={q.id} value={q.id}>
+                                  QR Code {i + 1} ({Math.round(q.x)}, {Math.round(q.y)})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            The VC payload will be encoded into the selected QR Code element.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 text-xs"
+                          onClick={() => setShowVCDesigner(true)}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Design Verification Screen
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
