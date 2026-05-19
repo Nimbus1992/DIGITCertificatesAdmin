@@ -1,19 +1,24 @@
-The Workflow Designer currently shows an 'Apply to' scope bar whenever a service has categories enabled. Since per-category workflows are not being offered, this bar is unnecessary.
+## Plan: Simplify Payment Setup
 
-## Changes
+### Changes to `src/components/service-config/PaymentsConfigurator.tsx`
 
-1. **Hide `ScopeBar` in Workflow Designer**
-   - `src/components/service-config/WorkflowDesigner.tsx`: Remove `ScopeBar` JSX from both the empty-state and main render paths. The component itself can stay in the file (it does no harm), but it should no longer be rendered.
+1. **Remove Payment Type construct entirely**
+   - Drop the `PaymentType` type, the `paymentType` field on `PaymentStage`, and the entire "Payment Type" radio group from the sheet.
+   - Remove the `paymentType` badge from the stage card.
 
-2. **Force shared workflow storage**
-   - In the same file, change `storageSuffix` to always be `moduleName`, ignoring `showCategoryPicker` / `activeCategory`. This guarantees all workflow reads/writes use the shared module key regardless of category configuration.
+2. **Restrict Payment Method to Online + Counter**
+   - Remove the `offline` option from the methods checklist (keep only `online` and `counter`).
+   - Remove the offline indicator from the card display.
+   - Default new stages to `{ online: true, counter: false }`.
 
-3. **Remove unused category-scoped state**
-   - Remove `activeCategory` state and `setActiveCategory` from `WorkflowDesigner`.
-   - Remove `showCategoryPicker` logic.
+3. **Conditional Payment Gateway**
+   - Only render the Payment Gateway selector when `draft.methods.online` is true. If only `counter` is selected, hide the gateway field entirely (no gateway needed).
 
-## Out of scope
+### Supporting data updates
 
-- No changes to `MasterTemplateConfigurator`, `TemplateSetup`, or `ServiceConfigContext`. Those already disable the `by_category` option; we are only removing the redundant designer UI.
-- No migration of existing localStorage data with `::cat::` suffixes.
-- No removal of the `ScopeSelector` component itself (it is used nowhere else, but deleting it is optional cleanup).
+4. **`src/data/tradeLicenseTemplate.ts` & `src/data/renewalTemplate.ts`**
+   - Remove `paymentType` and the `offline` method from `TRADE_PAYMENT_STAGES` / `RENEWAL_PAYMENT_STAGES` seed entries and their TypeScript shape, so saved stages and new defaults stay consistent.
+
+### Out of scope
+- Preview/runtime payment behavior is not changed — only the setup UI and seed shapes.
+- No migration for users with previously persisted `paymentType`/`offline` values; the field is simply ignored on load.
