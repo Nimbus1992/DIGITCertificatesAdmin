@@ -733,7 +733,7 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 return (
                   <div
                     key={doc.id}
-                    className={`group relative rounded-md px-3 py-2.5 cursor-pointer transition-colors ${isActive ? "bg-accent/10 border-l-2 border-l-accent" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
+                    className={`group rounded-md px-3 py-2.5 cursor-pointer transition-colors ${isActive ? "bg-accent/10 border-l-2 border-l-accent" : "hover:bg-muted/50 border-l-2 border-l-transparent"}`}
                     onClick={() => { setActiveDocId(doc.id); setSelectedElementId(null); setEditingTextId(null); }}
                   >
                     <div className="flex items-start gap-2">
@@ -754,17 +754,17 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                         )}
                         <p className="text-[10px] text-muted-foreground">{DOC_TYPE_LABELS[doc.type]}</p>
                       </div>
-                    </div>
-                    <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingDocId(doc.id); setEditingName(doc.name); }}>
-                        <Edit3 className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); duplicateDocument(doc.id); }}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDocId(doc.id); }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setEditingDocId(doc.id); setEditingName(doc.name); }}>
+                          <Edit3 className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); duplicateDocument(doc.id); }}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDocId(doc.id); }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
