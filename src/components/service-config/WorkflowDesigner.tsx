@@ -1484,7 +1484,7 @@ const NotificationEditDialog: React.FC<{
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button className="bg-accent text-accent-foreground hover:bg-accent/90"
-              disabled={!draft.workflowState || !draft.message.trim() || (draft.channel === "email" && !draft.subject.trim())}
+              disabled={!draft.workflowState || !draft.recipientRole || !draft.message.trim() || (draft.channel === "email" && !draft.subject.trim())}
               onClick={() => onSave(draft)}>Save</Button>
           </div>
         </DialogFooter>
