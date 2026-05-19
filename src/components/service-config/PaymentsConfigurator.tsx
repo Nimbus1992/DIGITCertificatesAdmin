@@ -321,7 +321,7 @@ const PaymentsConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               </div>
               {draft.generateReceipt && (
                 <Select value={draft.receiptTemplate || ""} onValueChange={(v) => updateDraft({ receiptTemplate: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select template" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select from available documents" /></SelectTrigger>
                   <SelectContent>
                     {DOCUMENT_TEMPLATE_NAMES.map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
