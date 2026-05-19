@@ -126,6 +126,46 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
     );
   };
 
+  const HAS_OPTIONS: FieldType[] = ["dropdown", "radio", "checkbox"];
+
+  const changeFieldType = (checklistId: string, q: Question, newType: FieldType) => {
+    const needsOptions = HAS_OPTIONS.includes(newType);
+    const nextOptions = needsOptions
+      ? (q.options && q.options.length > 0 ? q.options : ["", ""])
+      : undefined;
+    updateQuestion(checklistId, q.id, { fieldType: newType, options: nextOptions });
+  };
+
+  const addOption = (checklistId: string, questionId: string) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: [...(q.options ?? []), ""] } : q) }
+          : cl
+      )
+    );
+  };
+
+  const updateOption = (checklistId: string, questionId: string, index: number, value: string) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: (q.options ?? []).map((o, i) => i === index ? value : o) } : q) }
+          : cl
+      )
+    );
+  };
+
+  const removeOption = (checklistId: string, questionId: string, index: number) => {
+    setChecklists((prev) =>
+      prev.map((cl) =>
+        cl.id === checklistId
+          ? { ...cl, questions: cl.questions.map((q) => q.id === questionId ? { ...q, options: (q.options ?? []).filter((_, i) => i !== index) } : q) }
+          : cl
+      )
+    );
+  };
+
   const removeQuestion = (checklistId: string, questionId: string) => {
     setChecklists((prev) =>
       prev.map((cl) =>
@@ -204,7 +244,7 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
                     <div className="flex items-center gap-3 flex-wrap">
                       <Select
                         value={q.fieldType}
-                        onValueChange={(v) => updateQuestion(editingChecklist.id, q.id, { fieldType: v as FieldType })}
+                        onValueChange={(v) => changeFieldType(editingChecklist.id, q, v as FieldType)}
                       >
                         <SelectTrigger className="w-[130px] h-8 text-xs">
                           <SelectValue />
@@ -218,6 +258,11 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
                       <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${fieldTypeBadgeColor[q.fieldType]}`}>
                         {FIELD_TYPES.find((f) => f.value === q.fieldType)?.label}
                       </Badge>
+                      {q.options && q.options.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {q.options.length} option{q.options.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
                       <div className="flex items-center gap-1.5 ml-auto">
                         <span className="text-xs text-muted-foreground">Required</span>
                         <Switch
@@ -234,6 +279,39 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
+                    {HAS_OPTIONS.includes(q.fieldType) && (
+                      <div className="mt-2 rounded-md border border-border/60 bg-background p-2.5 space-y-1.5">
+                        <p className="text-[11px] font-medium text-muted-foreground mb-1">Options</p>
+                        {(q.options ?? []).map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-4 shrink-0">{oi + 1}.</span>
+                            <Input
+                              value={opt}
+                              onChange={(e) => updateOption(editingChecklist.id, q.id, oi, e.target.value)}
+                              placeholder={`Option ${oi + 1}`}
+                              className="h-7 text-xs"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
+                              disabled={(q.options?.length ?? 0) <= 1}
+                              onClick={() => removeOption(editingChecklist.id, q.id, oi)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addOption(editingChecklist.id, q.id)}
+                          className="gap-1.5 text-[11px] h-7 mt-1"
+                        >
+                          <Plus className="h-3 w-3" /> Add Option
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
