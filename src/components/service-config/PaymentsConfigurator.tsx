@@ -44,7 +44,6 @@ const GATEWAY_OPTIONS = [
   { value: "custom", label: "Custom" },
 ] as const;
 
-type PaymentType = "full" | "partial" | "multiple";
 type Gateway = "razorpay" | "paygov" | "custom";
 
 interface PaymentStage {
@@ -52,8 +51,7 @@ interface PaymentStage {
   name: string;
   workflowState: string;
   fees: string[];
-  paymentType: PaymentType;
-  methods: { online: boolean; offline: boolean; counter: boolean };
+  methods: { online: boolean; counter: boolean };
   gateway: Gateway;
   generateReceipt: boolean;
   receiptTemplate?: string;
@@ -68,8 +66,7 @@ const buildDefaultStages = (moduleName: string): PaymentStage[] => {
     name: s.name,
     workflowState: s.workflowState,
     fees: [...s.fees],
-    paymentType: s.paymentType,
-    methods: { ...s.methods },
+    methods: { online: s.methods.online, counter: s.methods.counter },
     gateway: s.gateway,
     generateReceipt: s.generateReceipt,
     receiptTemplate: s.receiptTemplate,
@@ -81,11 +78,11 @@ const emptyStage = (): PaymentStage => ({
   name: "",
   workflowState: "",
   fees: [],
-  paymentType: "full",
-  methods: { online: true, offline: false, counter: false },
+  methods: { online: true, counter: false },
   gateway: "razorpay",
   generateReceipt: false,
 });
+
 
 /* ── component ── */
 interface Props {
