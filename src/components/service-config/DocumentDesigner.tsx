@@ -318,7 +318,6 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [newDocName, setNewDocName] = useState("");
-  const [newDocType, setNewDocType] = useState<string>("certificate");
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [imageUploadTarget, setImageUploadTarget] = useState<string | null>(null); // element id or null for new
   const [showVCDesigner, setShowVCDesigner] = useState(false);
