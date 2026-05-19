@@ -10,6 +10,7 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { useServiceNotifications, type SharedNotification } from "@/lib/useServiceNotifications";
 import { useServiceWorkflow } from "@/lib/useServiceWorkflow";
 import { canonicalRoleId } from "@/lib/useServiceRoles";
+import { usePreviewConfig, computeDemandForStage, findPaymentStageForState } from "@/lib/usePreviewConfig";
 
 // ─── Types ───────────────────────────────────────────────
 export type PreviewRole = "citizen" | "documentVerifier" | "fieldInspector" | "approver";
