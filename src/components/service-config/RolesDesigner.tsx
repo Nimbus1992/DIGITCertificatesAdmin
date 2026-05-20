@@ -4,15 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +21,11 @@ import {
   isCitizenRole,
   type ServiceRoleRecord,
 } from "@/lib/useServiceRoles";
-
-type Persona = "citizen" | "employee";
+import RoleEditorDialog, {
+  type RoleDraft,
+  emptyRoleDraft,
+  draftFromRole,
+} from "./RoleEditorDialog";
 
 // Count workflow transitions assigned to each role for the current module.
 function useTransitionCountByRole(serviceId: string, moduleName: string) {
@@ -69,29 +63,13 @@ const BANNER_PALETTE = [
   "bg-rose-100/70",
 ];
 
-interface DraftState {
-  id: string | null; // null = creating
-  name: string;
-  description: string;
-  persona: Persona;
-}
-
-const emptyDraft = (): DraftState => ({
-  id: null, name: "", description: "", persona: "employee",
-});
-
-const personaPermissions = (persona: Persona): string[] =>
-  persona === "citizen"
-    ? ["create_application", "edit_application", "view_application"]
-    : ["view_application", "view_checklist"];
-
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
   const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
 
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [draft, setDraft] = useState<RoleDraft | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ServiceRoleRecord | null>(null);
 
   const filtered = useMemo(
@@ -103,35 +81,24 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     [roles, search],
   );
 
-  const openCreate = () => setDraft(emptyDraft());
-  const openEdit = (role: ServiceRoleRecord) => setDraft({
-    id: role.id,
-    name: role.name,
-    description: role.description,
-    persona: isCitizenRole(role) ? "citizen" : "employee",
-  });
+  const openCreate = () => setDraft(emptyRoleDraft());
+  const openEdit = (role: ServiceRoleRecord) => setDraft(draftFromRole(role));
 
-  const saveDraft = () => {
+  const handleSave = (values: { name: string; description: string; permissions: string[] }) => {
     if (!draft) return;
-    const name = draft.name.trim();
-    if (!name) {
-      toast({ title: "Role name required", variant: "destructive" });
-      return;
-    }
-    const permissions = personaPermissions(draft.persona);
     if (draft.id) {
       setRoles((prev) => prev.map((r) => r.id === draft.id ? {
-        ...r, name, description: draft.description.trim(), permissions,
+        ...r, name: values.name, description: values.description, permissions: values.permissions,
       } : r));
       toast({ title: "Role updated" });
     } else {
       // Generate a stable snake_case id from the name; suffix to avoid collisions.
-      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
+      const base = values.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
       let id = base; let i = 1;
       while (roles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
       setRoles((prev) => [
         ...prev,
-        { id, name, description: draft.description.trim(), permissions },
+        { id, name: values.name, description: values.description, permissions: values.permissions },
       ]);
       toast({ title: "Role created" });
     }
@@ -144,6 +111,8 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     toast({ title: `Deleted "${pendingDelete.name}"` });
     setPendingDelete(null);
   };
+
+
 
   return (
     <div className="min-h-screen bg-background">
