@@ -1077,45 +1077,68 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               </>
             )}
           </div>
-          {/* Canvas */}
-          <div className="flex-1 overflow-auto flex items-start justify-center p-6">
-            <div
-              ref={canvasRef}
-              className="bg-white rounded-sm shadow-lg relative"
-              style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, minHeight: CANVAS_HEIGHT }}
-              onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedElementId(null); setEditingTextId(null); } }}
-            >
-              {activeDoc.elements.map((el) => (
-                <DraggableElement
-                  key={el.id}
-                  id={el.id}
-                  x={el.x}
-                  y={el.y}
-                  width={el.width}
-                  height={el.height}
-                  isSelected={selectedElementId === el.id}
-                  isHovered={hoveredElementId === el.id}
-                  onSelect={(id) => { setSelectedElementId(id); setEditingTextId(null); }}
-                  onDoubleClick={handleDoubleClick}
-                  onMove={handleMove}
-                  onResize={handleResize}
-                  onHover={setHoveredElementId}
-                  canvasWidth={CANVAS_WIDTH}
-                  canvasHeight={CANVAS_HEIGHT}
-                  allElements={activeDoc.elements}
+          {/* Canvas (auto-grows in page-sized increments to fit all elements) */}
+          {(() => {
+            const maxBottom = activeDoc.elements.reduce(
+              (m, el) => Math.max(m, el.y + el.height),
+              CANVAS_HEIGHT,
+            );
+            const totalPages = Math.max(1, Math.ceil(maxBottom / CANVAS_HEIGHT));
+            const canvasHeight = totalPages * CANVAS_HEIGHT;
+            return (
+              <div className="flex-1 overflow-auto flex items-start justify-center p-6">
+                <div
+                  ref={canvasRef}
+                  className="bg-white rounded-sm shadow-lg relative"
+                  style={{ width: CANVAS_WIDTH, height: canvasHeight, minHeight: canvasHeight }}
+                  onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedElementId(null); setEditingTextId(null); } }}
                 >
-                  {renderElementContent(el)}
-                </DraggableElement>
-              ))}
-              {activeDoc.elements.length === 0 && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
-                  <FileText className="h-12 w-12 mb-3" />
-                  <p className="text-sm font-medium">Empty Document</p>
-                  <p className="text-xs">Use the toolbar above to add elements</p>
+                  {/* Page break guides */}
+                  {Array.from({ length: totalPages - 1 }).map((_, i) => (
+                    <div
+                      key={`pb-${i}`}
+                      className="absolute left-0 right-0 pointer-events-none flex items-center justify-end pr-2"
+                      style={{ top: (i + 1) * CANVAS_HEIGHT, transform: "translateY(-1px)" }}
+                    >
+                      <div className="absolute inset-x-0 border-t border-dashed border-muted-foreground/30" />
+                      <span className="relative text-[10px] bg-card px-2 rounded-full border text-muted-foreground">
+                        Page {i + 2}
+                      </span>
+                    </div>
+                  ))}
+                  {activeDoc.elements.map((el) => (
+                    <DraggableElement
+                      key={el.id}
+                      id={el.id}
+                      x={el.x}
+                      y={el.y}
+                      width={el.width}
+                      height={el.height}
+                      isSelected={selectedElementId === el.id}
+                      isHovered={hoveredElementId === el.id}
+                      onSelect={(id) => { setSelectedElementId(id); setEditingTextId(null); }}
+                      onDoubleClick={handleDoubleClick}
+                      onMove={handleMove}
+                      onResize={handleResize}
+                      onHover={setHoveredElementId}
+                      canvasWidth={CANVAS_WIDTH}
+                      canvasHeight={canvasHeight}
+                      allElements={activeDoc.elements}
+                    >
+                      {renderElementContent(el)}
+                    </DraggableElement>
+                  ))}
+                  {activeDoc.elements.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
+                      <FileText className="h-12 w-12 mb-3" />
+                      <p className="text-sm font-medium">Empty Document</p>
+                      <p className="text-xs">Use the toolbar above to add elements</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })()}
         </main>
 
         {/* ── Right Panel ── */}
