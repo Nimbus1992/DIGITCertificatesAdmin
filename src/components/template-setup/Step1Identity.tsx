@@ -28,7 +28,7 @@ const Step1Identity: React.FC<Props> = ({ templateName, value, onChange, duplica
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="svc-name" className="text-sm">Service name</Label>
+        <Label htmlFor="svc-name" className="text-sm">Application name</Label>
         <Input
           id="svc-name"
           value={value}
@@ -38,7 +38,7 @@ const Step1Identity: React.FC<Props> = ({ templateName, value, onChange, duplica
           className="h-12 text-base"
         />
         {duplicate ? (
-          <p className="text-xs text-destructive">A service with this name already exists.</p>
+          <p className="text-xs text-destructive">An application with this name already exists.</p>
         ) : (
           <p className="text-xs text-muted-foreground">
             Prefilled from the {templateName} template. You can rename it any time.

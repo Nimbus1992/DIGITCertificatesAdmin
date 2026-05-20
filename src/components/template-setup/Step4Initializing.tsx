@@ -19,7 +19,7 @@ const Step4Initializing: React.FC<Props> = ({
   const tasks = React.useMemo(
     () =>
       [
-        { label: `Creating ${serviceName} service`, skip: false },
+        { label: `Creating ${serviceName} application`, skip: false },
         { label: "Configuring modules", skip: false },
         { label: "Preparing workflows", skip: false },
         { label: "Setting up renewals", skip: !renewalEnabled },
