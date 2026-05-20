@@ -1448,6 +1448,13 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
           emitWorkflowUpdated(serviceId);
         }}
       />
+
+      {/* Inline create-role dialog (shared with Roles Designer) */}
+      <RoleEditorDialog
+        draft={roleDraft}
+        onClose={() => { setRoleDraft(null); setRoleCreationTarget(null); }}
+        onSave={saveNewRole}
+      />
     </div>
   );
 };
