@@ -108,17 +108,8 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     id: role.id,
     name: role.name,
     description: role.description,
-    permissions: [...role.permissions],
+    persona: isCitizenRole(role) ? "citizen" : "employee",
   });
-
-  const togglePermission = (permId: string) => {
-    setDraft((d) => d && ({
-      ...d,
-      permissions: d.permissions.includes(permId)
-        ? d.permissions.filter((p) => p !== permId)
-        : [...d.permissions, permId],
-    }));
-  };
 
   const saveDraft = () => {
     if (!draft) return;
@@ -127,13 +118,10 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       toast({ title: "Role name required", variant: "destructive" });
       return;
     }
-    if (draft.permissions.length === 0) {
-      toast({ title: "Select at least one permission", variant: "destructive" });
-      return;
-    }
+    const permissions = personaPermissions(draft.persona);
     if (draft.id) {
       setRoles((prev) => prev.map((r) => r.id === draft.id ? {
-        ...r, name, description: draft.description.trim(), permissions: draft.permissions,
+        ...r, name, description: draft.description.trim(), permissions,
       } : r));
       toast({ title: "Role updated" });
     } else {
@@ -143,7 +131,7 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       while (roles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
       setRoles((prev) => [
         ...prev,
-        { id, name, description: draft.description.trim(), permissions: draft.permissions },
+        { id, name, description: draft.description.trim(), permissions },
       ]);
       toast({ title: "Role created" });
     }
