@@ -117,7 +117,7 @@ import {
 } from "@/data/renewalTemplate";
 import { TRADE_PAYMENT_STAGES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_PAYMENT_STAGES } from "@/data/renewalTemplate";
-import { useModuleState } from "@/lib/moduleStorage";
+import { useModuleState, MODULE_STATE_EVENT, type ModuleStateEventDetail } from "@/lib/moduleStorage";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 import { emitWorkflowUpdated } from "@/lib/useServiceWorkflow";
 import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
@@ -297,6 +297,75 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     "workflow-transitions-v4", serviceId, storageSuffix,
     () => buildSeedTransitions(moduleName, buildSeedChecklists(moduleName)),
   );
+
+  /* ---- Reconcile state.notificationIds / paymentStageId / transition.checklistIds
+         when notifications / checklists / paymentStages change (auto-attach by
+         matching workflowState ↔ state.name, drop ids whose source is gone). ---- */
+  useEffect(() => {
+    setStates((prev) => {
+      let dirty = false;
+      const validNotifIds = new Set(notifications.map((n) => n.id));
+      const validStageIds = new Set(paymentStages.map((p) => p.id));
+      const next = prev.map((s) => {
+        const matched = notifications.filter((n) => n.workflowState === s.name).map((n) => n.id);
+        const merged = Array.from(new Set([
+          ...s.notificationIds.filter((id) => validNotifIds.has(id)),
+          ...matched,
+        ]));
+        const stageById = s.paymentStageId && validStageIds.has(s.paymentStageId)
+          ? s.paymentStageId
+          : (paymentStages.find((p) => p.workflowState === s.name)?.id ?? null);
+        const changed =
+          merged.length !== s.notificationIds.length ||
+          merged.some((id, i) => id !== s.notificationIds[i]) ||
+          stageById !== s.paymentStageId;
+        if (changed) dirty = true;
+        return changed ? { ...s, notificationIds: merged, paymentStageId: stageById } : s;
+      });
+      return dirty ? next : prev;
+    });
+
+    setTransitions((prev) => {
+      let dirty = false;
+      const validChecklistIds = new Set(checklists.map((c) => c.id));
+      const next = prev.map((t) => {
+        // map by destination state name
+        const toState = states.find((s) => s.id === t.toStateId);
+        const matched = toState
+          ? checklists.filter((c) => c.workflowState === toState.name).map((c) => c.id)
+          : [];
+        const merged = Array.from(new Set([
+          ...t.checklistIds.filter((id) => validChecklistIds.has(id)),
+          ...matched,
+        ]));
+        const changed =
+          merged.length !== t.checklistIds.length ||
+          merged.some((id, i) => id !== t.checklistIds[i]);
+        if (changed) dirty = true;
+        return changed ? { ...t, checklistIds: merged } : t;
+      });
+      return dirty ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifications, checklists, paymentStages]);
+
+  /* ---- Cross-page sync: when NotificationsManager / ChecklistBuilder /
+         PaymentsConfigurator edit storage from another route, this listener
+         doesn't re-read (useModuleState already owns the state), but it forces
+         a re-render so children depending on derived values stay fresh. ---- */
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const onEvent = (e: Event) => {
+      const detail = (e as CustomEvent<ModuleStateEventDetail>).detail;
+      if (!detail) return;
+      if (detail.serviceId !== serviceId || detail.moduleName !== moduleName) return;
+      if (detail.prefix === "notifications" || detail.prefix === "checklists" || detail.prefix === "payments") {
+        forceTick((n) => n + 1);
+      }
+    };
+    window.addEventListener(MODULE_STATE_EVENT, onEvent);
+    return () => window.removeEventListener(MODULE_STATE_EVENT, onEvent);
+  }, [serviceId, moduleName]);
 
   /* ---- Configured documents (read-only mirror of Document Designer) ---- */
   const docKey = `documents:${serviceId}:${moduleName}`;

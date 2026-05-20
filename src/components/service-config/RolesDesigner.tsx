@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -27,11 +26,33 @@ import {
 import { ArrowLeft, Plus, Search, User, Pencil, Trash2, Info } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
-  PERMISSIONS,
-  permissionLabel,
   useServiceRoles,
+  isCitizenRole,
   type ServiceRoleRecord,
 } from "@/lib/useServiceRoles";
+
+type Persona = "citizen" | "employee";
+
+// Count workflow transitions assigned to each role for the current module.
+function useTransitionCountByRole(serviceId: string, moduleName: string) {
+  const key = `workflow-transitions-v4:${serviceId}:${moduleName}`;
+  return React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return {} as Record<string, number>;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return {};
+      const counts: Record<string, number> = {};
+      parsed.forEach((t: { roleId?: string }) => {
+        if (!t?.roleId) return;
+        counts[t.roleId] = (counts[t.roleId] ?? 0) + 1;
+      });
+      return counts;
+    } catch {
+      return {} as Record<string, number>;
+    }
+  }, [key]);
+}
 
 interface Props {
   moduleName: string;
@@ -52,16 +73,22 @@ interface DraftState {
   id: string | null; // null = creating
   name: string;
   description: string;
-  permissions: string[];
+  persona: Persona;
 }
 
 const emptyDraft = (): DraftState => ({
-  id: null, name: "", description: "", permissions: [],
+  id: null, name: "", description: "", persona: "employee",
 });
+
+const personaPermissions = (persona: Persona): string[] =>
+  persona === "citizen"
+    ? ["create_application", "edit_application", "view_application"]
+    : ["view_application", "view_checklist"];
 
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
+  const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
 
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -81,17 +108,8 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     id: role.id,
     name: role.name,
     description: role.description,
-    permissions: [...role.permissions],
+    persona: isCitizenRole(role) ? "citizen" : "employee",
   });
-
-  const togglePermission = (permId: string) => {
-    setDraft((d) => d && ({
-      ...d,
-      permissions: d.permissions.includes(permId)
-        ? d.permissions.filter((p) => p !== permId)
-        : [...d.permissions, permId],
-    }));
-  };
 
   const saveDraft = () => {
     if (!draft) return;
@@ -100,13 +118,10 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       toast({ title: "Role name required", variant: "destructive" });
       return;
     }
-    if (draft.permissions.length === 0) {
-      toast({ title: "Select at least one permission", variant: "destructive" });
-      return;
-    }
+    const permissions = personaPermissions(draft.persona);
     if (draft.id) {
       setRoles((prev) => prev.map((r) => r.id === draft.id ? {
-        ...r, name, description: draft.description.trim(), permissions: draft.permissions,
+        ...r, name, description: draft.description.trim(), permissions,
       } : r));
       toast({ title: "Role updated" });
     } else {
@@ -116,7 +131,7 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       while (roles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
       setRoles((prev) => [
         ...prev,
-        { id, name, description: draft.description.trim(), permissions: draft.permissions },
+        { id, name, description: draft.description.trim(), permissions },
       ]);
       toast({ title: "Role created" });
     }
@@ -215,18 +230,23 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {role.permissions.length === 0 && (
-                        <span className="text-[11px] text-muted-foreground italic">No permissions</span>
-                      )}
-                      {role.permissions.map((p) => (
-                        <Badge
-                          key={p}
-                          variant="outline"
-                          className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20 font-normal"
-                        >
-                          {permissionLabel(p)}
-                        </Badge>
-                      ))}
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20 font-normal"
+                      >
+                        {isCitizenRole(role) ? "Citizen" : "Employee"}
+                      </Badge>
+                      {(() => {
+                        const tx = transitionCountByRole[role.id] ?? 0;
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground border-border font-normal"
+                          >
+                            {tx === 0 ? "No workflow steps" : `${tx} workflow step${tx > 1 ? "s" : ""}`}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
@@ -262,18 +282,32 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 />
               </div>
               <div>
-                <Label className="mb-2 block">Permissions</Label>
+                <Label className="mb-2 block">Persona</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {PERMISSIONS.map((perm) => (
-                    <label key={perm.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={draft.permissions.includes(perm.id)}
-                        onCheckedChange={() => togglePermission(perm.id)}
-                      />
-                      {perm.label}
-                    </label>
-                  ))}
+                  {(["citizen", "employee"] as Persona[]).map((p) => {
+                    const selected = draft.persona === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, persona: p })}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selected ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-foreground capitalize">{p}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p === "citizen"
+                            ? "Submits and tracks applications"
+                            : "Reviews and acts on applications"}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Workflow steps assignable to this role are managed in Workflow Designer.
+                </p>
               </div>
             </div>
           )}
