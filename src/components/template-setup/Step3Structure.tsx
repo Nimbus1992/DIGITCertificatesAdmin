@@ -186,7 +186,7 @@ const Step3Structure: React.FC<Props> = ({
           Let's structure your licenses
         </h1>
         <p className="text-base text-muted-foreground mt-2">
-          A few quick questions help us pre-configure your service correctly.
+          A few quick questions help us pre-configure your application correctly.
         </p>
       </div>
 
