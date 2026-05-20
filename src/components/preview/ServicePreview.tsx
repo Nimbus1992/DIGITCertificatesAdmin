@@ -1,5 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Settings2 } from "lucide-react";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { PreviewProvider, usePreview, type DeviceMode } from "./PreviewContext";
 import PreviewTopBar from "./PreviewTopBar";
@@ -33,8 +35,22 @@ const embeddedDevices: { mode: DeviceMode; icon: React.ElementType }[] = [
 
 const EmbeddedDeviceToggle: React.FC = () => {
   const { deviceMode, setDeviceMode } = usePreview();
+  const navigate = useNavigate();
+  const { id } = useParams();
   return (
-    <div className="flex items-center justify-center px-3 py-2 bg-card border-b">
+    <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
+      <div className="w-[120px]">
+        {id && (
+          <Button
+            size="sm"
+            onClick={() => navigate(`/service/${id}/configure`)}
+            className="gap-1.5 h-7 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
+            title="Edit forms, workflow, fees and more"
+          >
+            <Settings2 className="h-3.5 w-3.5" /> Configure
+          </Button>
+        )}
+      </div>
       <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
         {embeddedDevices.map(({ mode, icon: Icon }) => (
           <button
@@ -50,6 +66,7 @@ const EmbeddedDeviceToggle: React.FC = () => {
           </button>
         ))}
       </div>
+      <div className="w-[120px]" />
     </div>
   );
 };
