@@ -378,6 +378,17 @@ const NotificationDialog: React.FC<{
               ))}
             </div>
           </div>
+          </div>
+
+          {/* Live emulator preview */}
+          <div className="border-l lg:pl-6 lg:sticky lg:top-0 lg:self-start">
+            <NotificationPreview
+              device={previewDevice}
+              subject={draft.subject}
+              message={draft.message}
+              recipientLabel={recipient?.name}
+            />
+          </div>
         </div>
 
         <DialogFooter>
