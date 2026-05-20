@@ -149,7 +149,10 @@ const findVarLabel = (catalog: VarGroup[], value?: string): string | null => {
   return null;
 };
 
-/** Generate a stacked Application PDF layout from the live form schema. */
+/** Generate a stacked Application PDF layout from the live form schema.
+ *  Auto-paginates so no element straddles a page boundary — when the next
+ *  row would cross `CANVAS_HEIGHT - PAGE_BOTTOM`, y jumps to the top of the
+ *  next page and a "Page N" header is inserted. */
 const buildApplicationPdfElements = (
   steps: WizardStep[],
   docTitle = "Application Form",
@@ -160,32 +163,57 @@ const buildApplicationPdfElements = (
   const valueX = 280;
   const valueW = 220;
   const pageW = 440;
-  let y = 40;
+  const PAGE_TOP = 40;
+  const PAGE_BOTTOM = 40; // reserved footer/margin
+  const usableBottom = CANVAS_HEIGHT - PAGE_BOTTOM;
+  let pageIndex = 0;
+  let y = PAGE_TOP;
   let n = 0;
   const nid = () => `app-${Date.now().toString(36)}-${++n}`;
 
+  // Absolute Y for a given (pageIndex, localY) so each page is stacked
+  // vertically in the canvas — DraggableElement uses absolute coords.
+  const absY = (local: number) => pageIndex * CANVAS_HEIGHT + local;
+
+  const newPage = () => {
+    pageIndex += 1;
+    y = PAGE_TOP;
+    els.push({
+      id: nid(), type: "text", content: `${docTitle} — Page ${pageIndex + 1}`,
+      x: left, y: absY(y), width: pageW, height: 20,
+      style: { ...defaultStyle, fontSize: 11, fontWeight: "bold", color: "#6b7280", alignment: "right" },
+    });
+    y += 26;
+  };
+
+  const ensureSpace = (rowH: number) => {
+    if (y + rowH > usableBottom) newPage();
+  };
+
+  // Title (page 1)
   els.push({
     id: nid(), type: "text", content: docTitle,
-    x: left, y, width: pageW, height: 32,
+    x: left, y: absY(y), width: pageW, height: 32,
     style: { ...defaultStyle, fontSize: 22, fontWeight: "bold", alignment: "center" },
   });
   y += 44;
   els.push({
     id: nid(), type: "dynamic", content: "{applicationNumber}",
-    x: left, y, width: labelW, height: 20,
+    x: left, y: absY(y), width: labelW, height: 20,
     style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicationNumber",
   });
   els.push({
     id: nid(), type: "dynamic", content: "{submittedOn}",
-    x: valueX, y, width: valueW, height: 20,
+    x: valueX, y: absY(y), width: valueW, height: 20,
     style: { ...defaultStyle, alignment: "right" }, sourceMapping: "submittedOn",
   });
   y += 32;
 
   steps.forEach((step) => {
+    ensureSpace(26);
     els.push({
       id: nid(), type: "text", content: step.name,
-      x: left, y, width: pageW, height: 22,
+      x: left, y: absY(y), width: pageW, height: 22,
       style: { ...defaultStyle, fontSize: 14, fontWeight: "bold", color: "#0b4f6c" },
     });
     y += 26;
@@ -193,22 +221,24 @@ const buildApplicationPdfElements = (
       const fields = sub.fields.filter((f) => f.type !== "file");
       if (fields.length === 0) return;
       if (sub.title && step.subScreens.length > 1) {
+        ensureSpace(22);
         els.push({
           id: nid(), type: "text", content: sub.title,
-          x: left, y, width: pageW, height: 18,
+          x: left, y: absY(y), width: pageW, height: 18,
           style: { ...defaultStyle, fontSize: 11, fontWeight: "bold", color: "#6b7280" },
         });
         y += 22;
       }
       fields.forEach((f) => {
+        ensureSpace(22);
         els.push({
           id: nid(), type: "text", content: `${f.label || f.id}:`,
-          x: left, y, width: labelW, height: 18,
+          x: left, y: absY(y), width: labelW, height: 18,
           style: { ...defaultStyle, fontSize: 11, color: "#374151" },
         });
         els.push({
           id: nid(), type: "dynamic", content: `{${f.id}}`,
-          x: valueX, y, width: valueW, height: 18,
+          x: valueX, y: absY(y), width: valueW, height: 18,
           style: { ...defaultStyle, fontSize: 11 }, sourceMapping: f.id,
         });
         y += 22;
@@ -218,20 +248,23 @@ const buildApplicationPdfElements = (
     y += 4;
   });
 
+  ensureSpace(40);
   els.push({
     id: nid(), type: "text",
     content: "Declaration: I hereby declare that the information provided is true and correct.",
-    x: left, y, width: pageW, height: 30,
+    x: left, y: absY(y), width: pageW, height: 30,
     style: { ...defaultStyle, fontSize: 10, color: "#6b7280" },
   });
   y += 40;
+  ensureSpace(60);
   els.push({
     id: nid(), type: "signature", content: "Applicant Signature",
-    x: left, y, width: 200, height: 60, style: { ...defaultStyle },
+    x: left, y: absY(y), width: 200, height: 60, style: { ...defaultStyle },
   });
 
   return els;
 };
+
 
 
 
@@ -1044,45 +1077,68 @@ const DocumentDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
               </>
             )}
           </div>
-          {/* Canvas */}
-          <div className="flex-1 overflow-auto flex items-start justify-center p-6">
-            <div
-              ref={canvasRef}
-              className="bg-white rounded-sm shadow-lg relative"
-              style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, minHeight: CANVAS_HEIGHT }}
-              onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedElementId(null); setEditingTextId(null); } }}
-            >
-              {activeDoc.elements.map((el) => (
-                <DraggableElement
-                  key={el.id}
-                  id={el.id}
-                  x={el.x}
-                  y={el.y}
-                  width={el.width}
-                  height={el.height}
-                  isSelected={selectedElementId === el.id}
-                  isHovered={hoveredElementId === el.id}
-                  onSelect={(id) => { setSelectedElementId(id); setEditingTextId(null); }}
-                  onDoubleClick={handleDoubleClick}
-                  onMove={handleMove}
-                  onResize={handleResize}
-                  onHover={setHoveredElementId}
-                  canvasWidth={CANVAS_WIDTH}
-                  canvasHeight={CANVAS_HEIGHT}
-                  allElements={activeDoc.elements}
+          {/* Canvas (auto-grows in page-sized increments to fit all elements) */}
+          {(() => {
+            const maxBottom = activeDoc.elements.reduce(
+              (m, el) => Math.max(m, el.y + el.height),
+              CANVAS_HEIGHT,
+            );
+            const totalPages = Math.max(1, Math.ceil(maxBottom / CANVAS_HEIGHT));
+            const canvasHeight = totalPages * CANVAS_HEIGHT;
+            return (
+              <div className="flex-1 overflow-auto flex items-start justify-center p-6">
+                <div
+                  ref={canvasRef}
+                  className="bg-white rounded-sm shadow-lg relative"
+                  style={{ width: CANVAS_WIDTH, height: canvasHeight, minHeight: canvasHeight }}
+                  onMouseDown={(e) => { if (e.target === e.currentTarget) { setSelectedElementId(null); setEditingTextId(null); } }}
                 >
-                  {renderElementContent(el)}
-                </DraggableElement>
-              ))}
-              {activeDoc.elements.length === 0 && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
-                  <FileText className="h-12 w-12 mb-3" />
-                  <p className="text-sm font-medium">Empty Document</p>
-                  <p className="text-xs">Use the toolbar above to add elements</p>
+                  {/* Page break guides */}
+                  {Array.from({ length: totalPages - 1 }).map((_, i) => (
+                    <div
+                      key={`pb-${i}`}
+                      className="absolute left-0 right-0 pointer-events-none flex items-center justify-end pr-2"
+                      style={{ top: (i + 1) * CANVAS_HEIGHT, transform: "translateY(-1px)" }}
+                    >
+                      <div className="absolute inset-x-0 border-t border-dashed border-muted-foreground/30" />
+                      <span className="relative text-[10px] bg-card px-2 rounded-full border text-muted-foreground">
+                        Page {i + 2}
+                      </span>
+                    </div>
+                  ))}
+                  {activeDoc.elements.map((el) => (
+                    <DraggableElement
+                      key={el.id}
+                      id={el.id}
+                      x={el.x}
+                      y={el.y}
+                      width={el.width}
+                      height={el.height}
+                      isSelected={selectedElementId === el.id}
+                      isHovered={hoveredElementId === el.id}
+                      onSelect={(id) => { setSelectedElementId(id); setEditingTextId(null); }}
+                      onDoubleClick={handleDoubleClick}
+                      onMove={handleMove}
+                      onResize={handleResize}
+                      onHover={setHoveredElementId}
+                      canvasWidth={CANVAS_WIDTH}
+                      canvasHeight={canvasHeight}
+                      allElements={activeDoc.elements}
+                    >
+                      {renderElementContent(el)}
+                    </DraggableElement>
+                  ))}
+                  {activeDoc.elements.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
+                      <FileText className="h-12 w-12 mb-3" />
+                      <p className="text-sm font-medium">Empty Document</p>
+                      <p className="text-xs">Use the toolbar above to add elements</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            );
+          })()}
         </main>
 
         {/* ── Right Panel ── */}

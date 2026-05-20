@@ -22,8 +22,9 @@ import {
   RENEWAL_NOTIFICATIONS, RENEWAL_STATE_NAMES, RENEWAL_STATE_TAG_COLORS, isRenewalModule,
 } from "@/data/renewalTemplate";
 import { useModuleState } from "@/lib/moduleStorage";
-import { useServiceRoles } from "@/lib/useServiceRoles";
+import { useServiceRoles, isCitizenRole } from "@/lib/useServiceRoles";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
+import NotificationPreview from "./preview/NotificationPreview";
 
 type Channel = "email" | "sms" | "push";
 
@@ -264,7 +265,7 @@ const NotificationDialog: React.FC<{
   value: Notification;
   workflowStates: string[];
   tagColors: Record<string, string>;
-  roles: { id: string; name: string }[];
+  roles: { id: string; name: string; permissions: string[] }[];
   onClose: () => void;
   onSave: (n: Notification) => void;
 }> = ({ value, workflowStates, tagColors, roles, onClose, onSave }) => {
@@ -277,9 +278,14 @@ const NotificationDialog: React.FC<{
   const isSms = draft.channel === "sms";
   const charCount = draft.message.length;
 
+  // Audience drives emulator frame: citizen -> mobile, employee -> desktop.
+  const recipient = roles.find(r => r.id === draft.recipientRole);
+  const previewDevice: "mobile" | "desktop" =
+    recipient && isCitizenRole(recipient) ? "mobile" : "desktop";
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-4 w-4 text-accent" />
@@ -287,7 +293,8 @@ const NotificationDialog: React.FC<{
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <div className="space-y-5">
           {/* Channel segmented */}
           <div className="space-y-1.5">
             <Label>Channel</Label>
@@ -370,6 +377,17 @@ const NotificationDialog: React.FC<{
                 </button>
               ))}
             </div>
+          </div>
+          </div>
+
+          {/* Live emulator preview */}
+          <div className="border-l lg:pl-6 lg:sticky lg:top-0 lg:self-start">
+            <NotificationPreview
+              device={previewDevice}
+              subject={draft.subject}
+              message={draft.message}
+              recipientLabel={recipient?.name}
+            />
           </div>
         </div>
 

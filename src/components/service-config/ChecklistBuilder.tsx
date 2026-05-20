@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Plus, ClipboardCheck, Trash2, Info } from "lucide-react";
+import ChecklistPreview from "./preview/ChecklistPreview";
 
 type FieldType = "text" | "radio" | "checkbox" | "dropdown" | "file_upload";
 
@@ -225,12 +226,13 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
 
       {/* Questions Editor Dialog */}
       <Dialog open={!!editingChecklistId} onOpenChange={(open) => { if (!open) setEditingChecklistId(null); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingChecklist?.name ?? "Checklist"}</DialogTitle>
           </DialogHeader>
           {editingChecklist && (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+              <div className="space-y-3">
               {editingChecklist.questions.map((q, idx) => (
                 <div key={q.id} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
                   <span className="text-xs text-muted-foreground font-medium mt-2 w-5 shrink-0">{idx + 1}.</span>
@@ -318,6 +320,10 @@ const ChecklistBuilder: React.FC<Props> = ({ moduleName, onBack }) => {
               <Button variant="outline" size="sm" onClick={() => addQuestion(editingChecklist.id)} className="gap-1.5 text-xs">
                 <Plus className="h-3 w-3" /> Add Question
               </Button>
+              </div>
+              <div className="border-l lg:pl-6 lg:sticky lg:top-0 lg:self-start">
+                <ChecklistPreview checklist={editingChecklist} />
+              </div>
             </div>
           )}
           <DialogFooter>

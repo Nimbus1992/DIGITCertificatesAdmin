@@ -4,15 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +21,11 @@ import {
   isCitizenRole,
   type ServiceRoleRecord,
 } from "@/lib/useServiceRoles";
-
-type Persona = "citizen" | "employee";
+import RoleEditorDialog, {
+  type RoleDraft,
+  emptyRoleDraft,
+  draftFromRole,
+} from "./RoleEditorDialog";
 
 // Count workflow transitions assigned to each role for the current module.
 function useTransitionCountByRole(serviceId: string, moduleName: string) {
@@ -69,29 +63,13 @@ const BANNER_PALETTE = [
   "bg-rose-100/70",
 ];
 
-interface DraftState {
-  id: string | null; // null = creating
-  name: string;
-  description: string;
-  persona: Persona;
-}
-
-const emptyDraft = (): DraftState => ({
-  id: null, name: "", description: "", persona: "employee",
-});
-
-const personaPermissions = (persona: Persona): string[] =>
-  persona === "citizen"
-    ? ["create_application", "edit_application", "view_application"]
-    : ["view_application", "view_checklist"];
-
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
   const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
 
   const [search, setSearch] = useState("");
-  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [draft, setDraft] = useState<RoleDraft | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ServiceRoleRecord | null>(null);
 
   const filtered = useMemo(
@@ -103,35 +81,24 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     [roles, search],
   );
 
-  const openCreate = () => setDraft(emptyDraft());
-  const openEdit = (role: ServiceRoleRecord) => setDraft({
-    id: role.id,
-    name: role.name,
-    description: role.description,
-    persona: isCitizenRole(role) ? "citizen" : "employee",
-  });
+  const openCreate = () => setDraft(emptyRoleDraft());
+  const openEdit = (role: ServiceRoleRecord) => setDraft(draftFromRole(role));
 
-  const saveDraft = () => {
+  const handleSave = (values: { name: string; description: string; permissions: string[] }) => {
     if (!draft) return;
-    const name = draft.name.trim();
-    if (!name) {
-      toast({ title: "Role name required", variant: "destructive" });
-      return;
-    }
-    const permissions = personaPermissions(draft.persona);
     if (draft.id) {
       setRoles((prev) => prev.map((r) => r.id === draft.id ? {
-        ...r, name, description: draft.description.trim(), permissions,
+        ...r, name: values.name, description: values.description, permissions: values.permissions,
       } : r));
       toast({ title: "Role updated" });
     } else {
       // Generate a stable snake_case id from the name; suffix to avoid collisions.
-      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
+      const base = values.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
       let id = base; let i = 1;
       while (roles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
       setRoles((prev) => [
         ...prev,
-        { id, name, description: draft.description.trim(), permissions },
+        { id, name: values.name, description: values.description, permissions: values.permissions },
       ]);
       toast({ title: "Role created" });
     }
@@ -144,6 +111,8 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
     toast({ title: `Deleted "${pendingDelete.name}"` });
     setPendingDelete(null);
   };
+
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -256,72 +225,12 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         )}
       </main>
 
-      {/* Create / Edit dialog */}
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{draft?.id ? "Edit Role" : "Create New Role"}</DialogTitle>
-          </DialogHeader>
-          {draft && (
-            <div className="space-y-4">
-              <div>
-                <Label>Role Name</Label>
-                <Input
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  placeholder="e.g. Finance Officer"
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={draft.description}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  placeholder="Brief description of this role"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label className="mb-2 block">Persona</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["citizen", "employee"] as Persona[]).map((p) => {
-                    const selected = draft.persona === p;
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, persona: p })}
-                        className={`p-3 rounded-lg border text-left transition-all ${
-                          selected ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
-                        }`}
-                      >
-                        <p className="text-sm font-medium text-foreground capitalize">{p}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {p === "citizen"
-                            ? "Submits and tracks applications"
-                            : "Reviews and acts on applications"}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Workflow steps assignable to this role are managed in Workflow Designer.
-                </p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDraft(null)}>Cancel</Button>
-            <Button
-              onClick={saveDraft}
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
-            >
-              {draft?.id ? "Save Changes" : "Create Role"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Create / Edit dialog (shared with Workflow Designer) */}
+      <RoleEditorDialog
+        draft={draft}
+        onClose={() => setDraft(null)}
+        onSave={handleSave}
+      />
 
       {/* Delete confirm */}
       <AlertDialog open={pendingDelete !== null} onOpenChange={(o) => !o && setPendingDelete(null)}>
