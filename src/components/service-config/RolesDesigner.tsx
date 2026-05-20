@@ -231,18 +231,23 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {role.permissions.length === 0 && (
-                        <span className="text-[11px] text-muted-foreground italic">No permissions</span>
-                      )}
-                      {role.permissions.map((p) => (
-                        <Badge
-                          key={p}
-                          variant="outline"
-                          className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20 font-normal"
-                        >
-                          {permissionLabel(p)}
-                        </Badge>
-                      ))}
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5 bg-accent/5 text-accent border-accent/20 font-normal"
+                      >
+                        {isCitizenRole(role) ? "Citizen" : "Employee"}
+                      </Badge>
+                      {(() => {
+                        const tx = transitionCountByRole[role.id] ?? 0;
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-2 py-0.5 bg-muted text-muted-foreground border-border font-normal"
+                          >
+                            {tx === 0 ? "No workflow steps" : `${tx} workflow step${tx > 1 ? "s" : ""}`}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
