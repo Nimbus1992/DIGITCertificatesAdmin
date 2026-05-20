@@ -225,72 +225,12 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         )}
       </main>
 
-      {/* Create / Edit dialog */}
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{draft?.id ? "Edit Role" : "Create New Role"}</DialogTitle>
-          </DialogHeader>
-          {draft && (
-            <div className="space-y-4">
-              <div>
-                <Label>Role Name</Label>
-                <Input
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  placeholder="e.g. Finance Officer"
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={draft.description}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  placeholder="Brief description of this role"
-                  rows={2}
-                />
-              </div>
-              <div>
-                <Label className="mb-2 block">Persona</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["citizen", "employee"] as Persona[]).map((p) => {
-                    const selected = draft.persona === p;
-                    return (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, persona: p })}
-                        className={`p-3 rounded-lg border text-left transition-all ${
-                          selected ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
-                        }`}
-                      >
-                        <p className="text-sm font-medium text-foreground capitalize">{p}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {p === "citizen"
-                            ? "Submits and tracks applications"
-                            : "Reviews and acts on applications"}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Workflow steps assignable to this role are managed in Workflow Designer.
-                </p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDraft(null)}>Cancel</Button>
-            <Button
-              onClick={saveDraft}
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
-            >
-              {draft?.id ? "Save Changes" : "Create Role"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Create / Edit dialog (shared with Workflow Designer) */}
+      <RoleEditorDialog
+        draft={draft}
+        onClose={() => setDraft(null)}
+        onSave={handleSave}
+      />
 
       {/* Delete confirm */}
       <AlertDialog open={pendingDelete !== null} onOpenChange={(o) => !o && setPendingDelete(null)}>
