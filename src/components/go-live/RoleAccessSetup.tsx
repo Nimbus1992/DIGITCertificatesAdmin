@@ -29,12 +29,19 @@ const RoleAccessSetup: React.FC<{ onComplete: () => void; onBack: () => void }> 
   const { state, updateService, getActiveService } = useOnboarding();
   const guidance = onboardingGuidance.roleAccess ?? onboardingGuidance.addUsers;
   const activeService = getActiveService();
-  // Pull roles from the live store so any custom role added in Roles & Access shows up here.
-  const [storedRoles] = useServiceRoles(activeService?.id ?? "", "Issuance");
-  const roles = useMemo(
-    () => storedRoles.map((r) => ({ id: r.id, name: r.name, description: r.description, permissions: r.permissions })),
-    [storedRoles],
-  );
+  // Pull roles from every module of the live store (Issuance + Renewal) so
+  // any custom role added in any module's Roles & Access shows up here.
+  const [issuanceRoles] = useServiceRoles(activeService?.id ?? "", "Issuance");
+  const [renewalRoles] = useServiceRoles(activeService?.id ?? "", "Renewal");
+  const roles = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; description: string; permissions: string[] }>();
+    [...issuanceRoles, ...renewalRoles].forEach((r) => {
+      if (!map.has(r.id)) {
+        map.set(r.id, { id: r.id, name: r.name, description: r.description, permissions: r.permissions });
+      }
+    });
+    return Array.from(map.values());
+  }, [issuanceRoles, renewalRoles]);
 
   const [configs, setConfigs] = useState<RoleAccessConfig[]>(() => {
     const existing = activeService?.roleAccess ?? [];
