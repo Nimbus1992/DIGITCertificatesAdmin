@@ -117,7 +117,7 @@ import {
 } from "@/data/renewalTemplate";
 import { TRADE_PAYMENT_STAGES } from "@/data/tradeLicenseTemplate";
 import { RENEWAL_PAYMENT_STAGES } from "@/data/renewalTemplate";
-import { useModuleState } from "@/lib/moduleStorage";
+import { useModuleState, MODULE_STATE_EVENT, type ModuleStateEventDetail } from "@/lib/moduleStorage";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 import { emitWorkflowUpdated } from "@/lib/useServiceWorkflow";
 import { useServiceConfigOptional } from "@/contexts/ServiceConfigContext";
