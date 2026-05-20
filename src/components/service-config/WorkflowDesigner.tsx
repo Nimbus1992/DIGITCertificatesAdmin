@@ -1219,10 +1219,20 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
 
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Performed by (Role)</Label>
-                      <Select value={selectedTransition.roleId} onValueChange={(v: RoleId) => updateTransition(selectedTransition.id, { roleId: v })}>
+                      <Select
+                        value={selectedTransition.roleId}
+                        onValueChange={(v) => handleRoleSelectChange(
+                          v,
+                          (roleId) => updateTransition(selectedTransition.id, { roleId }),
+                          { kind: "transition", transitionId: selectedTransition.id },
+                        )}
+                      >
                         <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {ROLE_OPTIONS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                          <SelectItem value={CREATE_ROLE_SENTINEL} className="text-accent font-medium">
+                            + Create new role…
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1340,10 +1350,20 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Performed by (Role)</Label>
-              <Select value={newTransRole} onValueChange={(v: RoleId) => setNewTransRole(v)}>
+              <Select
+                value={newTransRole}
+                onValueChange={(v) => handleRoleSelectChange(
+                  v,
+                  (roleId) => setNewTransRole(roleId),
+                  { kind: "newTransition" },
+                )}
+              >
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ROLE_OPTIONS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                  <SelectItem value={CREATE_ROLE_SENTINEL} className="text-accent font-medium">
+                    + Create new role…
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
