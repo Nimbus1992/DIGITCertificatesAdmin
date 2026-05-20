@@ -330,7 +330,7 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
       const validChecklistIds = new Set(checklists.map((c) => c.id));
       const next = prev.map((t) => {
         // map by destination state name
-        const toState = (statesRef.current ?? []).find((s) => s.id === t.toStateId);
+        const toState = states.find((s) => s.id === t.toStateId);
         const matched = toState
           ? checklists.filter((c) => c.workflowState === toState.name).map((c) => c.id)
           : [];
