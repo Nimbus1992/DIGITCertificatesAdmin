@@ -89,6 +89,7 @@ const personaPermissions = (persona: Persona): string[] =>
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
+  const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
 
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<DraftState | null>(null);
