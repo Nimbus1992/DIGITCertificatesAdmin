@@ -20,10 +20,10 @@ const Step1Identity: React.FC<Props> = ({ templateName, value, onChange, duplica
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-semibold text-foreground tracking-tight">
-          Set up your service
+          Set up your application
         </h1>
         <p className="text-base text-muted-foreground mt-2">
-          Let's start by defining the basic identity of your service.
+          Let's start by defining the basic identity of your application.
         </p>
       </div>
 
