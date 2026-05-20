@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useServiceRoles, canonicalRoleId } from "@/lib/useServiceRoles";
+import RoleEditorDialog, { emptyRoleDraft, type RoleDraft } from "./RoleEditorDialog";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -396,13 +397,57 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   }, [docKey, readDocs]);
 
   /* ---- Roles (shared across modules of this service) ---- */
-  const [serviceRoles] = useServiceRoles(serviceId, moduleName);
+  const [serviceRoles, setServiceRoles] = useServiceRoles(serviceId, moduleName);
   const ROLE_OPTIONS = serviceRoles.map((r) => ({ id: r.id, name: r.name }));
   const roleName = (id: RoleId) => {
     const canon = canonicalRoleId(id);
     return serviceRoles.find((r) => r.id === canon)?.name ?? id;
   };
   const fallbackRoleId: RoleId = serviceRoles[0]?.id ?? "approver";
+
+  /* ---- Inline role creation (from any role Select) ---- */
+  const CREATE_ROLE_SENTINEL = "__create_role__";
+  const [roleDraft, setRoleDraft] = useState<RoleDraft | null>(null);
+  // Where the freshly-created role id should be applied after save.
+  const [roleCreationTarget, setRoleCreationTarget] = useState<
+    | { kind: "newTransition" }
+    | { kind: "transition"; transitionId: string }
+    | null
+  >(null);
+
+  const handleRoleSelectChange = (
+    value: string,
+    apply: (roleId: RoleId) => void,
+    target: { kind: "newTransition" } | { kind: "transition"; transitionId: string },
+  ) => {
+    if (value === CREATE_ROLE_SENTINEL) {
+      setRoleCreationTarget(target);
+      setRoleDraft(emptyRoleDraft());
+      return;
+    }
+    apply(value as RoleId);
+  };
+
+  const saveNewRole = (values: { name: string; description: string; permissions: string[] }) => {
+    const base = values.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role";
+    let id = base;
+    let i = 1;
+    while (serviceRoles.some((r) => r.id === id)) { i += 1; id = `${base}_${i}`; }
+    setServiceRoles((prev) => [
+      ...prev,
+      { id, name: values.name, description: values.description, permissions: values.permissions },
+    ]);
+    if (roleCreationTarget?.kind === "newTransition") {
+      setNewTransRole(id);
+    } else if (roleCreationTarget?.kind === "transition") {
+      updateTransition(roleCreationTarget.transitionId, { roleId: id });
+    }
+    setRoleCreationTarget(null);
+    setRoleDraft(null);
+    toast({ title: `Role "${values.name}" created` });
+  };
+
+
   const [view, setView] = useState<"visual" | "table">("visual");
   const [tableTab, setTableTab] = useState<"states" | "actions">("actions");
   const [selection, setSelection] = useState<Selection>(null);
