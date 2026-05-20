@@ -32,7 +32,7 @@ const Services: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Templates</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Choose a ready-to-use service template to get started quickly.
+          Choose a ready-to-use application template to get started quickly.
         </p>
       </div>
 

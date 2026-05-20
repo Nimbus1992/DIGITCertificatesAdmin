@@ -156,7 +156,7 @@ const Step4RenewalPolicy: React.FC<Props> = ({
               How does renewal validity vary?
             </div>
             <div className="text-sm text-muted-foreground mt-0.5">
-              Pick the level that best fits your service.
+              Pick the level that best fits your application.
             </div>
           </div>
 

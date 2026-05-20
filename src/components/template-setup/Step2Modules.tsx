@@ -19,7 +19,7 @@ const Step2Modules: React.FC<Props> = ({ renewalEnabled, onRenewalChange, onCont
           Choose operational capabilities
         </h1>
         <p className="text-base text-muted-foreground mt-2">
-          Select the capabilities your service will support.
+          Select the capabilities your application will support.
         </p>
       </div>
 

@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
                   Get Started
                 </div>
                 <h2 className="text-xl md:text-2xl font-semibold text-foreground">
-                  Set up your first service
+                  Set up your first application
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1.5 max-w-md">
                   Choose from a ready-made template to launch in minutes.
