@@ -283,18 +283,32 @@ const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
                 />
               </div>
               <div>
-                <Label className="mb-2 block">Permissions</Label>
+                <Label className="mb-2 block">Persona</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {PERMISSIONS.map((perm) => (
-                    <label key={perm.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={draft.permissions.includes(perm.id)}
-                        onCheckedChange={() => togglePermission(perm.id)}
-                      />
-                      {perm.label}
-                    </label>
-                  ))}
+                  {(["citizen", "employee"] as Persona[]).map((p) => {
+                    const selected = draft.persona === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, persona: p })}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selected ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-foreground capitalize">{p}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {p === "citizen"
+                            ? "Submits and tracks applications"
+                            : "Reviews and acts on applications"}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Workflow steps assignable to this role are managed in Workflow Designer.
+                </p>
               </div>
             </div>
           )}
