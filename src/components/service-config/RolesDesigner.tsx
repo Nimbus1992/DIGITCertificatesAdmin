@@ -74,12 +74,17 @@ interface DraftState {
   id: string | null; // null = creating
   name: string;
   description: string;
-  permissions: string[];
+  persona: Persona;
 }
 
 const emptyDraft = (): DraftState => ({
-  id: null, name: "", description: "", permissions: [],
+  id: null, name: "", description: "", persona: "employee",
 });
+
+const personaPermissions = (persona: Persona): string[] =>
+  persona === "citizen"
+    ? ["create_application", "edit_application", "view_application"]
+    : ["view_application", "view_checklist"];
 
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
