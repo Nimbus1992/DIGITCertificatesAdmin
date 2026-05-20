@@ -63,6 +63,7 @@ const PreviewSidebar: React.FC = () => {
     return (
       <button
         onClick={() => setRole(persona, r.id)}
+        aria-pressed={isActive}
         className={`w-full text-left rounded-xl border-2 p-3 transition-all ${
           isActive ? "border-accent bg-accent/5" : "border-border hover:border-accent/40"
         }`}
@@ -70,7 +71,6 @@ const PreviewSidebar: React.FC = () => {
         <div className="flex items-center gap-2 mb-2">
           <Icon className="h-4 w-4 text-accent shrink-0" />
           <span className="font-semibold text-foreground text-sm truncate">{r.name}</span>
-          {isActive && <Badge className="ml-auto text-[9px] bg-accent text-accent-foreground shrink-0">Active</Badge>}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {r.permissions.slice(0, 3).map((p) => (

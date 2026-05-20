@@ -60,7 +60,15 @@ const GoLive: React.FC = () => {
   return (
     <div className="bg-background px-4 py-12">
       <div className="max-w-lg mx-auto">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="gap-1 mb-6 -ml-2">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            const sid = activeService?.id ?? state.activeServiceId;
+            if (sid) navigate(`/service/${sid}/configure`);
+            else navigate("/services");
+          }}
+          className="gap-1 mb-6 -ml-2"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
         <div className="text-center mb-8 animate-slide-up">
