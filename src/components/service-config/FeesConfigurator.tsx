@@ -285,7 +285,7 @@ const FeesConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
                           Amount: {fee.currency || "INR"} {fee.amount?.toLocaleString()}
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground">Stage: {fee.applicableStage}</p>
+                      
                     </div>
 
                     <div className="flex gap-1 pt-1">
