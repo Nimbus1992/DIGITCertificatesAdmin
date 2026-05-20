@@ -508,20 +508,7 @@ const FeesConfigurator: React.FC<Props> = ({ moduleName, onBack }) => {
               </div>
             )}
 
-            {/* Applicable Stage */}
-            <div className="space-y-1.5">
-              <Label>Applicable Stage</Label>
-              <Select value={draft.applicableStage} onValueChange={(v) => updateDraft({ applicableStage: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WORKFLOW_STAGES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Applicable stage is now driven by Payment Setup, not the fee itself. */}
 
             {/* Mandatory toggle */}
             <div className="flex items-center justify-between rounded-lg border p-3">
