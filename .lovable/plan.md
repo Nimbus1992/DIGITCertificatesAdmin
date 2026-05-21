@@ -1,29 +1,34 @@
-## Fix scroll on Notifications screen (+ optional WorkflowDesigner loop)
+# Plan
 
-### Issue
-On `/service/:id/configure → Create Notifications`, the page does not scroll. `ServiceConfig.tsx` wraps every configurator in `flex-1 min-h-0 overflow-hidden`, but `NotificationsManager.tsx` uses `min-h-screen` with no internal scroll region, so the content gets clipped instead of scrolling.
+## 1. Configure CTA opens the Configure tab
 
-### Fix
-**`src/components/service-config/NotificationsManager.tsx`** (presentation only)
-- Change root wrapper from `min-h-screen bg-background` to `h-full flex flex-col bg-background`.
-- Add `shrink-0` to the `<header>`.
-- Replace `<main className="max-w-6xl mx-auto px-6 py-6 space-y-5">` with:
-  ```tsx
-  <main className="flex-1 min-h-0 overflow-y-auto">
-    <div className="max-w-6xl mx-auto px-6 py-6 space-y-5">
-      {/* existing children */}
-    </div>
-  </main>
-  ```
-- No changes to logic, state, storage, or any other file.
+**Problem:** In `PreviewTopBar.tsx`, the Configure button navigates to `/service/:id/configure`, but `ServiceConfig.tsx` always initializes `mode` to `"preview"`, so the user lands back on Preview instead of Configure.
 
-### Optional companion fix — WorkflowDesigner infinite loop
-Console shows `Maximum update depth exceeded` originating at `WorkflowDesigner.tsx:277` writing through `useModuleState` (moduleStorage.ts:44). A `useEffect` is calling `setState` with a freshly-built array on every render, so `useModuleState` persists → state change → re-render → repeat.
+**Fix:**
+- In `PreviewTopBar.tsx`, pass router state when navigating:
+  `navigate(\`/service/${id}/configure\`, { state: { mode: "configure" } })`
+- In `ServiceConfig.tsx`:
+  - Read `useLocation().state?.mode` to initialize `mode`. Default remains `"preview"` when no state is provided (preserving existing behavior for direct links from dashboards).
+  - When the inbound state requests `"configure"`, also clear `activeTile` so the user lands on the configuration hub grid (the "Configure" tab landing screen), not a stale tile.
 
-Fix: in that effect, compare against current state (or guard with a ref) before calling the setter, and ensure the dependency list does not include a freshly-allocated object. One file (`WorkflowDesigner.tsx`), ~10 lines.
+## 2. Mobile emulator preview in Form Builder
 
-### Out of scope
-ServiceConfig shell refactor, badge unification, module-tab filtering — those stay in the larger plan we discussed.
+Add an in-editor mobile preview to `FormBuilder.tsx` so users can see how the form looks to a citizen as they edit.
 
-### Question
-Should I apply only the Notifications scroll fix, or both fixes in this turn?
+**Approach:**
+- Create `src/components/service-config/preview/FormPreview.tsx`:
+  - Accepts `step: WizardStep` (the currently selected step) and renders its sub-screen heading + fields in a vertical scroll, styled like the citizen `ApplicationForm`.
+  - Renders read-only inputs for every `WizardFieldType` (text/number/textarea/date/dropdown/radio/checkbox/multiselect/file). Mirrors styling/spacing used in `ApplicationForm.tsx` but stateless (no validation, no submit).
+  - Shows required asterisks, help text, options, and placeholders so the preview matches citizen experience.
+- In `FormBuilder.tsx`:
+  - Add a right-side panel (or toggleable drawer) that wraps `<FormPreview>` inside `<EmulatorFrame device="mobile" label="Citizen view">`.
+  - Add a "Preview" toggle button in the top toolbar (`Smartphone` icon) so users can hide/show the emulator to reclaim canvas width on smaller screens. Default: visible on ≥1280px viewports, collapsed below.
+  - The emulator reflects the currently selected step/sub-screen so editing fields updates the preview live (since both read from the same `steps` state).
+
+**Out of scope:** functional submission, conditional `showIf` evaluation, multi-step navigation inside the emulator (only the active step is shown — matches the Notifications/Checklist emulator pattern already in the app).
+
+## Files touched
+- `src/components/preview/PreviewTopBar.tsx` — pass nav state.
+- `src/pages/ServiceConfig.tsx` — honor inbound mode state.
+- `src/components/service-config/preview/FormPreview.tsx` — new.
+- `src/components/service-config/FormBuilder.tsx` — mount emulator + toggle.
