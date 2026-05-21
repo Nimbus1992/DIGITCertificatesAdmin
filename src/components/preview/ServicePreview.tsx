@@ -39,18 +39,8 @@ const EmbeddedDeviceToggle: React.FC = () => {
   const { id } = useParams();
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
-      <div className="w-[120px]">
-        {id && (
-          <Button
-            size="sm"
-            onClick={() => navigate(`/service/${id}/configure`)}
-            className="gap-1.5 h-7 text-xs bg-accent text-accent-foreground hover:bg-accent/90"
-            title="Edit forms, workflow, fees and more"
-          >
-            <Settings2 className="h-3.5 w-3.5" /> Configure
-          </Button>
-        )}
-      </div>
+      <div className="w-[120px]" />
+
       <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
         {embeddedDevices.map(({ mode, icon: Icon }) => (
           <button
