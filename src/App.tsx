@@ -18,6 +18,7 @@ import BrandingTheme from "./pages/BrandingTheme";
 import Services from "./pages/Services";
 import TemplateSetup from "./pages/TemplateSetup";
 import ResponsiveQA from "./pages/ResponsiveQA";
+import UsersAccess from "./pages/UsersAccess";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,7 @@ const App = () => (
 
               {/* Setup */}
               <Route path="/setup/organization" element={<OrganizationProfile />} />
-              <Route path="/setup/users" element={<PlaceholderPage title="Users & Roles" description="Invite and manage team members. Assign roles like Admin, Operator, or Approver." />} />
+              <Route path="/setup/users" element={<UsersAccess />} />
               <Route path="/setup/deployment" element={<PlaceholderPage title="Deployment / Zones" description="Configure where your applications are available — by state, city, district, or department." />} />
               <Route path="/setup/auth" element={<PlaceholderPage title="Authentication" description="Set up how your team signs in — Email, Single Sign-On, or One-Time Password." />} />
               <Route path="/setup/license" element={<PlaceholderPage title="License & Billing" description="Manage your license key, subscription plan, and usage." />} />
