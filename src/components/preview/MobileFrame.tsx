@@ -5,14 +5,8 @@ interface MobileFrameProps {
 }
 
 const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => (
-  <div className="flex items-center justify-center w-full h-full py-6">
-    <div
-      className="relative bg-[#1a1a1a] rounded-[3rem] p-3.5 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.45)]"
-      style={{
-        height: "clamp(720px, 85vh, 920px)",
-        aspectRatio: "375 / 812",
-      }}
-    >
+  <div className="flex items-center justify-center py-4 h-full">
+    <div className="relative h-full max-h-[750px] aspect-[375/750] bg-[#1a1a1a] rounded-[3rem] p-3 shadow-2xl">
       {/* Notch */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-36 h-6 bg-[#1a1a1a] rounded-b-2xl z-10" />
       {/* Screen */}

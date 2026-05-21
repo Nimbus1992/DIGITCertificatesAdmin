@@ -10,12 +10,11 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, MoreHorizontal, Users, ShieldCheck, Briefcase, MailPlus, Settings2, Shield } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Users, ShieldCheck, Briefcase, MailPlus, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import {
   ROLES_SEED, USERS_SEED, DEFAULT_ROLE_PERMISSIONS, DEFAULT_SERVICES, STORAGE_KEY, relativeTime,
-  getRolePermissions, summarizePermissions,
 } from "@/data/usersAccess";
 import type {
   AccessLevel, RoleDef, RolePermissions, ServiceStageAccess, UserRow, UserStatus,
@@ -34,7 +33,11 @@ interface PersistedState {
 }
 
 function loadState(): PersistedState {
-  const fallback: PersistedState = {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {
     users: USERS_SEED,
     rolePerms: DEFAULT_ROLE_PERMISSIONS,
     roleScopes: {
@@ -50,19 +53,6 @@ function loadState(): PersistedState {
       document_verifier: { "Trade License": ["Document Verification"] },
     },
   };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as PersistedState;
-      // Deep-merge rolePerms so every role always has a complete permission map.
-      const mergedPerms: RolePermissions = {};
-      for (const role of ROLES_SEED) {
-        mergedPerms[role.id] = getRolePermissions(role.id, parsed.rolePerms?.[role.id]);
-      }
-      return { ...fallback, ...parsed, rolePerms: mergedPerms };
-    }
-  } catch { /* ignore */ }
-  return fallback;
 }
 
 const avatarTone: Record<string, string> = {
@@ -383,25 +373,6 @@ export default function UsersAccess() {
                         )}
                         {r.type === "system" && <><span className="text-border">·</span><span>Platform-wide</span></>}
                       </div>
-                      {(() => {
-                        const summary = summarizePermissions(getRolePermissions(r.id, state.rolePerms[r.id]));
-                        return (
-                          <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                            <Shield className="h-3.5 w-3.5" />
-                            <span><span className="font-medium text-foreground">{summary.enabled}</span>/{summary.total} permissions</span>
-                            {summary.topGroups.length > 0 && (
-                              <>
-                                <span className="text-border">·</span>
-                                <div className="flex gap-1 flex-wrap">
-                                  {summary.topGroups.map((g) => (
-                                    <Badge key={g} variant="outline" className="text-[10px] font-normal bg-muted/40">{g}</Badge>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })()}
                       <div className="flex items-center gap-1 pt-1 border-t border-border -mx-4 px-4 -mb-1">
                         <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => openRole(r)}>
                           Manage permissions
@@ -433,7 +404,7 @@ export default function UsersAccess() {
         role={activeRole}
         userCount={activeRole ? usersForRole(activeRole.id) : 0}
         services={servicesFromCtx}
-        permissions={activeRole ? getRolePermissions(activeRole.id, state.rolePerms[activeRole.id]) : {}}
+        permissions={activeRole ? state.rolePerms[activeRole.id] || {} : {}}
         scopedServices={activeRole ? state.roleScopes[activeRole.id] || [] : []}
         stageAccess={activeRole ? state.stageAccess[activeRole.id] || {} : {}}
         onSave={(next) => activeRole && saveRole(activeRole.id, next)}
