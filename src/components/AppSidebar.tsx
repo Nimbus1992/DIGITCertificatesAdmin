@@ -40,7 +40,7 @@ const mainItems = [
 
 const setupItems = [
   { title: "Organization Profile", url: "/setup/organization", icon: Building2 },
-  { title: "Users & Roles", url: "/setup/users", icon: Users },
+  { title: "Users & Access", url: "/setup/users", icon: Users },
   { title: "Application Areas", url: "/setup/deployment", icon: MapPin },
   { title: "Authentication", url: "/setup/auth", icon: Lock },
   { title: "License & Billing", url: "/setup/license", icon: KeyRound },
