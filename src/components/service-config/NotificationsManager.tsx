@@ -122,9 +122,13 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
     setNotifications(prev => prev.some(x => x.id === n.id)
       ? prev.map(x => x.id === n.id ? n : x)
       : [...prev, n]);
+    setActiveChannel(n.channel);
+    setSearch("");
     setEditing(null);
     emitNotificationsUpdated(serviceId);
+    toast({ title: "Notification saved", description: `${CHANNEL_META[n.channel].label} · ${n.workflowState}` });
   };
+
 
   return (
     <div className="min-h-screen bg-background">
