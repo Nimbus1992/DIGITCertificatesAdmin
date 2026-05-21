@@ -91,7 +91,7 @@ const PreviewContent: React.FC = () => {
 
   if (isMobile) {
     return (
-      <div className="flex-1 bg-[#444] overflow-hidden">
+      <div className="flex-1 bg-[#444] overflow-auto flex items-center justify-center">
         <MobileFrame>{renderScreen()}</MobileFrame>
       </div>
     );

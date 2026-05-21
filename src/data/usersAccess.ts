@@ -192,7 +192,39 @@ export const DEFAULT_STAGES_BY_SERVICE: Record<string, string[]> = {
   "Fire NOC": ["Intake", "Inspection", "Approval", "Issuance"],
 };
 
-export const STORAGE_KEY = "users-access:v1";
+export const STORAGE_KEY = "users-access:v2";
+
+/** Merge saved permission overrides with seeded defaults so missing keys never appear blank. */
+export function getRolePermissions(
+  roleId: string,
+  override?: Record<string, AccessLevel>,
+): Record<string, AccessLevel> {
+  const base = DEFAULT_ROLE_PERMISSIONS[roleId] || fill("none");
+  return { ...base, ...(override || {}) };
+}
+
+/** Compact summary used by role cards: enabled count + top permission groups. */
+export function summarizePermissions(perms: Record<string, AccessLevel>): {
+  enabled: number;
+  total: number;
+  topGroups: string[];
+} {
+  let enabled = 0;
+  let total = 0;
+  const groups: string[] = [];
+  for (const g of PERMISSION_GROUPS) {
+    let groupHas = false;
+    for (const p of g.permissions) {
+      total += 1;
+      if ((perms[p.key] || "none") !== "none") {
+        enabled += 1;
+        groupHas = true;
+      }
+    }
+    if (groupHas) groups.push(g.label);
+  }
+  return { enabled, total, topGroups: groups.slice(0, 3) };
+}
 
 export function relativeTime(iso: string | null): string {
   if (!iso) return "—";
