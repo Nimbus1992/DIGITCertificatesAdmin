@@ -53,10 +53,12 @@ export function useModuleState<T>(
 
   const cleanValue = useCallback((next: T): T => {
     if (Array.isArray(next)) {
-      return next.filter((x) => x != null) as unknown as T;
+      const hasNulls = next.some((x) => x == null);
+      return (hasNulls ? next.filter((x) => x != null) : next) as unknown as T;
     }
     return next;
   }, []);
+
 
   const setCleanValue: React.Dispatch<React.SetStateAction<T>> = useCallback((next) => {
     setValue((prev) => {
