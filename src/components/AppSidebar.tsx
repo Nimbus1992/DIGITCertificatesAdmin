@@ -13,6 +13,7 @@ import {
   ClipboardList,
   HelpCircle,
   Settings,
+  Monitor,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -54,6 +55,7 @@ const configItems = [
 
 const utilItems = [
   { title: "Audit Log", url: "/audit-log", icon: ClipboardList },
+  { title: "Responsive QA", url: "/responsive-qa", icon: Monitor },
   { title: "Help & Support", url: "/help", icon: HelpCircle },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
