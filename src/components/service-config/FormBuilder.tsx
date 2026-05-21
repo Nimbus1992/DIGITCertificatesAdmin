@@ -27,6 +27,8 @@ import {
   type WizardSubScreen,
 } from "@/data/wizardForm";
 import { loadFormSteps, saveFormSteps } from "@/lib/formStorage";
+import EmulatorFrame from "@/components/service-config/preview/EmulatorFrame";
+import FormPreview from "@/components/service-config/preview/FormPreview";
 
 /* ─── Field palette ─────────────────────────────────────── */
 
