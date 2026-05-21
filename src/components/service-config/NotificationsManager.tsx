@@ -252,7 +252,9 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
             </div>
           </CardContent>
         </Card>
+        </div>
       </main>
+
 
       {editing && (
         <NotificationDialog
