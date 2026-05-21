@@ -64,8 +64,20 @@ const ServiceConfigInner: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"configure" | "preview" | "deployment">("preview");
+  const location = useLocation();
+  const initialMode = (location.state as { mode?: "configure" | "preview" | "deployment" } | null)?.mode ?? "preview";
+  const [mode, setMode] = useState<"configure" | "preview" | "deployment">(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
+
+  // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
+  useEffect(() => {
+    const next = (location.state as { mode?: "configure" | "preview" | "deployment" } | null)?.mode;
+    if (next && next !== mode) {
+      setMode(next);
+      setActiveTile(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
