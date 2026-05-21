@@ -5,6 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import {
   Settings,
   Eye,
   Rocket,
@@ -15,16 +28,19 @@ import {
   Building2,
   CheckCircle2,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FilterKey = "all" | "draft" | "live";
 
 const Dashboard: React.FC = () => {
-  const { state, setActiveService } = useOnboarding();
+  const { state, setActiveService, deleteService } = useOnboarding();
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [pendingDelete, setPendingDelete] = useState<ServiceItem | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const statusConfig: Record<string, { label: string; className: string; stripe: string }> = {
     draft: {
@@ -246,12 +262,27 @@ const Dashboard: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="outline" className={cfg.className}>
-                          {service.isLive && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
-                          )}
-                          {cfg.label}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant="outline" className={cfg.className}>
+                            {service.isLive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
+                            )}
+                            {cfg.label}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmText("");
+                              setPendingDelete(service);
+                            }}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            aria-label={`Delete ${service.name}`}
+                            title="Delete service"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         {service.customModules.length > 0 && (
@@ -305,6 +336,49 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{pendingDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the service and its configuration (forms, workflow, fees, documents).
+              {pendingDelete?.isLive && " Live services will go offline immediately."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingDelete?.isLive && (
+            <div className="space-y-2">
+              <Label htmlFor="confirm-name" className="text-xs">
+                Type <span className="font-mono font-semibold">{pendingDelete.name}</span> to confirm
+              </Label>
+              <Input
+                id="confirm-name"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={pendingDelete.name}
+                autoFocus
+              />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pendingDelete?.isLive ? confirmText !== pendingDelete.name : false}
+              onClick={() => {
+                if (!pendingDelete) return;
+                const name = pendingDelete.name;
+                deleteService(pendingDelete.id);
+                setPendingDelete(null);
+                setConfirmText("");
+                toast.success(`"${name}" deleted`);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

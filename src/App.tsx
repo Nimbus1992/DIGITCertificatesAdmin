@@ -17,6 +17,7 @@ import PlaceholderPage from "./pages/placeholder/PlaceholderPage";
 import BrandingTheme from "./pages/BrandingTheme";
 import Services from "./pages/Services";
 import TemplateSetup from "./pages/TemplateSetup";
+import ResponsiveQA from "./pages/ResponsiveQA";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
 
               {/* Utilities */}
               <Route path="/audit-log" element={<PlaceholderPage title="Audit Log" description="Track who did what and when. Important for government compliance requirements." />} />
+              <Route path="/responsive-qa" element={<ResponsiveQA />} />
               <Route path="/help" element={<PlaceholderPage title="Help & Support" description="Access documentation, FAQs, and contact support." />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" description="General platform settings, data export, and account management." />} />
             </Route>
