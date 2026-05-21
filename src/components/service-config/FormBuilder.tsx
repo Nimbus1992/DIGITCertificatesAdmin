@@ -1074,6 +1074,20 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
             )}
           </ScrollArea>
         </div>
+
+        {/* Far right: Mobile emulator preview */}
+        {showPreview && (
+          <div className="w-[320px] shrink-0 border-l bg-muted/30 overflow-y-auto py-4 px-3 flex justify-center">
+            <EmulatorFrame device="mobile" label="Citizen view">
+              <FormPreview
+                stepName={activeStep.name}
+                stepIndex={activeStepIndex}
+                totalSteps={steps.length}
+                subScreen={activeSubScreen ?? undefined}
+              />
+            </EmulatorFrame>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
