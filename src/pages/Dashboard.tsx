@@ -336,6 +336,49 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{pendingDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the service and its configuration (forms, workflow, fees, documents).
+              {pendingDelete?.isLive && " Live services will go offline immediately."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingDelete?.isLive && (
+            <div className="space-y-2">
+              <Label htmlFor="confirm-name" className="text-xs">
+                Type <span className="font-mono font-semibold">{pendingDelete.name}</span> to confirm
+              </Label>
+              <Input
+                id="confirm-name"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={pendingDelete.name}
+                autoFocus
+              />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pendingDelete?.isLive ? confirmText !== pendingDelete.name : false}
+              onClick={() => {
+                if (!pendingDelete) return;
+                const name = pendingDelete.name;
+                deleteService(pendingDelete.id);
+                setPendingDelete(null);
+                setConfirmText("");
+                toast.success(`"${name}" deleted`);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
