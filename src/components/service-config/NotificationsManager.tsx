@@ -25,6 +25,7 @@ import { useModuleState } from "@/lib/moduleStorage";
 import { useServiceRoles, isCitizenRole } from "@/lib/useServiceRoles";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 import NotificationPreview from "./preview/NotificationPreview";
+import { toast } from "@/hooks/use-toast";
 
 type Channel = "email" | "sms" | "push";
 
