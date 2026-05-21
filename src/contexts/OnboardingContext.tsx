@@ -243,6 +243,26 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }));
   }, []);
 
+  const deleteService = useCallback((id: string) => {
+    // Best-effort cleanup of per-service localStorage entries (formbuilder:{id}:..., {prefix}:{id}:{module})
+    try {
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.includes(`:${id}:`) || k.endsWith(`:${id}`)) toRemove.push(k);
+      }
+      toRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // ignore storage errors
+    }
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.filter((s) => s.id !== id),
+      activeServiceId: prev.activeServiceId === id ? "" : prev.activeServiceId,
+    }));
+  }, []);
+
   const setActiveService = useCallback((id: string) => {
     setState((prev) => ({ ...prev, activeServiceId: id }));
   }, []);
@@ -267,7 +287,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   return (
     <OnboardingContext.Provider value={{
       state, updateState, nextStep, prevStep, goToStep, resetOnboarding,
-      addService, updateService, setActiveService, getActiveService,
+      addService, updateService, deleteService, setActiveService, getActiveService,
       updateActiveServiceBranding, updatePlatformBranding,
     }}>
       {children}
