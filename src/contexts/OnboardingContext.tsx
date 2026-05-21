@@ -161,6 +161,7 @@ interface OnboardingContextType {
   resetOnboarding: () => void;
   addService: (service: ServiceItem) => void;
   updateService: (id: string, updates: Partial<ServiceItem>) => void;
+  deleteService: (id: string) => void;
   setActiveService: (id: string) => void;
   getActiveService: () => ServiceItem | undefined;
   updateActiveServiceBranding: (branding: BrandingConfig) => void;
