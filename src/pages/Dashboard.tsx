@@ -262,12 +262,27 @@ const Dashboard: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <Badge variant="outline" className={cfg.className}>
-                          {service.isLive && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
-                          )}
-                          {cfg.label}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant="outline" className={cfg.className}>
+                            {service.isLive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
+                            )}
+                            {cfg.label}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmText("");
+                              setPendingDelete(service);
+                            }}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            aria-label={`Delete ${service.name}`}
+                            title="Delete service"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         {service.customModules.length > 0 && (
