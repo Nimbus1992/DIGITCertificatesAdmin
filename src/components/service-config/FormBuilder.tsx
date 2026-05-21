@@ -16,7 +16,7 @@ import {
   ArrowLeft, HelpCircle, Plus, Search, X, ChevronLeft, ChevronRight, Save,
   User, MapPin, Phone, Mail, Hash, Type, AlignLeft, Calendar,
   Circle, CheckSquare, List, Tag, Upload, Info, GripVertical, Trash2,
-  MapPinned,
+  MapPinned, Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
