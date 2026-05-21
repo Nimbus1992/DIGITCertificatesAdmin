@@ -450,6 +450,16 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Button
+            variant={showPreview ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowPreview((v) => !v)}
+            className="gap-1.5 h-8"
+            title="Toggle citizen mobile preview"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            {showPreview ? "Hide preview" : "Show preview"}
+          </Button>
           <HelpCircle className="h-4 w-4" /> Help
         </div>
       </div>
