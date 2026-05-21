@@ -28,7 +28,7 @@ const PreviewTopBar: React.FC<PreviewTopBarProps> = ({ onExit }) => {
         {id && (
           <Button
             size="sm"
-            onClick={() => navigate(`/service/${id}/configure`)}
+            onClick={() => navigate(`/service/${id}/configure`, { state: { mode: "configure" } })}
             className="gap-1.5 bg-accent text-accent-foreground hover:bg-accent/90"
             title="Edit forms, workflow, fees and more"
           >

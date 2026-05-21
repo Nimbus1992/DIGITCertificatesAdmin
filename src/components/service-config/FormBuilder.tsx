@@ -16,7 +16,7 @@ import {
   ArrowLeft, HelpCircle, Plus, Search, X, ChevronLeft, ChevronRight, Save,
   User, MapPin, Phone, Mail, Hash, Type, AlignLeft, Calendar,
   Circle, CheckSquare, List, Tag, Upload, Info, GripVertical, Trash2,
-  MapPinned,
+  MapPinned, Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -27,6 +27,8 @@ import {
   type WizardSubScreen,
 } from "@/data/wizardForm";
 import { loadFormSteps, saveFormSteps } from "@/lib/formStorage";
+import EmulatorFrame from "@/components/service-config/preview/EmulatorFrame";
+import FormPreview from "@/components/service-config/preview/FormPreview";
 
 /* ─── Field palette ─────────────────────────────────────── */
 
@@ -126,6 +128,9 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [paletteSearch, setPaletteSearch] = useState("");
   const [rightTab, setRightTab] = useState<"elements" | "logic">("elements");
+  const [showPreview, setShowPreview] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1280 : true,
+  );
 
   // Persist on every change so preview & builder stay in sync.
   useEffect(() => {
@@ -445,6 +450,16 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Button
+            variant={showPreview ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowPreview((v) => !v)}
+            className="gap-1.5 h-8"
+            title="Toggle citizen mobile preview"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            {showPreview ? "Hide preview" : "Show preview"}
+          </Button>
           <HelpCircle className="h-4 w-4" /> Help
         </div>
       </div>
@@ -1059,6 +1074,20 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
             )}
           </ScrollArea>
         </div>
+
+        {/* Far right: Mobile emulator preview */}
+        {showPreview && (
+          <div className="w-[320px] shrink-0 border-l bg-muted/30 overflow-y-auto py-4 px-3 flex justify-center">
+            <EmulatorFrame device="mobile" label="Citizen view">
+              <FormPreview
+                stepName={activeStep.name}
+                stepIndex={activeStepIndex}
+                totalSteps={steps.length}
+                subScreen={activeSubScreen ?? undefined}
+              />
+            </EmulatorFrame>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
