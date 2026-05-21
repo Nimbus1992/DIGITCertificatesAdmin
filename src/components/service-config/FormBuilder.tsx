@@ -128,6 +128,9 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ moduleName, onBack }) => {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [paletteSearch, setPaletteSearch] = useState("");
   const [rightTab, setRightTab] = useState<"elements" | "logic">("elements");
+  const [showPreview, setShowPreview] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1280 : true,
+  );
 
   // Persist on every change so preview & builder stay in sync.
   useEffect(() => {
