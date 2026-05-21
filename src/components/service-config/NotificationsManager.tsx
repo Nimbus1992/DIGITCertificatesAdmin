@@ -25,6 +25,7 @@ import { useModuleState } from "@/lib/moduleStorage";
 import { useServiceRoles, isCitizenRole } from "@/lib/useServiceRoles";
 import { emitNotificationsUpdated } from "@/lib/useServiceNotifications";
 import NotificationPreview from "./preview/NotificationPreview";
+import { toast } from "@/hooks/use-toast";
 
 type Channel = "email" | "sms" | "push";
 
@@ -122,9 +123,13 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
     setNotifications(prev => prev.some(x => x.id === n.id)
       ? prev.map(x => x.id === n.id ? n : x)
       : [...prev, n]);
+    setActiveChannel(n.channel);
+    setSearch("");
     setEditing(null);
     emitNotificationsUpdated(serviceId);
+    toast({ title: "Notification saved", description: `${CHANNEL_META[n.channel].label} · ${n.workflowState}` });
   };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -384,10 +389,12 @@ const NotificationDialog: React.FC<{
           <div className="border-l lg:pl-6 lg:sticky lg:top-0 lg:self-start">
             <NotificationPreview
               device={previewDevice}
+              channel={draft.channel}
               subject={draft.subject}
               message={draft.message}
               recipientLabel={recipient?.name}
             />
+
           </div>
         </div>
 
