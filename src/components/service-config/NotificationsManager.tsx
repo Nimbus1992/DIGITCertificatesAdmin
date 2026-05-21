@@ -132,8 +132,8 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
 
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
+    <div className="h-full flex flex-col bg-background">
+      <header className="border-b bg-card shrink-0">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
@@ -148,7 +148,9 @@ const NotificationsManager: React.FC<Props> = ({ moduleName, onBack }) => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-6 space-y-5">
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-6 py-6 space-y-5">
+
         <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 flex items-start gap-3">
           <Info className="h-4 w-4 text-accent mt-0.5 shrink-0" />
           <p className="text-sm text-foreground">
