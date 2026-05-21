@@ -35,10 +35,12 @@ import { cn } from "@/lib/utils";
 type FilterKey = "all" | "draft" | "live";
 
 const Dashboard: React.FC = () => {
-  const { state, setActiveService } = useOnboarding();
+  const { state, setActiveService, deleteService } = useOnboarding();
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [pendingDelete, setPendingDelete] = useState<ServiceItem | null>(null);
+  const [confirmText, setConfirmText] = useState("");
 
   const statusConfig: Record<string, { label: string; className: string; stripe: string }> = {
     draft: {
