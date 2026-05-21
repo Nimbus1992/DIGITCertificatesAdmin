@@ -384,10 +384,12 @@ const NotificationDialog: React.FC<{
           <div className="border-l lg:pl-6 lg:sticky lg:top-0 lg:self-start">
             <NotificationPreview
               device={previewDevice}
+              channel={draft.channel}
               subject={draft.subject}
               message={draft.message}
               recipientLabel={recipient?.name}
             />
+
           </div>
         </div>
 
