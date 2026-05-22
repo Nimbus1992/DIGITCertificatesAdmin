@@ -150,7 +150,7 @@ const ApplicationDetail: React.FC = () => {
               <h4 className="text-accent font-semibold text-xs">Documents</h4>
             </div>
             <ul className="divide-y">
-              {app.demand && (
+              {app.demand && app.demand.stage === "license" && (
                 <li className="px-3 py-2 flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                   <div className="flex-1 min-w-0">
