@@ -886,11 +886,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       if (stage) {
         const computed = computeDemandForStage(stage, modCfg.fees, a.formData);
         if (computed && computed.total > 0) {
-          updated.demand = { ...computed, generatedAt: Date.now() };
+          const demandStage: DemandInfo["stage"] = targetState.name === "Payment Pending" ? "license" : "application";
+          updated.demand = { ...computed, generatedAt: Date.now(), stage: demandStage };
           updated.paymentStatus = "pending";
         }
       } else if (targetState.name === "Payment Pending") {
-        updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
+        updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now(), stage: "license" };
         updated.paymentStatus = "pending";
       }
       updatedApp = updated;
