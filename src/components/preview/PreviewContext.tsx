@@ -130,6 +130,12 @@ export interface DemandInfo {
   total: number;
   generatedAt: number;
   lines?: DemandLine[];
+  /**
+   * Which payment stage produced this demand.
+   * Only "license" demands are surfaced as a formal Demand Notice document —
+   * the upfront application fee at submission does not have one.
+   */
+  stage?: "application" | "license";
 }
 
 export interface PaymentDetails {
