@@ -182,6 +182,8 @@ export const RENEWAL_DOCUMENTS: TradeDocumentSeed[] = [
     vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
   { id: "rdoc-ack",      name: "Renewal Acknowledgement",       type: "acknowledgement", generateWhen: "Submitted",
     vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
+  { id: "rdoc-demand",   name: "Renewal Demand Notice",         type: "custom",          generateWhen: "Payment Pending",
+    vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
   { id: "rdoc-license",  name: "Renewed License Certificate",   type: "certificate",     generateWhen: "License Renewed",
     vc: { enabled: true, credentialType: "TradeCredential", idMapping: "License Number", includeQR: true } },
   { id: "rdoc-receipt",  name: "Renewal Payment Receipt",       type: "custom",          generateWhen: "Paid",
