@@ -1150,7 +1150,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       userDocuments, addUserDocument, removeUserDocument,
       submitApplication, submitRenewal,
       transitionApplication, payApplication, issueLicense, completeRenewal,
-      assignApplication, toggleChecklist, setDocumentStatus, resetDemo,
+      assignApplication, toggleChecklist, setDocumentStatus, isAwaitingPayment, resetDemo,
     }}>
       {children}
     </PreviewContext.Provider>
