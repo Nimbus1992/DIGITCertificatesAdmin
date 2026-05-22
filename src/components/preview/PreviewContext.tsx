@@ -241,6 +241,12 @@ interface PreviewContextValue {
   assignApplication: (appId: string, assignee: string) => void;
   toggleChecklist: (appId: string, stateId: string, itemId: string) => void;
   setDocumentStatus: (appId: string, docId: string, status: DocumentStatus) => void;
+  /**
+   * True when an application owes money at its current state (the state has a
+   * configured payment stage) but the citizen hasn't paid yet. Role-owned
+   * transitions out of such states are gated until payment is received.
+   */
+  isAwaitingPayment: (app: PreviewApplication) => boolean;
   resetDemo: () => void;
 }
 
@@ -347,53 +353,10 @@ const DEFAULT_SECTIONS: FormSectionConfig[] = [
   },
 ];
 
-const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
-  { id: "s1", name: "Submitted", type: "start" },
-  { id: "s_dv", name: "Under Document Verification", type: "in_progress" },
-  { id: "s_ip", name: "Inspection Pending", type: "in_progress" },
-  { id: "s3", name: "Under Approval", type: "in_progress" },
-  { id: "s4", name: "Payment Pending", type: "in_progress" },
-  { id: "s5", name: "Paid", type: "in_progress" },
-  { id: "s6", name: "License Issued", type: "end" },
-  { id: "s7", name: "Sent Back", type: "in_progress" },
-  { id: "s8", name: "Rejected", type: "end" },
-];
-
-const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
-  // Document Verifier picks up Submitted -> Under Document Verification (auto-claim) and then Verify Application moves to Inspection Pending
-  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", roleId: "document_verifier", checklist: [] },
-  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", roleId: "document_verifier", checklist: [
-    { id: "cdv1", text: "Applicant details verified" },
-    { id: "cdv2", text: "All documents verified" },
-    { id: "cdv3", text: "Business details valid" },
-  ]},
-  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", roleId: "document_verifier", checklist: [
-    { id: "csb1", text: "Reason for sending back recorded" },
-  ]},
-
-  // Field Inspector
-  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", roleId: "field_inspector", checklist: [
-    { id: "cfi1", text: "Site visited" },
-    { id: "cfi2", text: "Business exists" },
-    { id: "cfi3", text: "Compliance verified" },
-  ]},
-  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", roleId: "field_inspector", checklist: [
-    { id: "csb2", text: "Inspection issues recorded" },
-  ]},
-
-  // Approver
-  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", roleId: "approver", checklist: [
-    { id: "cap1", text: "All previous steps completed" },
-    { id: "cap2", text: "Inspection passed" },
-    { id: "cap3", text: "Fee structure confirmed" },
-  ]},
-  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", roleId: "approver", checklist: [
-    { id: "crj1", text: "Rejection reason documented" },
-  ]},
-
-  // Citizen
-  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", roleId: "citizen", checklist: [] },
-];
+// Workflow states and transitions come from the configured workflow store
+// (`useServiceWorkflow`). The legacy DEFAULT_WORKFLOW_STATES / DEFAULT_TRANSITIONS
+// constants previously defined here have been removed — there is now a single
+// source of truth: the configured workflow seeded from the template.
 
 const ROLE_LABEL: Record<PreviewRole, string> = {
   citizen: "Citizen",
@@ -572,16 +535,9 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   cfgRef.current = cfg;
 
 
-  /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
-  const resolveStateId = useCallback(
-    (type: ApplicationType, name: string, fallbackId: string): string => {
-      const wf = wfFor(type);
-      const target = name.trim().toLowerCase();
-      const match = wf.states.find(s => s.name.trim().toLowerCase() === target);
-      return match?.id ?? fallbackId;
-    },
-    [wfFor]
-  );
+  // (Legacy `resolveStateId` helper removed — workflow advancement now goes
+  //  exclusively through configured transitions, not by-name state lookups.)
+
 
   /** Initial state id for a new application (the workflow's start state). */
   const startStateId = useCallback((type: ApplicationType): string => {
@@ -930,34 +886,75 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     }
   }, [role, emitEvent]);
 
+  /**
+   * Payment is a side-effect on the demand, not a hardcoded state jump.
+   * - Always: record paymentDetails + flip paymentStatus to "paid".
+   * - If the configured workflow has a citizen transition out of the current
+   *   state (e.g. `t_pay`: Payment Pending → Paid), execute it inline so the
+   *   workflow advances exactly as configured (no name-based jumps).
+   * - If no citizen transition exists (e.g. application fee paid at Submitted —
+   *   the workflow has no citizen transition out of Submitted), the application
+   *   stays in its current state and the next role-owned transition (e.g.
+   *   Document Verifier picking up Submitted) becomes the legitimate next step.
+   */
   const payApplication = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current || !current.demand) return;
+    const wf = wfFor(current.type);
+    const citizenTx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "citizen"
+    );
+    const targetState = citizenTx
+      ? wf.states.find(s => s.id === citizenTx.toStateId)
+      : undefined;
+
     let updatedApp: PreviewApplication | null = null;
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
       if (!app.demand) return app;
+      const paidAt = Date.now();
+      const paymentDetails: PaymentDetails = {
+        paidAt,
+        txnId: `TXN${paidAt.toString().slice(-8)}`,
+        amount: app.demand.total,
+        invoiceNumber: `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 90000 + 10000))}`,
+      };
+      const baseTimeline = [
+        ...app.timeline,
+        { state: app.status, actor: "Citizen", note: `Paid ₹${app.demand.total}`, at: paidAt },
+      ];
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: resolveStateId(app.type, "Paid", "s5"),
-        status: "Paid",
         paymentStatus: "paid",
-        paymentDetails: {
-          paidAt: Date.now(),
-          txnId: `TXN${Date.now().toString().slice(-8)}`,
-          amount: app.demand.total,
-          invoiceNumber: `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 90000 + 10000))}`,
-        },
-        timeline: [
-          ...app.timeline,
-          { state: "Paid", actor: "Citizen", note: `Paid ₹${app.demand.total}`, at: Date.now() },
-        ],
+        paymentDetails,
+        timeline: citizenTx && targetState
+          ? [...baseTimeline, { state: targetState.name, actor: "Citizen", note: citizenTx.name, at: paidAt }]
+          : baseTimeline,
+        ...(citizenTx && targetState
+          ? { currentStateId: targetState.id, status: targetState.name }
+          : {}),
       };
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) dispatchByState(updatedApp, "Paid");
-  }, [dispatchByState, resolveStateId]);
+    if (updatedApp) dispatchByState(updatedApp, updatedApp.status);
+  }, [dispatchByState, wfFor]);
 
+  /**
+   * Issue License = run the configured approver transition out of the current
+   * state. License artifact generation is a side-effect of entering the target
+   * end state, not a hardcoded "License Issued" jump.
+   */
   const issueLicense = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current) return;
+    const wf = wfFor(current.type);
+    const tx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "approver"
+    );
+    const targetState = tx ? wf.states.find(s => s.id === tx.toStateId) : undefined;
+    if (!tx || !targetState) return;
+
     let updatedApp: PreviewApplication | null = null;
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
@@ -971,23 +968,39 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       };
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: resolveStateId(app.type, "License Issued", "s6"),
-        status: "License Issued",
+        currentStateId: targetState.id,
+        status: targetState.name,
         license,
         timeline: [
           ...app.timeline,
-          { state: "License Issued", actor: ROLE_LABEL[role], note: `License ${license.number}`, at: issuedAt },
+          { state: targetState.name, actor: ROLE_LABEL[role], note: `License ${license.number}`, at: issuedAt },
         ],
       };
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) dispatchByState(updatedApp, "License Issued");
-  }, [role, dispatchByState, resolveStateId]);
+    if (updatedApp) dispatchByState(updatedApp, targetState.name);
+  }, [role, dispatchByState, wfFor]);
 
+  /**
+   * Complete Renewal = run the configured approver transition out of the
+   * renewal application's current state, mint a new license, and extend the
+   * parent license validity. No hardcoded "License Renewed" jump.
+   */
   const completeRenewal = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current) return;
+    const wf = wfFor(current.type);
+    const tx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "approver"
+    );
+    const targetState = tx ? wf.states.find(s => s.id === tx.toStateId) : undefined;
+    if (!tx || !targetState) return;
+
     let parentId: string | undefined;
     let newLicenseNumber = "";
+    let issuedAtFinal = Date.now();
+    let validTillFinal = issuedAtFinal + 365 * 24 * 60 * 60 * 1000;
     setApplications(prev => {
       const renewalApp = prev.find(a => a.id === appId);
       if (!renewalApp) return prev;
@@ -997,6 +1010,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       const baseTime = parentApp?.license ? Math.max(issuedAt, parentApp.license.validTill) : issuedAt;
       const validTill = baseTime + 365 * 24 * 60 * 60 * 1000;
       newLicenseNumber = `TL/${new Date().getFullYear()}/${Math.floor(Math.random() * 90000 + 10000)}-R`;
+      issuedAtFinal = issuedAt;
+      validTillFinal = validTill;
       const newLicense: LicenseInfo = {
         number: newLicenseNumber,
         issuedAt,
@@ -1008,12 +1023,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         if (app.id === appId) {
           return {
             ...app,
-            currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
-            status: "License Renewed",
+            currentStateId: targetState.id,
+            status: targetState.name,
             license: newLicense,
             timeline: [
               ...app.timeline,
-              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Renewed license ${newLicense.number}`, at: issuedAt },
+              { state: targetState.name, actor: ROLE_LABEL[role], note: `Renewed license ${newLicense.number}`, at: issuedAt },
             ],
           };
         }
@@ -1023,36 +1038,32 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
             license: { ...app.license, number: newLicense.number, issuedAt, validTill },
             timeline: [
               ...app.timeline,
-              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Validity extended to ${new Date(validTill).toLocaleDateString()}`, at: issuedAt },
+              { state: targetState.name, actor: ROLE_LABEL[role], note: `Validity extended to ${new Date(validTill).toLocaleDateString()}`, at: issuedAt },
             ],
           };
         }
         return app;
       });
     });
-    // Build a synthetic app snapshot for variable injection (license is freshly minted above)
-    const renewedSnapshot: PreviewApplication | undefined = (() => {
-      // Re-read from latest set won't be sync; use what we know:
-      const issuedAt = Date.now();
-      return {
-        id: appId,
-        applicationNumber: appId,
-        type: "RENEWAL",
-        status: "License Renewed",
-        currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
-        formData: {},
-        documents: [],
-        checklists: {},
-        demand: null,
-        paymentStatus: null,
-        paymentDetails: null,
-        timeline: [],
-        license: { number: newLicenseNumber, issuedAt, validTill: issuedAt + 365 * 24 * 60 * 60 * 1000, qrSeed: "" },
-        createdAt: issuedAt,
-      } as PreviewApplication;
-    })();
-    if (renewedSnapshot) dispatchByState(renewedSnapshot, "License Renewed");
-  }, [role, dispatchByState, resolveStateId]);
+    // Synthetic snapshot for variable injection (license freshly minted above).
+    const renewedSnapshot: PreviewApplication = {
+      id: appId,
+      applicationNumber: appId,
+      type: "RENEWAL",
+      status: targetState.name,
+      currentStateId: targetState.id,
+      formData: {},
+      documents: [],
+      checklists: {},
+      demand: null,
+      paymentStatus: null,
+      paymentDetails: null,
+      timeline: [],
+      license: { number: newLicenseNumber, issuedAt: issuedAtFinal, validTill: validTillFinal, qrSeed: "" },
+      createdAt: issuedAtFinal,
+    };
+    dispatchByState(renewedSnapshot, targetState.name);
+  }, [role, dispatchByState, wfFor]);
 
   const assignApplication = useCallback((appId: string, assignee: string) => {
     setApplications(prev => prev.map(app =>
@@ -1111,6 +1122,19 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     }
   }, []);
 
+  /**
+   * Payment-gating: the current state has a configured payment stage in the
+   * module's payment setup and the application hasn't paid yet.
+   * Used by employee UIs to disable transitions until the citizen pays.
+   */
+  const isAwaitingPayment = useCallback((app: PreviewApplication): boolean => {
+    if (app.paymentStatus === "paid") return false;
+    const modCfg = app.type === "RENEWAL" ? cfg.renewal : cfg.issuance;
+    const stages = modCfg.paymentStages;
+    const hasStageForCurrent = stages.some(s => s.workflowState === app.status);
+    return hasStageForCurrent;
+  }, [cfg]);
+
   return (
     <PreviewContext.Provider value={{
       role, activeRoleId, setRole: handleSetRole, deviceMode, setDeviceMode,
@@ -1126,7 +1150,7 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       userDocuments, addUserDocument, removeUserDocument,
       submitApplication, submitRenewal,
       transitionApplication, payApplication, issueLicense, completeRenewal,
-      assignApplication, toggleChecklist, setDocumentStatus, resetDemo,
+      assignApplication, toggleChecklist, setDocumentStatus, isAwaitingPayment, resetDemo,
     }}>
       {children}
     </PreviewContext.Provider>
