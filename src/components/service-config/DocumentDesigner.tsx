@@ -463,6 +463,30 @@ const createRenewalDocuments = (): DesignDocument[] => [
       { id: "re56", type: "text", content: "Thank you for renewing your licence.", x: 60, y: 340, width: 440, height: 20, style: { ...defaultStyle, alignment: "center", color: "#6b7280" } },
     ],
   },
+  {
+    id: "rdoc-5",
+    name: "Renewal Demand Notice",
+    type: "custom",
+    generateWhen: "Payment Pending",
+    verifiableCredential: { enabled: false, credentialType: "", idMapping: "", includeQR: false },
+    elements: [
+      { id: "re60", type: "image", content: "Government Logo", x: 240, y: 24, width: 80, height: 40, style: { ...defaultStyle, alignment: "center" } },
+      { id: "re61", type: "text", content: "Government of India", x: 60, y: 72, width: 440, height: 16, style: { ...defaultStyle, fontSize: 10, alignment: "center", color: "#6b7280" } },
+      { id: "re62", type: "text", content: "Department of Municipal Administration", x: 60, y: 90, width: 440, height: 16, style: { ...defaultStyle, fontSize: 10, alignment: "center", color: "#6b7280" } },
+      { id: "re63", type: "text", content: "Renewal Demand Notice", x: 60, y: 120, width: 440, height: 28, style: { ...defaultStyle, fontSize: 18, fontWeight: "bold", alignment: "center" } },
+      { id: "re64", type: "text", content: "Application ID", x: 60, y: 170, width: 200, height: 16, style: { ...defaultStyle, fontSize: 10, color: "#6b7280" } },
+      { id: "re65", type: "dynamic", content: "{applicationNumber}", x: 60, y: 188, width: 200, height: 20, style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicationNumber" },
+      { id: "re66", type: "text", content: "Applicant", x: 300, y: 170, width: 200, height: 16, style: { ...defaultStyle, fontSize: 10, color: "#6b7280" } },
+      { id: "re67", type: "dynamic", content: "{applicantName}", x: 300, y: 188, width: 200, height: 20, style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "applicantName" },
+      { id: "re68", type: "text", content: "Business", x: 60, y: 220, width: 200, height: 16, style: { ...defaultStyle, fontSize: 10, color: "#6b7280" } },
+      { id: "re69", type: "dynamic", content: "{businessName}", x: 60, y: 238, width: 200, height: 20, style: { ...defaultStyle, fontWeight: "bold" }, sourceMapping: "businessName" },
+      { id: "re70", type: "text", content: "Fee Breakdown", x: 60, y: 280, width: 440, height: 22, style: { ...defaultStyle, fontSize: 14, fontWeight: "bold" } },
+      { id: "re71", type: "table", content: "Renewal Demand Line Items", x: 60, y: 308, width: 440, height: 120, style: { ...defaultStyle } },
+      { id: "re72", type: "text", content: "Total Amount Payable", x: 60, y: 450, width: 280, height: 22, style: { ...defaultStyle, fontSize: 12, fontWeight: "bold" } },
+      { id: "re73", type: "dynamic", content: "₹{amount}", x: 340, y: 450, width: 160, height: 22, style: { ...defaultStyle, fontSize: 16, fontWeight: "bold", alignment: "right" }, sourceMapping: "amount" },
+      { id: "re74", type: "text", content: "Please complete payment to renew your licence.", x: 60, y: 490, width: 440, height: 18, style: { ...defaultStyle, fontSize: 11, alignment: "center", color: "#6b7280" } },
+    ],
+  },
 ];
 
 // ── Component ──────────────────────────────────────────
