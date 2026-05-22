@@ -47,7 +47,17 @@ const BANNER_PALETTE = [
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
-  const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
+  const { issuance, renewal } = useServiceWorkflow(serviceId);
+  const transitionCountByRole = useMemo(() => {
+    const transitions = moduleName === "Renewal" ? renewal.transitions : issuance.transitions;
+    const counts: Record<string, number> = {};
+    transitions.forEach((t) => {
+      if (!t?.roleId) return;
+      counts[t.roleId] = (counts[t.roleId] ?? 0) + 1;
+    });
+    return counts;
+  }, [moduleName, issuance.transitions, renewal.transitions]);
+
 
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<RoleDraft | null>(null);
