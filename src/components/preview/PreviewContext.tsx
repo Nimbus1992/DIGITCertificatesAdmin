@@ -1129,7 +1129,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
    */
   const isAwaitingPayment = useCallback((app: PreviewApplication): boolean => {
     if (app.paymentStatus === "paid") return false;
-    const stages = cfg.paymentStagesFor(app.type);
+    const modCfg = app.type === "RENEWAL" ? cfg.renewal : cfg.issuance;
+    const stages = modCfg.paymentStages;
     const hasStageForCurrent = stages.some(s => s.workflowState === app.status);
     return hasStageForCurrent;
   }, [cfg]);
