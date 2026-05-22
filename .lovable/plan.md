@@ -1,35 +1,77 @@
-## Root cause
+## Goal
 
-`RolesDesigner` computes per-role workflow-step counts by reading `localStorage` directly:
+Align Document Designer + Workflow state attachments with what the citizen/employee preview actually generates, and stop generating a Demand Notice for the Application-Fee payment at "Submitted".
+
+## Context
+
+Preview generates these documents during a Trade License application:
+
+| Preview document        | Workflow state when it appears |
+| ----------------------- | ------------------------------ |
+| Application PDF         | Submitted                      |
+| Acknowledgement         | Submitted                      |
+| Application Receipt     | Submitted (after app-fee paid) |
+| Inspection Report       | Inspection Pending             |
+| Demand Notice           | Payment Pending                |
+| License Payment Receipt | Paid                           |
+| License Certificate     | License Issued                 |
+
+Currently:
+- `PreviewContext` auto-creates a Demand Notice the moment the application is submitted, because the "Submitted" state has an Application Payment stage. The Application-Fee payment is a small upfront fee — no formal demand notice document exists at that stage.
+- `DocumentDesigner` has 5 hardcoded templates (License Certificate, Application PDF, Acknowledgement, Inspection Report, Payment Receipt). It has **no Demand Notice template**.
+- `WorkflowDesigner.ISSUANCE_DOC_BY_STATE` maps docs to states but is missing the new Demand Notice mapping and has no entry for "Payment Pending".
+
+## Changes
+
+### 1. Stop generating a Demand Notice at the Application Payment step
+
+File: `src/components/preview/PreviewContext.tsx`
+
+- In `submitNewApplication` and `submitRenewalApplication` (and the matching state-transition demand-recompute block ~line 870–883), do **not** call `computeInitialDemand` / set `app.demand` for the "Submitted" state.
+- The application fee at "Submitted" remains payable through the payment screen, but it is treated as a quick checkout (no Demand Notice document). Citizen still sees a Payment Receipt afterwards (already configured at "Paid").
+- Demand Notice is only generated when the workflow advances to "Payment Pending" (License Payment) — this branch already exists and stays.
+- In `citizenDocuments` builder (~line 259), keep the Demand Notice entry but it will now only appear once the Payment Pending demand exists.
+
+### 2. Add a Demand Notice template to Document Designer
+
+File: `src/components/service-config/DocumentDesigner.tsx`
+
+- Add a new template (`doc-6` / id `Demand Notice`) to `createTemplateDocuments()` with `generateWhen: "Payment Pending"`, `type: "custom"`. Elements should mirror `DemandNoticeView`: header (Govt. logo + dept name), Application ID, Applicant, Business, Issued On, fee breakdown table, Total Amount Payable, footer note.
+- Add the equivalent renewal entry (`rdoc-5` "Renewal Demand Notice", `generateWhen: "Payment Pending"`) in `createRenewalDocuments()`.
+- Add `"Demand Notice"` to `DOCUMENT_TEMPLATE_NAMES` in `src/data/documentTemplates.ts` so PaymentsConfigurator's receipt-template dropdown lists it (kept consistent).
+- Add matching seed entries (`doc-demand` / `rdoc-demand`) to `TRADE_DOCUMENTS` and `RENEWAL_DOCUMENTS` in the template files for parity with usePreviewConfig.
+
+### 3. Attach documents to workflow states (match preview)
+
+File: `src/components/service-config/WorkflowDesigner.tsx`
+
+Update `ISSUANCE_DOC_BY_STATE` and `RENEWAL_DOC_BY_STATE` to reflect the table above:
 
 ```ts
-const key = `workflow-transitions-v4:${serviceId}:${moduleName}`;
-const raw = localStorage.getItem(key);
-if (!raw) return {};
+ISSUANCE_DOC_BY_STATE = {
+  "Submitted":          ["doc-2", "doc-3"],         // Application PDF, Acknowledgement
+  "Inspection Pending": ["doc-4"],                  // Inspection Report
+  "Payment Pending":    ["doc-6"],                  // Demand Notice  ← NEW
+  "Paid":               ["doc-5"],                  // Payment Receipt
+  "License Issued":     ["doc-1"],                  // License Certificate
+};
+RENEWAL_DOC_BY_STATE = {
+  "Submitted":          ["rdoc-2", "rdoc-3"],
+  "Payment Pending":    ["rdoc-5"],                 // Renewal Demand Notice ← NEW
+  "Paid":               ["rdoc-4"],
+  "License Renewed":    ["rdoc-1"],
+};
 ```
 
-But workflow transitions only get **written** to localStorage after the user opens the Workflow Designer and saves. Until then, the rest of the app gets transitions from `buildSeedTransitions(moduleName)` (see `src/lib/useServiceWorkflow.ts`, which falls back to seeds when the key is absent).
+Because the seed only applies when no saved workflow exists in localStorage, also add a one-shot migration in `buildSeedStates` (or inside the workflow loader) that merges any missing `attachedDocumentIds` from the seed map into existing saved states — so users who already opened Workflow Designer get the new Demand Notice attachment without manual re-seeding.
 
-So for a freshly created service (like the current `trade-license-mpfgtpvl`), the seeded Trade-License transitions (Document Verifier, Field Inspector, Approver, etc.) exist in memory and drive Workflow Designer + Preview, but `RolesDesigner` sees no localStorage entry and shows "No workflow steps" for every role.
+### 4. Verification
 
-There is also a second, smaller bug: the seed role keys are camelCase (`documentVerifier`, `fieldInspector`) and are mapped to snake_case (`document_verifier`, `field_inspector`) inside `buildSeedTransitions` via `SEED_ROLE_MAP`. The role records in `useServiceRoles` use the snake_case IDs, so once we go through `buildSeedTransitions` the IDs match correctly — no extra mapping needed.
+- Configure → Document Designer: Demand Notice card appears with `Generate When = Payment Pending`.
+- Configure → Workflow Designer → click "Payment Pending" state: Attached documents shows Demand Notice. Other states show the documents from the table.
+- Preview → submit a new application → pay the application fee → My Documents shows only Application Form / Acknowledgement / Application Receipt (no Demand Notice yet). After the workflow reaches Payment Pending, Demand Notice appears.
 
-## Fix
+## Out of scope
 
-Replace the direct-localStorage read in `RolesDesigner.tsx` with the same source-of-truth the rest of the app uses, so seeded transitions are counted before the user ever saves the workflow.
-
-### Change in `src/components/service-config/RolesDesigner.tsx`
-
-1. Remove the local `useTransitionCountByRole` helper.
-2. Use `useServiceWorkflow(serviceId)` and select transitions for the current `moduleName`:
-   - `Issuance` → `store.issuance.transitions`
-   - `Renewal`  → `store.renewal.transitions`
-3. Derive `transitionCountByRole` with `useMemo` by counting `roleId` occurrences on that array.
-4. Keep the existing badge rendering as-is; it will now reflect seeded + saved transitions and update live via the existing `WORKFLOW_UPDATED_EVENT` listener inside `useServiceWorkflow`.
-
-### Files touched
-- `src/components/service-config/RolesDesigner.tsx` (only)
-
-### Out of scope
-- No changes to seed data, role IDs, or Workflow Designer.
-- No backend/state-shape changes.
+- No changes to citizen DemandNoticeView UI, fee math, role logic, or the existing PaymentScreen.
+- No backend / schema changes.
