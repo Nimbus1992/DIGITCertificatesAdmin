@@ -21,32 +21,13 @@ import {
   isCitizenRole,
   type ServiceRoleRecord,
 } from "@/lib/useServiceRoles";
+import { useServiceWorkflow } from "@/lib/useServiceWorkflow";
 import RoleEditorDialog, {
   type RoleDraft,
   emptyRoleDraft,
   draftFromRole,
 } from "./RoleEditorDialog";
 
-// Count workflow transitions assigned to each role for the current module.
-function useTransitionCountByRole(serviceId: string, moduleName: string) {
-  const key = `workflow-transitions-v4:${serviceId}:${moduleName}`;
-  return React.useMemo(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return {} as Record<string, number>;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return {};
-      const counts: Record<string, number> = {};
-      parsed.forEach((t: { roleId?: string }) => {
-        if (!t?.roleId) return;
-        counts[t.roleId] = (counts[t.roleId] ?? 0) + 1;
-      });
-      return counts;
-    } catch {
-      return {} as Record<string, number>;
-    }
-  }, [key]);
-}
 
 interface Props {
   moduleName: string;
@@ -66,7 +47,17 @@ const BANNER_PALETTE = [
 const RolesDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
   const { id: serviceId = "service" } = useParams();
   const [roles, setRoles] = useServiceRoles(serviceId, moduleName);
-  const transitionCountByRole = useTransitionCountByRole(serviceId, moduleName);
+  const { issuance, renewal } = useServiceWorkflow(serviceId);
+  const transitionCountByRole = useMemo(() => {
+    const transitions = moduleName === "Renewal" ? renewal.transitions : issuance.transitions;
+    const counts: Record<string, number> = {};
+    transitions.forEach((t) => {
+      if (!t?.roleId) return;
+      counts[t.roleId] = (counts[t.roleId] ?? 0) + 1;
+    });
+    return counts;
+  }, [moduleName, issuance.transitions, renewal.transitions]);
+
 
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<RoleDraft | null>(null);
