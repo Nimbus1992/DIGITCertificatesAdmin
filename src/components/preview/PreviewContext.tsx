@@ -130,6 +130,12 @@ export interface DemandInfo {
   total: number;
   generatedAt: number;
   lines?: DemandLine[];
+  /**
+   * Which payment stage produced this demand.
+   * Only "license" demands are surfaced as a formal Demand Notice document —
+   * the upfront application fee at submission does not have one.
+   */
+  stage?: "application" | "license";
 }
 
 export interface PaymentDetails {
@@ -256,7 +262,10 @@ export interface CitizenDocumentEntry {
 
 export const getCitizenDocuments = (app: PreviewApplication): CitizenDocumentEntry[] => {
   const docs: CitizenDocumentEntry[] = [];
-  if (app.demand) docs.push({ kind: "demand", label: "Demand Notice", generatedAt: app.demand.generatedAt });
+  // Only the license-fee demand is a formal Demand Notice document.
+  if (app.demand && app.demand.stage === "license") {
+    docs.push({ kind: "demand", label: "Demand Notice", generatedAt: app.demand.generatedAt });
+  }
   if (app.paymentDetails) docs.push({ kind: "invoice", label: "Payment Invoice", generatedAt: app.paymentDetails.paidAt });
   if (app.license) docs.push({ kind: "license", label: "Business License Certificate", generatedAt: app.license.issuedAt });
   return docs;
@@ -787,13 +796,14 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setUserDocuments(prev => prev.filter(d => d.id !== id));
   }, []);
 
-  const computeInitialDemand = useCallback((type: ApplicationType, stateName: string, formData: Record<string, string>) => {
+  const computeInitialDemand = useCallback((type: ApplicationType, stateName: string, formData: Record<string, string>): DemandInfo | null => {
     const modCfg = cfgRef.current.forType(type);
     const stage = findPaymentStageForState(stateName, modCfg.paymentStages);
     if (!stage) return null;
     const computed = computeDemandForStage(stage, modCfg.fees, formData);
     if (!computed || computed.total <= 0) return null;
-    return { ...computed, generatedAt: Date.now() };
+    const demandStage: DemandInfo["stage"] = stateName === "Payment Pending" ? "license" : "application";
+    return { ...computed, generatedAt: Date.now(), stage: demandStage };
   }, []);
 
   const submitApplication = useCallback((formData: Record<string, string>, documents: PreviewDocument[]) => {
@@ -876,11 +886,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       if (stage) {
         const computed = computeDemandForStage(stage, modCfg.fees, a.formData);
         if (computed && computed.total > 0) {
-          updated.demand = { ...computed, generatedAt: Date.now() };
+          const demandStage: DemandInfo["stage"] = targetState.name === "Payment Pending" ? "license" : "application";
+          updated.demand = { ...computed, generatedAt: Date.now(), stage: demandStage };
           updated.paymentStatus = "pending";
         }
       } else if (targetState.name === "Payment Pending") {
-        updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now() };
+        updated.demand = { fee: 1000, tax: 100, total: 1100, generatedAt: Date.now(), stage: "license" };
         updated.paymentStatus = "pending";
       }
       updatedApp = updated;

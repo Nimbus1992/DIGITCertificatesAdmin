@@ -7,6 +7,7 @@ export const DOCUMENT_TEMPLATE_NAMES = [
   "Application PDF",
   "Acknowledgement",
   "Inspection Report",
+  "Demand Notice",
 ] as const;
 
 export type DocumentTemplateName = (typeof DOCUMENT_TEMPLATE_NAMES)[number];
