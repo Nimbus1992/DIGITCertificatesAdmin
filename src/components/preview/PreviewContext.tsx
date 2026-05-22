@@ -347,53 +347,10 @@ const DEFAULT_SECTIONS: FormSectionConfig[] = [
   },
 ];
 
-const DEFAULT_WORKFLOW_STATES: WorkflowStateConfig[] = [
-  { id: "s1", name: "Submitted", type: "start" },
-  { id: "s_dv", name: "Under Document Verification", type: "in_progress" },
-  { id: "s_ip", name: "Inspection Pending", type: "in_progress" },
-  { id: "s3", name: "Under Approval", type: "in_progress" },
-  { id: "s4", name: "Payment Pending", type: "in_progress" },
-  { id: "s5", name: "Paid", type: "in_progress" },
-  { id: "s6", name: "License Issued", type: "end" },
-  { id: "s7", name: "Sent Back", type: "in_progress" },
-  { id: "s8", name: "Rejected", type: "end" },
-];
-
-const DEFAULT_TRANSITIONS: WorkflowTransitionConfig[] = [
-  // Document Verifier picks up Submitted -> Under Document Verification (auto-claim) and then Verify Application moves to Inspection Pending
-  { id: "t_claim_dv", name: "Start Document Verification", fromStateId: "s1", toStateId: "s_dv", role: "documentVerifier", roleId: "document_verifier", checklist: [] },
-  { id: "t_verify_app", name: "Verify Application", fromStateId: "s_dv", toStateId: "s_ip", role: "documentVerifier", roleId: "document_verifier", checklist: [
-    { id: "cdv1", text: "Applicant details verified" },
-    { id: "cdv2", text: "All documents verified" },
-    { id: "cdv3", text: "Business details valid" },
-  ]},
-  { id: "t_send_back_dv", name: "Send Back", fromStateId: "s_dv", toStateId: "s7", role: "documentVerifier", roleId: "document_verifier", checklist: [
-    { id: "csb1", text: "Reason for sending back recorded" },
-  ]},
-
-  // Field Inspector
-  { id: "t_complete_insp", name: "Complete Inspection", fromStateId: "s_ip", toStateId: "s3", role: "fieldInspector", roleId: "field_inspector", checklist: [
-    { id: "cfi1", text: "Site visited" },
-    { id: "cfi2", text: "Business exists" },
-    { id: "cfi3", text: "Compliance verified" },
-  ]},
-  { id: "t_send_back_ip", name: "Send Back", fromStateId: "s_ip", toStateId: "s7", role: "fieldInspector", roleId: "field_inspector", checklist: [
-    { id: "csb2", text: "Inspection issues recorded" },
-  ]},
-
-  // Approver
-  { id: "t_approve", name: "Approve", fromStateId: "s3", toStateId: "s4", role: "approver", roleId: "approver", checklist: [
-    { id: "cap1", text: "All previous steps completed" },
-    { id: "cap2", text: "Inspection passed" },
-    { id: "cap3", text: "Fee structure confirmed" },
-  ]},
-  { id: "t_reject", name: "Reject", fromStateId: "s3", toStateId: "s8", role: "approver", roleId: "approver", checklist: [
-    { id: "crj1", text: "Rejection reason documented" },
-  ]},
-
-  // Citizen
-  { id: "t_resubmit", name: "Resubmit", fromStateId: "s7", toStateId: "s1", role: "citizen", roleId: "citizen", checklist: [] },
-];
+// Workflow states and transitions come from the configured workflow store
+// (`useServiceWorkflow`). The legacy DEFAULT_WORKFLOW_STATES / DEFAULT_TRANSITIONS
+// constants previously defined here have been removed — there is now a single
+// source of truth: the configured workflow seeded from the template.
 
 const ROLE_LABEL: Record<PreviewRole, string> = {
   citizen: "Citizen",
