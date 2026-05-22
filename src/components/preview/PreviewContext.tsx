@@ -983,9 +983,25 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     if (updatedApp) dispatchByState(updatedApp, targetState.name);
   }, [role, dispatchByState, wfFor]);
 
+  /**
+   * Complete Renewal = run the configured approver transition out of the
+   * renewal application's current state, mint a new license, and extend the
+   * parent license validity. No hardcoded "License Renewed" jump.
+   */
   const completeRenewal = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current) return;
+    const wf = wfFor(current.type);
+    const tx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "approver"
+    );
+    const targetState = tx ? wf.states.find(s => s.id === tx.toStateId) : undefined;
+    if (!tx || !targetState) return;
+
     let parentId: string | undefined;
     let newLicenseNumber = "";
+    let issuedAtFinal = Date.now();
+    let validTillFinal = issuedAtFinal + 365 * 24 * 60 * 60 * 1000;
     setApplications(prev => {
       const renewalApp = prev.find(a => a.id === appId);
       if (!renewalApp) return prev;
@@ -995,6 +1011,8 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       const baseTime = parentApp?.license ? Math.max(issuedAt, parentApp.license.validTill) : issuedAt;
       const validTill = baseTime + 365 * 24 * 60 * 60 * 1000;
       newLicenseNumber = `TL/${new Date().getFullYear()}/${Math.floor(Math.random() * 90000 + 10000)}-R`;
+      issuedAtFinal = issuedAt;
+      validTillFinal = validTill;
       const newLicense: LicenseInfo = {
         number: newLicenseNumber,
         issuedAt,
@@ -1006,12 +1024,12 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
         if (app.id === appId) {
           return {
             ...app,
-            currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
-            status: "License Renewed",
+            currentStateId: targetState.id,
+            status: targetState.name,
             license: newLicense,
             timeline: [
               ...app.timeline,
-              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Renewed license ${newLicense.number}`, at: issuedAt },
+              { state: targetState.name, actor: ROLE_LABEL[role], note: `Renewed license ${newLicense.number}`, at: issuedAt },
             ],
           };
         }
@@ -1021,36 +1039,32 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
             license: { ...app.license, number: newLicense.number, issuedAt, validTill },
             timeline: [
               ...app.timeline,
-              { state: "License Renewed", actor: ROLE_LABEL[role], note: `Validity extended to ${new Date(validTill).toLocaleDateString()}`, at: issuedAt },
+              { state: targetState.name, actor: ROLE_LABEL[role], note: `Validity extended to ${new Date(validTill).toLocaleDateString()}`, at: issuedAt },
             ],
           };
         }
         return app;
       });
     });
-    // Build a synthetic app snapshot for variable injection (license is freshly minted above)
-    const renewedSnapshot: PreviewApplication | undefined = (() => {
-      // Re-read from latest set won't be sync; use what we know:
-      const issuedAt = Date.now();
-      return {
-        id: appId,
-        applicationNumber: appId,
-        type: "RENEWAL",
-        status: "License Renewed",
-        currentStateId: resolveStateId("RENEWAL", "License Renewed", "s9"),
-        formData: {},
-        documents: [],
-        checklists: {},
-        demand: null,
-        paymentStatus: null,
-        paymentDetails: null,
-        timeline: [],
-        license: { number: newLicenseNumber, issuedAt, validTill: issuedAt + 365 * 24 * 60 * 60 * 1000, qrSeed: "" },
-        createdAt: issuedAt,
-      } as PreviewApplication;
-    })();
-    if (renewedSnapshot) dispatchByState(renewedSnapshot, "License Renewed");
-  }, [role, dispatchByState, resolveStateId]);
+    // Synthetic snapshot for variable injection (license freshly minted above).
+    const renewedSnapshot: PreviewApplication = {
+      id: appId,
+      applicationNumber: appId,
+      type: "RENEWAL",
+      status: targetState.name,
+      currentStateId: targetState.id,
+      formData: {},
+      documents: [],
+      checklists: {},
+      demand: null,
+      paymentStatus: null,
+      paymentDetails: null,
+      timeline: [],
+      license: { number: newLicenseNumber, issuedAt: issuedAtFinal, validTill: validTillFinal, qrSeed: "" },
+      createdAt: issuedAtFinal,
+    };
+    dispatchByState(renewedSnapshot, targetState.name);
+  }, [role, dispatchByState, wfFor]);
 
   const assignApplication = useCallback((appId: string, assignee: string) => {
     setApplications(prev => prev.map(app =>
