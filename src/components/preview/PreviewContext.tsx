@@ -1122,6 +1122,18 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     }
   }, []);
 
+  /**
+   * Payment-gating: the current state has a configured payment stage in the
+   * module's payment setup and the application hasn't paid yet.
+   * Used by employee UIs to disable transitions until the citizen pays.
+   */
+  const isAwaitingPayment = useCallback((app: PreviewApplication): boolean => {
+    if (app.paymentStatus === "paid") return false;
+    const stages = cfg.paymentStagesFor(app.type);
+    const hasStageForCurrent = stages.some(s => s.workflowState === app.status);
+    return hasStageForCurrent;
+  }, [cfg]);
+
   return (
     <PreviewContext.Provider value={{
       role, activeRoleId, setRole: handleSetRole, deviceMode, setDeviceMode,
