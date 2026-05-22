@@ -941,7 +941,21 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     if (updatedApp) dispatchByState(updatedApp, updatedApp.status);
   }, [dispatchByState, wfFor]);
 
+  /**
+   * Issue License = run the configured approver transition out of the current
+   * state. License artifact generation is a side-effect of entering the target
+   * end state, not a hardcoded "License Issued" jump.
+   */
   const issueLicense = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current) return;
+    const wf = wfFor(current.type);
+    const tx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "approver"
+    );
+    const targetState = tx ? wf.states.find(s => s.id === tx.toStateId) : undefined;
+    if (!tx || !targetState) return;
+
     let updatedApp: PreviewApplication | null = null;
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
@@ -955,19 +969,19 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
       };
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: resolveStateId(app.type, "License Issued", "s6"),
-        status: "License Issued",
+        currentStateId: targetState.id,
+        status: targetState.name,
         license,
         timeline: [
           ...app.timeline,
-          { state: "License Issued", actor: ROLE_LABEL[role], note: `License ${license.number}`, at: issuedAt },
+          { state: targetState.name, actor: ROLE_LABEL[role], note: `License ${license.number}`, at: issuedAt },
         ],
       };
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) dispatchByState(updatedApp, "License Issued");
-  }, [role, dispatchByState, resolveStateId]);
+    if (updatedApp) dispatchByState(updatedApp, targetState.name);
+  }, [role, dispatchByState, wfFor]);
 
   const completeRenewal = useCallback((appId: string) => {
     let parentId: string | undefined;
