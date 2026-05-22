@@ -241,6 +241,12 @@ interface PreviewContextValue {
   assignApplication: (appId: string, assignee: string) => void;
   toggleChecklist: (appId: string, stateId: string, itemId: string) => void;
   setDocumentStatus: (appId: string, docId: string, status: DocumentStatus) => void;
+  /**
+   * True when an application owes money at its current state (the state has a
+   * configured payment stage) but the citizen hasn't paid yet. Role-owned
+   * transitions out of such states are gated until payment is received.
+   */
+  isAwaitingPayment: (app: PreviewApplication) => boolean;
   resetDemo: () => void;
 }
 
