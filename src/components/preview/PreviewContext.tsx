@@ -262,7 +262,10 @@ export interface CitizenDocumentEntry {
 
 export const getCitizenDocuments = (app: PreviewApplication): CitizenDocumentEntry[] => {
   const docs: CitizenDocumentEntry[] = [];
-  if (app.demand) docs.push({ kind: "demand", label: "Demand Notice", generatedAt: app.demand.generatedAt });
+  // Only the license-fee demand is a formal Demand Notice document.
+  if (app.demand && app.demand.stage === "license") {
+    docs.push({ kind: "demand", label: "Demand Notice", generatedAt: app.demand.generatedAt });
+  }
   if (app.paymentDetails) docs.push({ kind: "invoice", label: "Payment Invoice", generatedAt: app.paymentDetails.paidAt });
   if (app.license) docs.push({ kind: "license", label: "Business License Certificate", generatedAt: app.license.issuedAt });
   return docs;
