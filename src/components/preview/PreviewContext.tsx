@@ -529,16 +529,9 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
   cfgRef.current = cfg;
 
 
-  /** Resolve a state by name within a module workflow, fall back to default fallbackId. */
-  const resolveStateId = useCallback(
-    (type: ApplicationType, name: string, fallbackId: string): string => {
-      const wf = wfFor(type);
-      const target = name.trim().toLowerCase();
-      const match = wf.states.find(s => s.name.trim().toLowerCase() === target);
-      return match?.id ?? fallbackId;
-    },
-    [wfFor]
-  );
+  // (Legacy `resolveStateId` helper removed — workflow advancement now goes
+  //  exclusively through configured transitions, not by-name state lookups.)
+
 
   /** Initial state id for a new application (the workflow's start state). */
   const startStateId = useCallback((type: ApplicationType): string => {
