@@ -796,13 +796,14 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     setUserDocuments(prev => prev.filter(d => d.id !== id));
   }, []);
 
-  const computeInitialDemand = useCallback((type: ApplicationType, stateName: string, formData: Record<string, string>) => {
+  const computeInitialDemand = useCallback((type: ApplicationType, stateName: string, formData: Record<string, string>): DemandInfo | null => {
     const modCfg = cfgRef.current.forType(type);
     const stage = findPaymentStageForState(stateName, modCfg.paymentStages);
     if (!stage) return null;
     const computed = computeDemandForStage(stage, modCfg.fees, formData);
     if (!computed || computed.total <= 0) return null;
-    return { ...computed, generatedAt: Date.now() };
+    const demandStage: DemandInfo["stage"] = stateName === "Payment Pending" ? "license" : "application";
+    return { ...computed, generatedAt: Date.now(), stage: demandStage };
   }, []);
 
   const submitApplication = useCallback((formData: Record<string, string>, documents: PreviewDocument[]) => {
