@@ -887,32 +887,59 @@ export const PreviewProvider: React.FC<PreviewProviderProps> = ({ children, serv
     }
   }, [role, emitEvent]);
 
+  /**
+   * Payment is a side-effect on the demand, not a hardcoded state jump.
+   * - Always: record paymentDetails + flip paymentStatus to "paid".
+   * - If the configured workflow has a citizen transition out of the current
+   *   state (e.g. `t_pay`: Payment Pending → Paid), execute it inline so the
+   *   workflow advances exactly as configured (no name-based jumps).
+   * - If no citizen transition exists (e.g. application fee paid at Submitted —
+   *   the workflow has no citizen transition out of Submitted), the application
+   *   stays in its current state and the next role-owned transition (e.g.
+   *   Document Verifier picking up Submitted) becomes the legitimate next step.
+   */
   const payApplication = useCallback((appId: string) => {
+    const current = applicationsRef.current.find(a => a.id === appId);
+    if (!current || !current.demand) return;
+    const wf = wfFor(current.type);
+    const citizenTx = wf.transitions.find(
+      t => t.fromStateId === current.currentStateId && t.roleId === "citizen"
+    );
+    const targetState = citizenTx
+      ? wf.states.find(s => s.id === citizenTx.toStateId)
+      : undefined;
+
     let updatedApp: PreviewApplication | null = null;
     setApplications(prev => prev.map(app => {
       if (app.id !== appId) return app;
       if (!app.demand) return app;
+      const paidAt = Date.now();
+      const paymentDetails: PaymentDetails = {
+        paidAt,
+        txnId: `TXN${paidAt.toString().slice(-8)}`,
+        amount: app.demand.total,
+        invoiceNumber: `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 90000 + 10000))}`,
+      };
+      const baseTimeline = [
+        ...app.timeline,
+        { state: app.status, actor: "Citizen", note: `Paid ₹${app.demand.total}`, at: paidAt },
+      ];
       const updated: PreviewApplication = {
         ...app,
-        currentStateId: resolveStateId(app.type, "Paid", "s5"),
-        status: "Paid",
         paymentStatus: "paid",
-        paymentDetails: {
-          paidAt: Date.now(),
-          txnId: `TXN${Date.now().toString().slice(-8)}`,
-          amount: app.demand.total,
-          invoiceNumber: `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 90000 + 10000))}`,
-        },
-        timeline: [
-          ...app.timeline,
-          { state: "Paid", actor: "Citizen", note: `Paid ₹${app.demand.total}`, at: Date.now() },
-        ],
+        paymentDetails,
+        timeline: citizenTx && targetState
+          ? [...baseTimeline, { state: targetState.name, actor: "Citizen", note: citizenTx.name, at: paidAt }]
+          : baseTimeline,
+        ...(citizenTx && targetState
+          ? { currentStateId: targetState.id, status: targetState.name }
+          : {}),
       };
       updatedApp = updated;
       return updated;
     }));
-    if (updatedApp) dispatchByState(updatedApp, "Paid");
-  }, [dispatchByState, resolveStateId]);
+    if (updatedApp) dispatchByState(updatedApp, updatedApp.status);
+  }, [dispatchByState, wfFor]);
 
   const issueLicense = useCallback((appId: string) => {
     let updatedApp: PreviewApplication | null = null;
