@@ -184,11 +184,13 @@ const buildSeedPaymentStages = (moduleName: string): SrcPaymentStage[] => {
 const ISSUANCE_DOC_BY_STATE: Record<string, string[]> = {
   "Submitted":          ["doc-2", "doc-3"], // Application PDF, Acknowledgement
   "Inspection Pending": ["doc-4"],          // Inspection Report
+  "Payment Pending":    ["doc-6"],          // Demand Notice
   "Paid":               ["doc-5"],          // Payment Receipt
   "License Issued":     ["doc-1"],          // License Certificate
 };
 const RENEWAL_DOC_BY_STATE: Record<string, string[]> = {
-  "Submitted":       ["rdoc-2", "rdoc-3"], // Renewal Application PDF, Acknowledgement
+  "Submitted":       ["rdoc-2", "rdoc-3"],  // Renewal Application PDF, Acknowledgement
+  "Payment Pending": ["rdoc-5"],            // Renewal Demand Notice
   "Paid":            ["rdoc-4"],            // Renewal Payment Receipt
   "License Renewed": ["rdoc-1"],            // Renewed License Certificate
 };
