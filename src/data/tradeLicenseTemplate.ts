@@ -425,6 +425,8 @@ export const TRADE_DOCUMENTS: TradeDocumentSeed[] = [
     vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
   { id: "doc-insp-report", name: "Inspection Report",         type: "inspection_report", generateWhen: "Inspection Pending",
     vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
+  { id: "doc-demand",      name: "Demand Notice",             type: "custom",            generateWhen: "Payment Pending",
+    vc: { enabled: false, credentialType: "", idMapping: "", includeQR: false } },
   { id: "doc-license",     name: "Business License Certificate", type: "certificate",       generateWhen: "License Issued",
     vc: { enabled: true, credentialType: "TradeCredential", idMapping: "License Number", includeQR: true } },
   { id: "doc-receipt",     name: "Payment Receipt",           type: "custom",            generateWhen: "Paid",
