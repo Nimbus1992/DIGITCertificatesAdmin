@@ -305,6 +305,8 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
          when notifications / checklists / paymentStages change (auto-attach by
          matching workflowState ↔ state.name, drop ids whose source is gone). ---- */
   useEffect(() => {
+    const renewal = isRenewalModule(moduleName);
+    const docMap = renewal ? RENEWAL_DOC_BY_STATE : ISSUANCE_DOC_BY_STATE;
     setStates((prev) => {
       let dirty = false;
       const validNotifIds = new Set(notifications.map((n) => n.id));
@@ -318,12 +320,20 @@ const WorkflowDesigner: React.FC<Props> = ({ moduleName, onBack }) => {
         const stageById = s.paymentStageId && validStageIds.has(s.paymentStageId)
           ? s.paymentStageId
           : (paymentStages.find((p) => p.workflowState === s.name)?.id ?? null);
+        // Merge in any newly-seeded doc attachments missing on saved states.
+        const seedDocs = docMap[s.name] ?? [];
+        const currentDocs = s.attachedDocumentIds ?? [];
+        const mergedDocs = Array.from(new Set([...currentDocs, ...seedDocs]));
+        const docsChanged = mergedDocs.length !== currentDocs.length;
         const changed =
           merged.length !== s.notificationIds.length ||
           merged.some((id, i) => id !== s.notificationIds[i]) ||
-          stageById !== s.paymentStageId;
+          stageById !== s.paymentStageId ||
+          docsChanged;
         if (changed) dirty = true;
-        return changed ? { ...s, notificationIds: merged, paymentStageId: stageById } : s;
+        return changed
+          ? { ...s, notificationIds: merged, paymentStageId: stageById, attachedDocumentIds: mergedDocs }
+          : s;
       });
       return dirty ? next : prev;
     });
