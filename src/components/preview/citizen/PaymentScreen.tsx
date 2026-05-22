@@ -74,12 +74,14 @@ const PaymentScreen: React.FC = () => {
           </dl>
         </div>
 
-        <button
-          onClick={() => setScreen({ type: "demand_notice", applicationId: app.id })}
-          className="w-full inline-flex items-center justify-center gap-1.5 text-[11px] text-accent hover:underline"
-        >
-          <FileText className="h-3 w-3" /> View Demand Notice
-        </button>
+        {app.demand.stage === "license" && (
+          <button
+            onClick={() => setScreen({ type: "demand_notice", applicationId: app.id })}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-[11px] text-accent hover:underline"
+          >
+            <FileText className="h-3 w-3" /> View Demand Notice
+          </button>
+        )}
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 flex items-center gap-2 text-[11px] text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-accent shrink-0" />
