@@ -1,48 +1,103 @@
-# Audit Logs & Activity Center
+# Audit Logs — Visual Refinement Pass
 
-Replace the empty `/audit-log` placeholder with a full enterprise governance screen, and extend `ServiceManage` with scoped audit tabs that reuse the same components.
+Scope: tighten visual hierarchy, grouping, and rhythm on `/audit-log`. No structural/functional changes. All work uses existing theme tokens (`bg-card`, `bg-muted`, `border`, `text-muted-foreground`, `bg-success`, `bg-destructive`, `bg-warning`, etc.).
 
-## Files
+## 1. Page layout & hierarchy (`src/pages/AuditLogs.tsx`)
 
-**New**
-- `src/data/auditLogs.ts` — typed mock dataset (governance, config, deployments, runtime) with realistic IDs, services (Business License, Building Permit, Trade Permit, Fire NOC, Occupancy Certificate), users, versions, before/after JSON.
-- `src/pages/AuditLogs.tsx` — page shell: header, sticky filter bar, quick-filter pills, 4 main tabs.
-- `src/components/audit/AuditFilterBar.tsx` — sticky single-row filters (Search, Date Range via popover calendar, Service, User, Environment, Event Type, Severity, Status) + quick-filter pills (All / Governance / Config Changes / Deployments / Runtime / Security). Uses existing `Select`, `Input`, `Popover`, `Calendar`, `Badge`, `Button` primitives.
-- `src/components/audit/AuditContext.tsx` — small context holding filter state + a `useFilteredLogs(domain)` hook (search debounce, date range, pill scope).
-- `src/components/audit/GovernanceTab.tsx` — dense `Table` with expandable rows. Expansion renders an inline detail panel with Performed By / Timestamp / Audit ID / IP / Environment / Affected Services and **Before / After** monospace JSON blocks in `bg-muted` rounded panels, plus Related Actions.
-- `src/components/audit/ConfigActivityTab.tsx` — vertical feed of expandable timeline cards (service icon, module badge, version tag, env badge, actor, relative+exact time). Expanded state shows side-by-side diff blocks with highlighted modified fields, affected config modules (Forms / Workflow / Roles / Notifications / Payments), deployment notes, and an "Open Service Configuration" link → `/services/:id/configure`.
-- `src/components/audit/DeploymentsTab.tsx` — vertical release timeline (left rail with connector). Each release card: version, publisher, env, status badge (Draft / Published / Failed / Rolled Back), impacted services chips, changed-modules count, duration, notes. Actions: View Changes / Compare Versions / Rollback / Open Details. Expanded: changed services, config modules, validation warnings, runtime health.
-- `src/components/audit/RuntimeActivityTab.tsx` — left-aligned timeline event stream. Each card: application ID, applicant, service, workflow stage, actor, event type, status chip (Approved/SentBack/Rejected/Pending/InProgress with semantic colors). Expanded: journey snapshot, current stage, assignee, documents, payments, notifications, "Open Application" CTA.
-- `src/components/audit/shared/` — `StatusBadge.tsx`, `ResultBadge.tsx`, `EnvBadge.tsx`, `DiffBlock.tsx`, `JsonPanel.tsx`, `RelativeTime.tsx`, `EmptyState.tsx`, `LoadingRows.tsx`. All using semantic tokens only (`bg-muted`, `text-muted-foreground`, `border-border`, `text-primary`, `bg-destructive/10`, `text-destructive`, etc.). No hardcoded hex.
+- Wrap page in a calmer container; reduce "one big slab" feeling.
+- Header: keep title + description; add a thin `border-b` separator with `pb-5 mb-5` rhythm. Move Export/Download buttons to a right-aligned cluster with `variant="outline" size="sm"` and a subtle `bg-card` group.
+- Insert new **Operational Insight Strip** between header and filter bar:
+  - Horizontal row of 4 compact stat pills inside a single `bg-card border rounded-lg p-3` container.
+  - Each pill: small icon + count + muted label (e.g., "4 failed sign-ins · 24h", "2 permission changes today", "1 deployment rollback", "3 services modified").
+  - Derived from existing `governanceEvents`, `deployments`, `runtimeEvents` mock data — no new data sources.
+- Group filter bar + tabs + table inside a single elevated surface:
+  ```text
+  ┌─ Insight strip ────────────────────────┐
+  ┌─ Surface (bg-card border rounded-lg) ──┐
+  │  Filter toolbar (bg-muted/40, border-b)│
+  │  Tabs (attached, border-b indicator)   │
+  │  Tab content / table                   │
+  └────────────────────────────────────────┘
+  ```
+- Increase spacing: `gap-6` between header / insight / surface.
 
-**Modified**
-- `src/App.tsx` — point `/audit-log` to the new `AuditLogs` page (keep the existing sidebar route untouched).
-- `src/pages/ServiceManage.tsx` — wrap existing content in a top-level `Tabs` with `Overview` (current content) + new nested `Manage` tabs: **Activity Logs / Deployments / Versions / Service Users**. Activity Logs renders `ConfigActivityTab` + `RuntimeActivityTab` filtered to `serviceId`; Deployments renders `DeploymentsTab` filtered to `serviceId`; Versions shows a compact version history table built from the same dataset; Service Users reuses existing user list patterns. No governance events here.
+## 2. Filter bar restructure (`src/components/audit/AuditFilterBar.tsx`)
 
-## Design rules
-- All visual styling via existing tokens (`bg-card`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-primary`, `bg-primary/10`, `text-destructive`, `bg-destructive/10`, etc.).
-- Reuse `Table`, `Badge`, `Button` (ghost/outline/secondary), `Card`, `Tabs`, `Input`, `Select`, `Popover`, `Calendar`, `ScrollArea`, `Separator`, `Collapsible`, `Skeleton`.
-- Result badges: Success = `bg-primary/10 text-primary`, Warning = `bg-amber-500/10 text-amber-600 dark:text-amber-400` via semantic warning class if available else token, Failed = `bg-destructive/10 text-destructive`. Confirm `warning` token exists; if not, use `bg-muted text-foreground` with an outline border in the project's accent.
-- Dense spacing: `py-2 text-sm`, compact rows (`h-10`), sticky filter bar via `sticky top-12 z-10 bg-background border-b`.
-- Monospace JSON blocks: `font-mono text-xs bg-muted rounded-md p-3 overflow-x-auto`.
+- Primary row (always visible):
+  - Search input (flex-1, prominent, `h-9`, leading search icon, subtle `bg-background`).
+  - Date Range picker (Popover + existing Calendar) — new control, value stored in `AuditContext` (additive; default `all-time`, filters ignore it for now if no date field — wire to `timestamp` where present).
+  - "More filters" button (Popover) showing a count badge when secondary filters are active.
+  - Clear button (only when active).
+- Secondary controls (Service, User, Environment, Event type, Severity, Status) move into the **More Filters Popover** as a 2-column grid of labeled Selects. Active selections also render as removable filter pills under the primary row (compact, `h-6 text-xs`, X to clear).
+- Drop the sticky background; the parent surface handles separation. Use `bg-muted/40 border-b px-4 py-3`.
 
-## Behavior
-- Filter state lives in `AuditContext`; each tab calls `useFilteredLogs("governance" | ...)`.
-- Search input is debounced (250ms) and matches application ID, user, service, action, role, deployment version.
-- Quick-pill selection narrows the domain scope across all tabs.
-- Row expansion via `Collapsible` (governance + runtime) and an `isOpen` state in cards (config + deployments).
-- Pagination: simple "Load more" button (20 at a time) — no virtualization needed for mock data.
-- Column sorting on Governance table (Timestamp, User, Action).
-- Empty/loading/no-results states for every tab.
-- Export Logs / Download Audit Report buttons trigger a CSV blob download of the currently filtered set (no backend).
+## 3. Tabs (Audit page + ServiceManage nested tabs)
+
+- Replace pill-style `TabsList` (the default muted rounded background) with an underline tab style attached to the container:
+  - `TabsList` becomes `h-auto bg-transparent border-b w-full justify-start rounded-none p-0 gap-1`.
+  - `TabsTrigger` becomes `rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm font-medium text-muted-foreground data-[state=active]:text-foreground`.
+- Tabs row sits flush with filter bar's bottom border; table content gets `p-4` inside the surface.
+- Apply same treatment to nested ServiceManage tabs for consistency.
+
+## 4. Color hierarchy fixes
+
+- **Environment badges** (`src/components/audit/shared.tsx` `EnvBadge`): switch to neutral outlined style — `border bg-muted/50 text-muted-foreground` with a subtle dot indicator. Production no longer green.
+- Keep `success` green strictly for success result/status badges (ResultBadge, StatusBadge for Approved/Published/Completed).
+- **Sidebar** (`src/components/AppSidebar.tsx`): soften active item background — reduce green saturation, e.g., `bg-primary/10 text-primary` instead of solid; lighter hover. Keep brand color, just lower emphasis.
+
+## 5. Table readability (`GovernanceTab.tsx`)
+
+- Wrap table in `rounded-md border` inside the surface (or remove inner border if surface provides it — pick one).
+- Row styling: `border-b last:border-0`, `hover:bg-muted/40 transition-colors`, alternating tint via `even:bg-muted/20` (very subtle).
+- Vertical rhythm: `py-3` cells (currently `py-2`), `text-sm`, header `text-xs font-medium uppercase tracking-wide text-muted-foreground`.
+- **Severity tension**: failed rows get `border-l-2 border-l-destructive`; warning rows get `border-l-2 border-l-warning bg-warning/5`; success rows stay neutral.
+- **Timestamp column**: stack relative + absolute:
+  ```text
+  23m ago
+  25 May, 09:50   (text-xs text-muted-foreground)
+  ```
+  Implemented by updating `RelativeTime` in `shared.tsx` to accept a `stacked` prop.
+- **Replace left chevron** expand control: drop the chevron column. Add a hover-revealed "View details" ghost button at row end (`opacity-0 group-hover:opacity-100`), and make the entire row clickable to toggle expansion. Expanded panel keeps existing diff JSON content but inside a `bg-muted/30 border-t` strip with tighter padding.
+
+## 6. Config Activity / Deployments / Runtime tabs
+
+Light touch only — propagate consistency:
+- Cards use `bg-card border` (already), but reduce internal padding to `p-4`, increase card-to-card gap to `gap-3`.
+- Apply same severity left-border accents for failed/warning items.
+- Replace chevron toggles with the same "View details" hover pattern where rows are tabular; keep collapsible cards otherwise but soften the chevron to `text-muted-foreground`.
+- Apply stacked timestamp formatting via shared `RelativeTime`.
+
+## 7. AuditContext additive changes (`AuditContext.tsx`)
+
+- Add `dateRange?: { from?: Date; to?: Date }` to `AuditFilters`.
+- Filter hooks apply date range against each event's timestamp when present.
+- No removal of existing fields.
+
+## Files touched
+
+- `src/pages/AuditLogs.tsx` — layout, insight strip, surface grouping.
+- `src/components/audit/AuditFilterBar.tsx` — primary/secondary split, More Filters popover, active pills, date range.
+- `src/components/audit/AuditContext.tsx` — add `dateRange` field + filter wiring.
+- `src/components/audit/shared.tsx` — `EnvBadge` neutral style, `RelativeTime` stacked variant.
+- `src/components/audit/GovernanceTab.tsx` — table polish, severity borders, stacked timestamps, hover-reveal details.
+- `src/components/audit/ConfigActivityTab.tsx` — spacing + timestamp + severity accents.
+- `src/components/audit/DeploymentsTab.tsx` — same.
+- `src/components/audit/RuntimeActivityTab.tsx` — same.
+- `src/pages/ServiceManage.tsx` — apply underline tab styling to nested tabs.
+- `src/components/AppSidebar.tsx` — soften active nav background only (no structural change).
 
 ## Out of scope
-- Real backend / persistence (mock data only, in keeping with rest of prototype).
-- New semantic tokens — only use what's already in `index.css` / Tailwind config.
-- Changes to global sidebar (route already exists as "Audit Log").
+
+- New tokens in `index.css` / `tailwind.config.ts` (reuse only).
+- New data, new tabs, new routes.
+- Functional behavior of filters, export, or expansion logic.
 
 ## Verification
-- Navigate to `/audit-log`, confirm header + sticky filters + 4 tabs render with data.
-- Toggle each pill and each tab; expand rows/cards in each.
-- Open a service via `/services/:id/manage`, confirm new nested Manage tabs appear and are scoped to that service (no governance events).
-- Visually confirm all colors/typography match the rest of the app under both light theme and any branding override.
+
+- `/audit-log` shows: header → insight strip → unified surface containing filter toolbar → underline tabs → table.
+- Filter bar shows only Search + Date Range + More Filters + Clear at rest; secondary filters open in popover and surface as removable pills when active.
+- Environment chips are neutral; only success/approved/published items are green.
+- Failed rows show red left accent; warning rows amber; timestamps stacked.
+- Hovering a row reveals "View details"; clicking expands inline diff panel.
+- Sidebar active state visibly softer.
+- ServiceManage nested tabs match new underline style.
