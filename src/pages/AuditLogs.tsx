@@ -2,7 +2,7 @@ import React from "react";
 import { Download, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AuditProvider, useAudit } from "@/components/audit/AuditContext";
+import { AuditProvider } from "@/components/audit/AuditContext";
 import { AuditFilterBar } from "@/components/audit/AuditFilterBar";
 import { GovernanceTab } from "@/components/audit/GovernanceTab";
 import { ConfigActivityTab } from "@/components/audit/ConfigActivityTab";
