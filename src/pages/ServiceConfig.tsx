@@ -19,6 +19,7 @@ import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 import ModuleTabs from "@/components/service-config/ModuleTabs";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
+import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
 
 const deploymentSections: { title: string; description: string }[] = [
   { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
@@ -65,13 +66,13 @@ const ServiceConfigInner: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMode = (location.state as { mode?: "configure" | "preview" | "deployment" } | null)?.mode ?? "preview";
-  const [mode, setMode] = useState<"configure" | "preview" | "deployment">(initialMode);
+  const initialMode = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "preview";
+  const [mode, setMode] = useState<"configure" | "preview" | "operations" | "deployment">(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
 
   // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
   useEffect(() => {
-    const next = (location.state as { mode?: "configure" | "preview" | "deployment" } | null)?.mode;
+    const next = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
     if (next && next !== mode) {
       setMode(next);
       setActiveTile(null);
@@ -188,11 +189,13 @@ const ServiceConfigInner: React.FC = () => {
   const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = isLive
     ? [
         { id: "preview", label: "Preview" },
+        { id: "operations", label: "Operations" },
         { id: "deployment", label: "Manage" },
       ]
     : [
-        { id: "preview", label: "Preview" },
         { id: "configure", label: "Configure" },
+        { id: "preview", label: "Preview" },
+        { id: "operations", label: "Operations" },
         {
           id: "deployment",
           label: "Manage",
@@ -334,6 +337,10 @@ const ServiceConfigInner: React.FC = () => {
       ) : mode === "preview" ? (
         <main className="flex-1 min-h-0">
           <ServicePreviewWorkspace />
+        </main>
+      ) : mode === "operations" ? (
+        <main className="flex-1 min-h-0">
+          <OperationsWorkspace serviceId={id ?? ""} />
         </main>
       ) : (
         <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1 min-h-0 overflow-auto">
