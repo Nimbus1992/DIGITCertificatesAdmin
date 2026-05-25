@@ -3,17 +3,7 @@ import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { useAudit, SERVICE_OPTIONS, USER_OPTIONS, type QuickFilter } from "./AuditContext";
-
-const PILLS: { id: QuickFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "governance", label: "Governance" },
-  { id: "config", label: "Config Changes" },
-  { id: "deployments", label: "Deployments" },
-  { id: "runtime", label: "Runtime Activity" },
-  { id: "security", label: "Security" },
-];
+import { useAudit, SERVICE_OPTIONS, USER_OPTIONS } from "./AuditContext";
 
 const ENV_OPTIONS = ["all", "production", "staging", "sandbox"] as const;
 const SEVERITY_OPTIONS = ["all", "success", "warning", "failed"] as const;
@@ -35,7 +25,6 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
       eventType: "all",
       severity: "all",
       status: "all",
-      pill: "all",
     }));
 
   const hasActive =
@@ -45,13 +34,11 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
     filters.environment !== "all" ||
     filters.eventType !== "all" ||
     filters.severity !== "all" ||
-    filters.status !== "all" ||
-    filters.pill !== "all";
+    filters.status !== "all";
 
   return (
     <div className="sticky top-0 z-20 -mx-6 px-6 bg-background/95 backdrop-blur border-b">
-      <div className="py-3 space-y-2">
-        {/* Row 1: filters */}
+      <div className="py-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -136,27 +123,6 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
               <X className="h-3.5 w-3.5" /> Clear
             </Button>
           )}
-        </div>
-
-        {/* Row 2: pills */}
-        <div className="flex items-center gap-1.5">
-          {PILLS.map((p) => {
-            const active = filters.pill === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => setFilters((f) => ({ ...f, pill: p.id }))}
-                className={cn(
-                  "h-7 px-3 rounded-full text-xs font-medium border transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted",
-                )}
-              >
-                {p.label}
-              </button>
-            );
-          })}
         </div>
       </div>
     </div>
