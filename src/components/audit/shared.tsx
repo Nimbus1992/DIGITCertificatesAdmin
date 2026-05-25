@@ -1,8 +1,9 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertTriangle, XCircle, Clock, Loader2, FileSearch } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Clock, Loader2, FileSearch, Shield, Settings2, Rocket, Activity } from "lucide-react";
 import type { Result, Environment, DeploymentStatus, RuntimeStatus } from "@/data/auditLogs";
+import type { AuditCategory, StatusTone } from "./AuditContext";
 
 export const ResultBadge: React.FC<{ result: Result; className?: string }> = ({ result, className }) => {
   const map: Record<Result, { label: string; cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
@@ -79,6 +80,52 @@ export const ModuleBadge: React.FC<{ module: string }> = ({ module }) => (
     {module}
   </Badge>
 );
+
+const CATEGORY_META: Record<AuditCategory, { label: string; Icon: React.ComponentType<{ className?: string }>; dot: string; text: string }> = {
+  governance: { label: "Governance", Icon: Shield, dot: "bg-primary", text: "text-foreground/80" },
+  config: { label: "Config", Icon: Settings2, dot: "bg-accent", text: "text-foreground/80" },
+  deployment: { label: "Deployment", Icon: Rocket, dot: "bg-foreground/70", text: "text-foreground/80" },
+  runtime: { label: "Runtime", Icon: Activity, dot: "bg-warning", text: "text-foreground/80" },
+};
+
+export const CategoryBadge: React.FC<{ category: AuditCategory; className?: string }> = ({ category, className }) => {
+  const { label, Icon, dot, text } = CATEGORY_META[category];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 h-6 px-2 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium",
+        text,
+        className,
+      )}
+    >
+      <Icon className="h-3 w-3 text-muted-foreground" />
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
+      {label}
+    </span>
+  );
+};
+
+export const StatusToneBadge: React.FC<{ tone: StatusTone; label: string; className?: string }> = ({
+  tone,
+  label,
+  className,
+}) => {
+  const cls =
+    tone === "success"
+      ? "bg-success/10 text-success border-success/20"
+      : tone === "warning"
+      ? "bg-warning/10 text-warning border-warning/20"
+      : tone === "failed"
+      ? "bg-destructive/10 text-destructive border-destructive/20"
+      : tone === "info"
+      ? "bg-primary/10 text-primary border-primary/20"
+      : "bg-muted text-muted-foreground border-border";
+  return (
+    <Badge variant="outline" className={cn("font-medium", cls, className)}>
+      {label}
+    </Badge>
+  );
+};
 
 export const JsonPanel: React.FC<{ label: string; value: unknown; tone?: "before" | "after" | "neutral" }> = ({
   label,
