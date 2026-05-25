@@ -10,15 +10,18 @@ import {
   type Result,
 } from "@/data/auditLogs";
 
+export type DateRange = { from?: Date; to?: Date };
+
 export type AuditFilters = {
   search: string;
-  service: string; // "all" | service name
-  user: string; // "all" | user
+  service: string;
+  user: string;
   environment: "all" | Environment;
-  eventType: string; // free
+  eventType: string;
   severity: "all" | Result;
-  status: string; // "all" | status
-  serviceScopeId?: string; // when used inside a service page
+  status: string;
+  dateRange: DateRange;
+  serviceScopeId?: string;
 };
 
 const defaultFilters: AuditFilters = {
@@ -29,6 +32,7 @@ const defaultFilters: AuditFilters = {
   eventType: "all",
   severity: "all",
   status: "all",
+  dateRange: {},
 };
 
 type Ctx = {
@@ -70,15 +74,24 @@ function matchSearch(haystacks: (string | undefined | null)[], q: string) {
   return haystacks.some((h) => (h ?? "").toLowerCase().includes(q));
 }
 
+function inRange(ts: string, range: DateRange) {
+  if (!range.from && !range.to) return true;
+  const t = new Date(ts).getTime();
+  if (range.from && t < range.from.getTime()) return false;
+  if (range.to && t > range.to.getTime() + 24 * 60 * 60 * 1000 - 1) return false;
+  return true;
+}
+
 export function useGovernance() {
   const { filters, debouncedSearch } = useAudit();
   return useMemo(() => {
     return governanceEvents.filter((e) => {
-      if (filters.serviceScopeId) return false; // governance is workspace-level
+      if (filters.serviceScopeId) return false;
       if (filters.user !== "all" && e.user !== filters.user) return false;
       if (filters.environment !== "all" && e.environment !== filters.environment) return false;
       if (filters.severity !== "all" && e.result !== filters.severity) return false;
       if (filters.service !== "all" && !e.affectedServices.includes(filters.service)) return false;
+      if (!inRange(e.timestamp, filters.dateRange)) return false;
       return matchSearch([e.id, e.user, e.action, e.entity, e.scope, ...e.affectedServices], debouncedSearch);
     });
   }, [filters, debouncedSearch]);
@@ -92,6 +105,7 @@ export function useConfigActivity() {
       if (filters.service !== "all" && e.serviceName !== filters.service) return false;
       if (filters.user !== "all" && e.actor !== filters.user) return false;
       if (filters.environment !== "all" && e.environment !== filters.environment) return false;
+      if (!inRange(e.timestamp, filters.dateRange)) return false;
       return matchSearch(
         [e.id, e.actor, e.serviceName, e.module, e.summary, e.version, ...e.affected],
         debouncedSearch,
@@ -109,6 +123,7 @@ export function useDeployments() {
       if (filters.user !== "all" && d.publishedBy !== filters.user) return false;
       if (filters.environment !== "all" && d.environment !== filters.environment) return false;
       if (filters.status !== "all" && d.status !== filters.status) return false;
+      if (!inRange(d.timestamp, filters.dateRange)) return false;
       return matchSearch(
         [d.id, d.version, d.publishedBy, d.serviceName, ...d.changedModules, ...d.notes],
         debouncedSearch,
@@ -125,6 +140,7 @@ export function useRuntime() {
       if (filters.service !== "all" && e.serviceName !== filters.service) return false;
       if (filters.user !== "all" && e.actor !== filters.user) return false;
       if (filters.status !== "all" && e.status !== filters.status) return false;
+      if (!inRange(e.timestamp, filters.dateRange)) return false;
       return matchSearch(
         [e.id, e.applicationId, e.applicant, e.serviceName, e.stage, e.actor, e.eventType],
         debouncedSearch,

@@ -21,14 +21,21 @@ export const ResultBadge: React.FC<{ result: Result; className?: string }> = ({ 
 
 export const EnvBadge: React.FC<{ env: Environment; className?: string }> = ({ env, className }) => {
   const label = env === "production" ? "Production" : env === "staging" ? "Staging" : "Sandbox";
-  const cls =
+  const dot =
     env === "production"
-      ? "bg-primary/10 text-primary border-primary/20"
+      ? "bg-foreground/60"
       : env === "staging"
-      ? "bg-warning/10 text-warning border-warning/20"
-      : "bg-muted text-muted-foreground border-border";
+      ? "bg-warning"
+      : "bg-muted-foreground/50";
   return (
-    <Badge variant="outline" className={cn("font-medium", cls, className)}>
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-1.5 font-medium bg-muted/40 text-muted-foreground border-border/80 hover:bg-muted/40",
+        className,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
       {label}
     </Badge>
   );
@@ -94,20 +101,37 @@ export const JsonPanel: React.FC<{ label: string; value: unknown; tone?: "before
   );
 };
 
-export const RelativeTime: React.FC<{ ts: string; className?: string }> = ({ ts, className }) => {
+function relLabel(ts: string) {
   const date = new Date(ts);
   const diffMs = Date.now() - date.getTime();
   const mins = Math.round(diffMs / 60_000);
-  let rel: string;
-  if (mins < 1) rel = "just now";
-  else if (mins < 60) rel = `${mins}m ago`;
-  else if (mins < 60 * 24) rel = `${Math.round(mins / 60)}h ago`;
-  else rel = `${Math.round(mins / 60 / 24)}d ago`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 60 / 24)}d ago`;
+}
+
+export const RelativeTime: React.FC<{ ts: string; className?: string; stacked?: boolean }> = ({
+  ts,
+  className,
+  stacked,
+}) => {
+  const date = new Date(ts);
+  const rel = relLabel(ts);
+  const abs = date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (stacked) {
+    return (
+      <span className={cn("inline-flex flex-col leading-tight", className)} title={date.toLocaleString()}>
+        <span className="text-sm font-medium text-foreground/90">{rel}</span>
+        <span className="text-[11px] text-muted-foreground">{abs}</span>
+      </span>
+    );
+  }
   return (
     <span className={cn("text-xs text-muted-foreground", className)} title={date.toLocaleString()}>
       <span className="text-foreground/80 font-medium">{rel}</span>
       <span className="mx-1.5 text-border">·</span>
-      <span>{date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+      <span>{abs}</span>
     </span>
   );
 };
