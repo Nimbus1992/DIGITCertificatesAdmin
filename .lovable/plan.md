@@ -1,81 +1,48 @@
-# Make the preview honor the configured workflow (remove point-fixes)
+# Audit Logs & Activity Center
 
-## What's actually wrong
+Replace the empty `/audit-log` placeholder with a full enterprise governance screen, and extend `ServiceManage` with scoped audit tabs that reuse the same components.
 
-`payApplication` and `issueLicense` in `src/components/preview/PreviewContext.tsx` don't traverse the workflow — they hardcode state jumps by name:
+## Files
 
-- `payApplication`: `currentStateId = resolveStateId(type, "Paid", "s5")`
-- `issueLicense`:   `currentStateId = resolveStateId(type, "License Issued", "s6")`
+**New**
+- `src/data/auditLogs.ts` — typed mock dataset (governance, config, deployments, runtime) with realistic IDs, services (Business License, Building Permit, Trade Permit, Fire NOC, Occupancy Certificate), users, versions, before/after JSON.
+- `src/pages/AuditLogs.tsx` — page shell: header, sticky filter bar, quick-filter pills, 4 main tabs.
+- `src/components/audit/AuditFilterBar.tsx` — sticky single-row filters (Search, Date Range via popover calendar, Service, User, Environment, Event Type, Severity, Status) + quick-filter pills (All / Governance / Config Changes / Deployments / Runtime / Security). Uses existing `Select`, `Input`, `Popover`, `Calendar`, `Badge`, `Button` primitives.
+- `src/components/audit/AuditContext.tsx` — small context holding filter state + a `useFilteredLogs(domain)` hook (search debounce, date range, pill scope).
+- `src/components/audit/GovernanceTab.tsx` — dense `Table` with expandable rows. Expansion renders an inline detail panel with Performed By / Timestamp / Audit ID / IP / Environment / Affected Services and **Before / After** monospace JSON blocks in `bg-muted` rounded panels, plus Related Actions.
+- `src/components/audit/ConfigActivityTab.tsx` — vertical feed of expandable timeline cards (service icon, module badge, version tag, env badge, actor, relative+exact time). Expanded state shows side-by-side diff blocks with highlighted modified fields, affected config modules (Forms / Workflow / Roles / Notifications / Payments), deployment notes, and an "Open Service Configuration" link → `/services/:id/configure`.
+- `src/components/audit/DeploymentsTab.tsx` — vertical release timeline (left rail with connector). Each release card: version, publisher, env, status badge (Draft / Published / Failed / Rolled Back), impacted services chips, changed-modules count, duration, notes. Actions: View Changes / Compare Versions / Rollback / Open Details. Expanded: changed services, config modules, validation warnings, runtime health.
+- `src/components/audit/RuntimeActivityTab.tsx` — left-aligned timeline event stream. Each card: application ID, applicant, service, workflow stage, actor, event type, status chip (Approved/SentBack/Rejected/Pending/InProgress with semantic colors). Expanded: journey snapshot, current stage, assignee, documents, payments, notifications, "Open Application" CTA.
+- `src/components/audit/shared/` — `StatusBadge.tsx`, `ResultBadge.tsx`, `EnvBadge.tsx`, `DiffBlock.tsx`, `JsonPanel.tsx`, `RelativeTime.tsx`, `EmptyState.tsx`, `LoadingRows.tsx`. All using semantic tokens only (`bg-muted`, `text-muted-foreground`, `border-border`, `text-primary`, `bg-destructive/10`, `text-destructive`, etc.). No hardcoded hex.
 
-Meanwhile the configured workflow (in `tradeLicenseTemplate.ts` / `workflowSeeds.ts`) is fully data-driven:
+**Modified**
+- `src/App.tsx` — point `/audit-log` to the new `AuditLogs` page (keep the existing sidebar route untouched).
+- `src/pages/ServiceManage.tsx` — wrap existing content in a top-level `Tabs` with `Overview` (current content) + new nested `Manage` tabs: **Activity Logs / Deployments / Versions / Service Users**. Activity Logs renders `ConfigActivityTab` + `RuntimeActivityTab` filtered to `serviceId`; Deployments renders `DeploymentsTab` filtered to `serviceId`; Versions shows a compact version history table built from the same dataset; Service Users reuses existing user list patterns. No governance events here.
 
-```
-Submitted ──t_claim_dv──▶ Under Doc Verification ──t_verify_app──▶ Inspection Pending
-   ▲                                                                       │
-   │t_resubmit                                                  t_complete_insp
-   │                                                                       ▼
-Sent Back ◀──t_send_back_*──                                       Under Approval
-                                                                       │  │
-                                                              t_approve│  │t_reject
-                                                                       ▼  ▼
-                                                            Payment Pending  Rejected
-                                                                       │
-                                                                 t_pay │ (citizen)
-                                                                       ▼
-                                                                     Paid
-                                                                       │
-                                                                t_issue│ (approver)
-                                                                       ▼
-                                                                License Issued
-```
+## Design rules
+- All visual styling via existing tokens (`bg-card`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-primary`, `bg-primary/10`, `text-destructive`, `bg-destructive/10`, etc.).
+- Reuse `Table`, `Badge`, `Button` (ghost/outline/secondary), `Card`, `Tabs`, `Input`, `Select`, `Popover`, `Calendar`, `ScrollArea`, `Separator`, `Collapsible`, `Skeleton`.
+- Result badges: Success = `bg-primary/10 text-primary`, Warning = `bg-amber-500/10 text-amber-600 dark:text-amber-400` via semantic warning class if available else token, Failed = `bg-destructive/10 text-destructive`. Confirm `warning` token exists; if not, use `bg-muted text-foreground` with an outline border in the project's accent.
+- Dense spacing: `py-2 text-sm`, compact rows (`h-10`), sticky filter bar via `sticky top-12 z-10 bg-background border-b`.
+- Monospace JSON blocks: `font-mono text-xs bg-muted rounded-md p-3 overflow-x-auto`.
 
-The workflow already encodes the citizen payment (`t_pay`: Payment Pending → Paid) and the issuance (`t_issue`: Paid → License Issued). But because `payApplication` does its own jump, paying the **application fee** from "Submitted" sends the app to `s5/"Paid"` and it falls off the Document Verifier inbox (no DV transition exists out of "Paid"). The flow appears frozen — not because of a missing branch, but because the imperative shortcut diverges from the configured graph.
-
-## Direction: data-driven, no hardcoded jumps
-
-### 1. Payment is a demand side-effect, not a state jump
-
-Rewrite `payApplication` to do only:
-
-- Set `paymentStatus = "paid"`, record `paymentDetails`, append a timeline entry.
-- Look up a citizen transition out of the current state (`role === "citizen"` and `fromStateId === app.currentStateId`). If one exists (e.g. `t_pay` for license payment), execute it via the existing `transitionApplication` path so timeline, notifications, and state advance through configured workflow logic.
-- If none exists (e.g. the application-fee payment at "Submitted" — no configured citizen transition out of Submitted), the app **stays in its current state**. The next configured transition (DV's `t_claim_dv` from "Submitted") becomes the legitimate next step.
-
-Remove the `resolveStateId(..., "Paid", "s5")` hardcoded jump entirely.
-
-### 2. Gate role-owned transitions on outstanding payment
-
-A transition out of a state that has a `paymentStageId` (i.e. money is owed at that state) should not be executable while `paymentStatus !== "paid"`. Add a single helper `isTransitionGatedByPayment(app, transition, wfStates)` used by:
-
-- `ApplicationReview` action buttons (disable + tooltip "Awaiting citizen payment").
-- `InboxView` queue (still list the app, but mark it "Payment pending" so DV sees it's waiting).
-
-This means DV sees the application in their queue immediately after submission but can only "Start Document Verification" once the citizen has paid the application fee. After payment, no extra wiring is needed — the same configured transition runs.
-
-### 3. Rewrite `issueLicense` to run the configured transition
-
-Replace the name-based jump with: find a transition where `role === "approver"` and `fromStateId === app.currentStateId` and `toStateId` maps to a state of type `"end"` (or whose name matches the license-issued state). Execute it via `transitionApplication`. License generation (number / validTill / qrSeed) becomes a side-effect attached to entering an end state, not part of the jump.
-
-### 4. Drop the legacy `DEFAULT_WORKFLOW_STATES` / `DEFAULT_TRANSITIONS` constants in PreviewContext
-
-They duplicate `workflowSeeds` and let stale defaults leak into the preview. The provider already pulls from `useServiceWorkflow`; remove the dead constants so there's a single source of truth.
-
-## Files touched
-
-- `src/components/preview/PreviewContext.tsx` — rewrite `payApplication`, `issueLicense`; remove `DEFAULT_WORKFLOW_*`; add `findCitizenTransitionFrom`, `findApproverTransitionFrom`, `isTransitionGatedByPayment` helpers.
-- `src/components/preview/employee/ApplicationReview.tsx` — disable gated actions + "Awaiting payment" hint.
-- `src/components/preview/employee/InboxView.tsx` — show a small "Payment pending" pill for items whose only outgoing transitions are payment-gated.
-- `src/components/preview/citizen/PaymentScreen.tsx` — no behavior change; relies on the new `payApplication`.
-
-## Verification
-
-1. Citizen submits → state stays "Submitted", demand stage "application", `paymentStatus = pending`. DV inbox shows the application with a "Payment pending" pill; "Start Document Verification" is disabled.
-2. Citizen pays application fee → `paymentStatus = paid`; state still "Submitted". DV's "Start Document Verification" becomes enabled.
-3. DV proceeds through the configured workflow → … → Approver approves → state becomes "Payment Pending" with a fresh license-fee demand.
-4. Citizen pays license fee → configured `t_pay` runs → state becomes "Paid". Issuer's "Issue License" runs `t_issue` → "License Issued"; license artifact is generated as a side-effect of entering the end state.
-5. Renewal mirror runs through the renewal workflow without any name-based shortcuts.
+## Behavior
+- Filter state lives in `AuditContext`; each tab calls `useFilteredLogs("governance" | ...)`.
+- Search input is debounced (250ms) and matches application ID, user, service, action, role, deployment version.
+- Quick-pill selection narrows the domain scope across all tabs.
+- Row expansion via `Collapsible` (governance + runtime) and an `isOpen` state in cards (config + deployments).
+- Pagination: simple "Load more" button (20 at a time) — no virtualization needed for mock data.
+- Column sorting on Governance table (Timestamp, User, Action).
+- Empty/loading/no-results states for every tab.
+- Export Logs / Download Audit Report buttons trigger a CSV blob download of the currently filtered set (no backend).
 
 ## Out of scope
+- Real backend / persistence (mock data only, in keeping with rest of prototype).
+- New semantic tokens — only use what's already in `index.css` / Tailwind config.
+- Changes to global sidebar (route already exists as "Audit Log").
 
-- No changes to fees, demand math, notification matrix, document templates, or workflow seed data.
-- No backend/schema changes.
+## Verification
+- Navigate to `/audit-log`, confirm header + sticky filters + 4 tabs render with data.
+- Toggle each pill and each tab; expand rows/cards in each.
+- Open a service via `/services/:id/manage`, confirm new nested Manage tabs appear and are scoped to that service (no governance events).
+- Visually confirm all colors/typography match the rest of the app under both light theme and any branding override.

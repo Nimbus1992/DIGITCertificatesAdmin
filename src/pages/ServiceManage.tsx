@@ -4,8 +4,17 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Copy, ExternalLink, Eye, Users, Languages, Globe, Monitor } from "lucide-react";
 import { toast } from "sonner";
+import { AuditProvider } from "@/components/audit/AuditContext";
+import { AuditFilterBar } from "@/components/audit/AuditFilterBar";
+import { ConfigActivityTab } from "@/components/audit/ConfigActivityTab";
+import { DeploymentsTab } from "@/components/audit/DeploymentsTab";
+import { RuntimeActivityTab } from "@/components/audit/RuntimeActivityTab";
+import { deployments } from "@/data/auditLogs";
+import { DeploymentStatusBadge, EnvBadge, RelativeTime } from "@/components/audit/shared";
 
 const ServiceManage: React.FC = () => {
   const { id } = useParams();
@@ -31,18 +40,23 @@ const ServiceManage: React.FC = () => {
     toast.success(`${label} URL copied to clipboard`);
   };
 
+  // Find scoped audit logs: try slug match, otherwise fall back to first known service slug
+  const knownSlugs = Array.from(new Set(deployments.map((d) => d.serviceId)));
+  const scopeId = knownSlugs.includes(serviceSlug) ? serviceSlug : knownSlugs[0];
+  const serviceVersions = deployments.filter((d) => d.serviceId === scopeId);
+
   return (
     <div className="bg-background">
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold text-foreground">{service.name}</h1>
-              <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700">
+              <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
                 Live
               </Badge>
@@ -51,106 +65,190 @@ const ServiceManage: React.FC = () => {
           </div>
         </div>
 
-        {/* App Links */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Application Links</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Citizen App */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-accent" /> Citizen App
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-[10px]">Public</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">For citizens to apply, track, and manage their applications.</p>
-                  <div className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
-                    <span className="text-xs text-foreground truncate flex-1 font-mono">{citizenUrl}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleCopy(citizenUrl, "Citizen App")}>
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => window.open(citizenUrl, "_blank")}>
-                    <ExternalLink className="h-3.5 w-3.5" /> Open Citizen App
-                  </Button>
-                </CardContent>
-              </Card>
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="activity">Activity Logs</TabsTrigger>
+            <TabsTrigger value="deployments">Deployments</TabsTrigger>
+            <TabsTrigger value="versions">Versions</TabsTrigger>
+            <TabsTrigger value="users">Service Users</TabsTrigger>
+          </TabsList>
 
-              {/* Employee App */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Monitor className="h-4 w-4 text-accent" /> Employee App
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-[10px]">Internal</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs text-muted-foreground">For employees to review, approve, and manage applications.</p>
-                  <div className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
-                    <span className="text-xs text-foreground truncate flex-1 font-mono">{employeeUrl}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleCopy(employeeUrl, "Employee App")}>
-                      <Copy className="h-3.5 w-3.5" />
+          <TabsContent value="overview" className="mt-6 space-y-6">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Application Links</h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-accent" /> Citizen App
+                      </CardTitle>
+                      <Badge variant="secondary" className="text-[10px]">Public</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-xs text-muted-foreground">For citizens to apply, track, and manage their applications.</p>
+                    <div className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
+                      <span className="text-xs text-foreground truncate flex-1 font-mono">{citizenUrl}</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleCopy(citizenUrl, "Citizen App")}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => window.open(citizenUrl, "_blank")}>
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Citizen App
                     </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Monitor className="h-4 w-4 text-accent" /> Employee App
+                      </CardTitle>
+                      <Badge variant="secondary" className="text-[10px]">Internal</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-xs text-muted-foreground">For employees to review, approve, and manage applications.</p>
+                    <div className="flex items-center gap-1.5 bg-muted rounded-md px-3 py-2">
+                      <span className="text-xs text-foreground truncate flex-1 font-mono">{employeeUrl}</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleCopy(employeeUrl, "Employee App")}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => window.open(employeeUrl, "_blank")}>
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Employee App
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Go Live Setup</h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/setup/users")}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Manage Users</p>
+                      <p className="text-xs text-muted-foreground">Add or remove team members and roles</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/config/languages")}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Languages className="h-5 w-5 text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Localization</p>
+                      <p className="text-xs text-muted-foreground">Add languages and manage translations</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Preview</h2>
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/service/${id}/preview`)}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Eye className="h-5 w-5 text-accent" />
                   </div>
-                  <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => window.open(employeeUrl, "_blank")}>
-                    <ExternalLink className="h-3.5 w-3.5" /> Open Employee App
-                  </Button>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Application Preview</p>
+                    <p className="text-xs text-muted-foreground">Preview citizen and employee experiences</p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
-          </div>
+          </TabsContent>
 
-          {/* Go Live Setup */}
-          <div>
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Go Live Setup</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/setup/users")}>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                    <Users className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Manage Users</p>
-                    <p className="text-xs text-muted-foreground">Add or remove team members and roles</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/config/languages")}>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                    <Languages className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Localization</p>
-                    <p className="text-xs text-muted-foreground">Add languages and manage translations</p>
-                  </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="activity" className="mt-6">
+            <AuditProvider serviceScopeId={scopeId}>
+              <AuditFilterBar scoped />
+              <div className="mt-4 space-y-6">
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Configuration changes
+                  </h3>
+                  <ConfigActivityTab />
+                </section>
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Runtime application events
+                  </h3>
+                  <RuntimeActivityTab />
+                </section>
+              </div>
+            </AuditProvider>
+          </TabsContent>
+
+          <TabsContent value="deployments" className="mt-6">
+            <AuditProvider serviceScopeId={scopeId}>
+              <AuditFilterBar scoped />
+              <div className="mt-4">
+                <DeploymentsTab />
+              </div>
+            </AuditProvider>
+          </TabsContent>
+
+          <TabsContent value="versions" className="mt-6">
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="h-9 text-xs">Version</TableHead>
+                    <TableHead className="h-9 text-xs">Published</TableHead>
+                    <TableHead className="h-9 text-xs">By</TableHead>
+                    <TableHead className="h-9 text-xs">Environment</TableHead>
+                    <TableHead className="h-9 text-xs">Status</TableHead>
+                    <TableHead className="h-9 text-xs">Changed modules</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {serviceVersions.map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="py-2 font-mono text-sm">{v.version}</TableCell>
+                      <TableCell className="py-2"><RelativeTime ts={v.timestamp} /></TableCell>
+                      <TableCell className="py-2 text-sm">{v.publishedBy}</TableCell>
+                      <TableCell className="py-2"><EnvBadge env={v.environment} /></TableCell>
+                      <TableCell className="py-2"><DeploymentStatusBadge status={v.status} /></TableCell>
+                      <TableCell className="py-2 text-xs text-muted-foreground">{v.changedModules.join(", ")}</TableCell>
+                    </TableRow>
+                  ))}
+                  {serviceVersions.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-sm text-muted-foreground">
+                        No versions yet
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          </TabsContent>
 
-          {/* Preview */}
-          <div>
-            <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">Preview</h2>
-            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/service/${id}/preview`)}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Eye className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Application Preview</p>
-                  <p className="text-xs text-muted-foreground">Preview citizen and employee experiences</p>
-                </div>
+          <TabsContent value="users" className="mt-6">
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-1">Service Users</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Team members assigned to this service. Manage roles from workspace-level Users & Access.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => navigate("/setup/users")} className="gap-1.5">
+                  <Users className="h-3.5 w-3.5" /> Open Users & Access
+                </Button>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

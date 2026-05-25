@@ -19,6 +19,7 @@ import Services from "./pages/Services";
 import TemplateSetup from "./pages/TemplateSetup";
 import ResponsiveQA from "./pages/ResponsiveQA";
 import UsersAccess from "./pages/UsersAccess";
+import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
 
@@ -57,7 +58,7 @@ const App = () => (
               <Route path="/config/integrations" element={<PlaceholderPage title="Integrations" description="Connect payment gateways, document verification, and external APIs." />} />
 
               {/* Utilities */}
-              <Route path="/audit-log" element={<PlaceholderPage title="Audit Log" description="Track who did what and when. Important for government compliance requirements." />} />
+              <Route path="/audit-log" element={<AuditLogs />} />
               <Route path="/responsive-qa" element={<ResponsiveQA />} />
               <Route path="/help" element={<PlaceholderPage title="Help & Support" description="Access documentation, FAQs, and contact support." />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" description="General platform settings, data export, and account management." />} />
