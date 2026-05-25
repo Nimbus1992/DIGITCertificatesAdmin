@@ -63,7 +63,7 @@ const HeaderActions: React.FC = () => {
         size="sm"
         className="gap-1.5"
         onClick={() => {
-          const report = `Audit Report\nGenerated: ${new Date().toLocaleString()}\nActive pill: ${filters.pill}\nGovernance: ${governanceEvents.length}\nConfig: ${configActivityEvents.length}\nDeployments: ${deployments.length}\nRuntime: ${runtimeEvents.length}\n`;
+          const report = `Audit Report\nGenerated: ${new Date().toLocaleString()}\nGovernance: ${governanceEvents.length}\nConfig: ${configActivityEvents.length}\nDeployments: ${deployments.length}\nRuntime: ${runtimeEvents.length}\n`;
           const blob = new Blob([report], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
