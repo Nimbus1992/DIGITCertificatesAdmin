@@ -189,11 +189,13 @@ const ServiceConfigInner: React.FC = () => {
   const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = isLive
     ? [
         { id: "preview", label: "Preview" },
+        { id: "operations", label: "Operations" },
         { id: "deployment", label: "Manage" },
       ]
     : [
-        { id: "preview", label: "Preview" },
         { id: "configure", label: "Configure" },
+        { id: "preview", label: "Preview" },
+        { id: "operations", label: "Operations" },
         {
           id: "deployment",
           label: "Manage",
