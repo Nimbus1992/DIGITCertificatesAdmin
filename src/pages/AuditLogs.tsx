@@ -40,7 +40,6 @@ function exportCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 const HeaderActions: React.FC = () => {
-  const { filters } = useAudit();
   return (
     <div className="flex items-center gap-2">
       <Button
