@@ -19,6 +19,7 @@ import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 import ModuleTabs from "@/components/service-config/ModuleTabs";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
+import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
 
 const deploymentSections: { title: string; description: string }[] = [
   { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
