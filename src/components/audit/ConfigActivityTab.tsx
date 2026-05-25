@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, FileText, GitBranch, Bell, Wallet, ShieldCheck, ListChecks, Files, ArrowUpRight } from "lucide-react";
+import { ChevronDown, FileText, GitBranch, Bell, Wallet, ShieldCheck, ListChecks, Files, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useConfigActivity } from "./AuditContext";
@@ -35,17 +35,10 @@ export const ConfigActivityTab: React.FC = () => {
             <button
               onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))}
               className={cn(
-                "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors",
+                "group w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors",
                 isOpen && "bg-muted/30 border-b",
               )}
             >
-              <div className="mt-0.5">
-                {isOpen ? (
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </div>
               <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <Icon className="h-4 w-4" />
               </div>
@@ -65,7 +58,18 @@ export const ConfigActivityTab: React.FC = () => {
                   <span className="font-mono text-[11px]">{e.id}</span>
                 </div>
               </div>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 mt-1 text-xs font-medium text-primary opacity-0 transition-opacity",
+                  "group-hover:opacity-100",
+                  isOpen && "opacity-100",
+                )}
+              >
+                {isOpen ? "Hide" : "View details"}
+                <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
+              </span>
             </button>
+
             {isOpen && (
               <div className="px-4 py-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

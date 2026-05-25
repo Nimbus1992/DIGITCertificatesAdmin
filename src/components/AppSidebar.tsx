@@ -72,12 +72,13 @@ function NavGroup({ label, items }: { label: string; items: typeof mainItems }) 
                 <NavLink
                   to={item.url}
                   end
-                  className="hover:bg-sidebar-accent/50"
-                  activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                  className="hover:bg-sidebar-accent/40 text-sidebar-foreground/80"
+                  activeClassName="bg-sidebar-accent/60 text-sidebar-foreground font-medium border-l-2 border-sidebar-primary"
                 >
                   <item.icon className="mr-2 h-4 w-4" />
                   {!collapsed && <span>{item.title}</span>}
                 </NavLink>
+
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronRight, ArrowUpRight, Activity } from "lucide-react";
+import { ChevronDown, ArrowUpRight, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRuntime } from "./AuditContext";
@@ -23,23 +23,33 @@ export const RuntimeActivityTab: React.FC = () => {
           const isOpen = !!open[e.id];
           return (
             <div key={e.id} className="relative">
-              <div className="absolute -left-[14px] top-4 h-3 w-3 rounded-full bg-primary/30 border-2 border-background" />
-              <div className="rounded-lg border bg-card overflow-hidden">
+              <div
+                className={cn(
+                  "absolute -left-[14px] top-4 h-3 w-3 rounded-full border-2 border-background",
+                  e.status === "rejected"
+                    ? "bg-destructive"
+                    : e.status === "sent_back"
+                    ? "bg-warning"
+                    : e.status === "approved"
+                    ? "bg-success"
+                    : "bg-primary/40",
+                )}
+              />
+              <div
+                className={cn(
+                  "rounded-lg border bg-card overflow-hidden",
+                  e.status === "rejected" && "border-l-2 border-l-destructive",
+                  e.status === "sent_back" && "border-l-2 border-l-warning",
+                )}
+              >
                 <button
                   onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))}
                   className={cn(
-                    "w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors",
+                    "group w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors",
                     isOpen && "bg-muted/30 border-b",
                   )}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      {isOpen ? (
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      )}
-                    </div>
                     <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <Activity className="h-4 w-4" />
                     </div>
@@ -61,8 +71,19 @@ export const RuntimeActivityTab: React.FC = () => {
                         <RelativeTime ts={e.timestamp} />
                       </div>
                     </div>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 mt-1 text-xs font-medium text-primary opacity-0 transition-opacity",
+                        "group-hover:opacity-100",
+                        isOpen && "opacity-100",
+                      )}
+                    >
+                      {isOpen ? "Hide" : "View details"}
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
+                    </span>
                   </div>
                 </button>
+
                 {isOpen && (
                   <div className="px-4 py-4 space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
