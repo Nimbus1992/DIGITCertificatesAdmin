@@ -2,7 +2,7 @@ import React from "react";
 import { Download, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AuditProvider, useAudit } from "@/components/audit/AuditContext";
+import { AuditProvider } from "@/components/audit/AuditContext";
 import { AuditFilterBar } from "@/components/audit/AuditFilterBar";
 import { GovernanceTab } from "@/components/audit/GovernanceTab";
 import { ConfigActivityTab } from "@/components/audit/ConfigActivityTab";
@@ -40,7 +40,6 @@ function exportCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 const HeaderActions: React.FC = () => {
-  const { filters } = useAudit();
   return (
     <div className="flex items-center gap-2">
       <Button
@@ -63,7 +62,7 @@ const HeaderActions: React.FC = () => {
         size="sm"
         className="gap-1.5"
         onClick={() => {
-          const report = `Audit Report\nGenerated: ${new Date().toLocaleString()}\nActive pill: ${filters.pill}\nGovernance: ${governanceEvents.length}\nConfig: ${configActivityEvents.length}\nDeployments: ${deployments.length}\nRuntime: ${runtimeEvents.length}\n`;
+          const report = `Audit Report\nGenerated: ${new Date().toLocaleString()}\nGovernance: ${governanceEvents.length}\nConfig: ${configActivityEvents.length}\nDeployments: ${deployments.length}\nRuntime: ${runtimeEvents.length}\n`;
           const blob = new Blob([report], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
