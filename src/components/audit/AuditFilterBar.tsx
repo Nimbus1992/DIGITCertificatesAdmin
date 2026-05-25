@@ -25,6 +25,24 @@ const EVENT_TYPE_OPTIONS = [
   "certificate_generated",
 ] as const;
 
+const CATEGORY_OPTIONS = [
+  { value: "all", label: "All categories" },
+  { value: "governance", label: "Governance" },
+  { value: "config", label: "Configuration" },
+  { value: "deployment", label: "Deployments" },
+  { value: "runtime", label: "Runtime" },
+] as const;
+
+const QUICK_VIEWS: { value: string; label: string }[] = [
+  { value: "all", label: "All activity" },
+  { value: "failures", label: "Only failures" },
+  { value: "permissions", label: "Permission & role changes" },
+  { value: "config", label: "Configuration changes" },
+  { value: "deployments", label: "Deployments" },
+  { value: "approvals", label: "Runtime approvals" },
+  { value: "security", label: "Security events" },
+];
+
 const labelize = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 type SecondaryKey = "service" | "user" | "environment" | "eventType" | "severity" | "status";
@@ -38,7 +56,11 @@ const SECONDARY_LABELS: Record<SecondaryKey, string> = {
   status: "Status",
 };
 
-export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
+export const AuditFilterBar: React.FC<{ scoped?: boolean; showCategory?: boolean; showQuickViews?: boolean }> = ({
+  scoped,
+  showCategory,
+  showQuickViews,
+}) => {
   const { filters, setFilters } = useAudit();
 
   const activeSecondary: SecondaryKey[] = (
@@ -49,10 +71,13 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
   });
 
   const dateActive = !!(filters.dateRange.from || filters.dateRange.to);
+  const categoryActive = showCategory && filters.category !== "all";
   const hasActive =
     filters.search ||
     activeSecondary.length > 0 ||
-    dateActive;
+    dateActive ||
+    categoryActive ||
+    (showQuickViews && filters.quickView !== "all");
 
   const reset = () =>
     setFilters((f) => ({
@@ -65,6 +90,8 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
       severity: "all",
       status: "all",
       dateRange: {},
+      category: "all",
+      quickView: "all",
     }));
 
   const clearOne = (k: SecondaryKey) => setFilters((f) => ({ ...f, [k]: "all" } as AuditFilters));
@@ -72,18 +99,16 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
   return (
     <div className="bg-muted/30 border-b">
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-2">
-        {/* Primary: Search */}
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={filters.search}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            placeholder="Search by audit ID, user, service, action, version…"
+            placeholder="Search by ID, user, service, action, application…"
             className="h-9 pl-8 text-sm bg-background"
           />
         </div>
 
-        {/* Primary: Date range */}
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -125,7 +150,22 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
           </PopoverContent>
         </Popover>
 
-        {/* Primary: More filters */}
+        {showCategory && (
+          <Select
+            value={filters.category}
+            onValueChange={(v) => setFilters((f) => ({ ...f, category: v as AuditFilters["category"] }))}
+          >
+            <SelectTrigger className="h-9 w-[160px] text-sm bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORY_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 gap-1.5 text-sm font-normal bg-background">
@@ -231,7 +271,32 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
         )}
       </div>
 
-      {(activeSecondary.length > 0 || dateActive) && (
+      {showQuickViews && (
+        <div className="px-4 pb-2.5 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+            Quick views
+          </span>
+          {QUICK_VIEWS.map((q) => {
+            const active = filters.quickView === q.value;
+            return (
+              <button
+                key={q.value}
+                onClick={() => setFilters((f) => ({ ...f, quickView: q.value }))}
+                className={cn(
+                  "h-7 px-2.5 rounded-md text-xs font-medium border transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-foreground/80 border-border hover:bg-muted",
+                )}
+              >
+                {q.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {(activeSecondary.length > 0 || dateActive || categoryActive) && (
         <div className="px-4 pb-2.5 flex flex-wrap items-center gap-1.5">
           {dateActive && (
             <ActivePill
@@ -239,6 +304,12 @@ export const AuditFilterBar: React.FC<{ scoped?: boolean }> = ({ scoped }) => {
                 filters.dateRange.to ? format(filters.dateRange.to, "MMM d") : "…"
               }`}
               onClear={() => setFilters((f) => ({ ...f, dateRange: {} }))}
+            />
+          )}
+          {categoryActive && (
+            <ActivePill
+              label={`Category: ${labelize(filters.category)}`}
+              onClear={() => setFilters((f) => ({ ...f, category: "all" }))}
             />
           )}
           {activeSecondary.map((k) => (
