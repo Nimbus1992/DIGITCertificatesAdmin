@@ -51,7 +51,7 @@ export const OperationsWorkspace: React.FC<Props> = ({ serviceId }) => {
         <div className="px-4 py-3 border-b">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground">Operations</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-foreground">Monitor</h2>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Circle
@@ -104,7 +104,7 @@ export const OperationsWorkspace: React.FC<Props> = ({ serviceId }) => {
             lastSynced={lastSynced}
             onRefresh={() => {
               setSyncStamp(new Date());
-              toast.success("Operations data refreshed");
+              toast.success("Monitor data refreshed");
             }}
             onExport={handleExport}
           />

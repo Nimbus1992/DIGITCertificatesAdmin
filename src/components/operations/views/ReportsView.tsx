@@ -8,17 +8,17 @@ interface Report {
   id: string;
   name: string;
   description: string;
-  category: "Operations" | "Finance" | "Compliance" | "Lifecycle";
+  category: "Monitor" | "Finance" | "Compliance" | "Lifecycle";
   rows: number;
   lastRun: string;
 }
 
 const REPORTS: Report[] = [
-  { id: "daily-apps", name: "Daily Applications", description: "Application volume, channels and status breakdown.", category: "Operations", rows: 1240, lastRun: "Today, 06:00" },
+  { id: "daily-apps", name: "Daily Applications", description: "Application volume, channels and status breakdown.", category: "Monitor", rows: 1240, lastRun: "Today, 06:00" },
   { id: "revenue-summary", name: "Revenue Summary", description: "Collections, refunds and outstanding by category.", category: "Finance", rows: 312, lastRun: "Today, 06:00" },
   { id: "sla-compliance", name: "SLA Compliance", description: "Stage-wise SLA breaches and escalation log.", category: "Compliance", rows: 184, lastRun: "Yesterday, 18:00" },
   { id: "renewal-status", name: "Renewal Status", description: "Eligible, notified, completed and expired renewals.", category: "Lifecycle", rows: 762, lastRun: "Today, 06:00" },
-  { id: "pending-cases", name: "Pending Cases", description: "All pending applications grouped by stage and assignee.", category: "Operations", rows: 480, lastRun: "1 hour ago" },
+  { id: "pending-cases", name: "Pending Cases", description: "All pending applications grouped by stage and assignee.", category: "Monitor", rows: 480, lastRun: "1 hour ago" },
   { id: "rejected-applications", name: "Rejected Applications", description: "Reason codes and stage at which rejection occurred.", category: "Compliance", rows: 96, lastRun: "Today, 06:00" },
 ];
 
