@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, FileSpreadsheet, X, Lock, FileCheck, RefreshCw, Download } from "lucide-react";
+import { Upload, FileSpreadsheet, X, Lock, FileCheck, RefreshCw, Download, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useOnboarding,
