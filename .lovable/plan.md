@@ -1,15 +1,14 @@
-## Plan: Update Page Title
+## Plan: Update favicon to uploaded shield image
 
 ### Goal
-Update the `<title>` tag in `index.html` from "Lovable App" to "Admin Interface".
+Replace the browser tab icon (favicon) in `index.html` with the uploaded shield crest image.
 
-### Changes
-1. In `index.html`, line 7:
-   - Change: `<title>Lovable App</title>`
-   - To: `<title>Admin Interface</title>`
+### Steps
+1. Copy `user-uploads://image-5.png` to `public/favicon.png`.
+2. Delete the existing `public/favicon.ico` (browsers auto-request `/favicon.ico` and it would override).
+3. Update `index.html` line ~28:
+   - From: `<link rel="icon" type="image/x-icon" href="/favicon.ico">`
+   - To: `<link rel="icon" type="image/png" href="/favicon.png">`
 
-### Files Affected
-- `index.html` (1 line change)
-
-### SEO Impact
-- Updates the browser tab title and sitewide meta title to reflect the app's purpose as an admin interface.
+### Notes
+- Hard refresh may be needed to see the new favicon (browsers cache aggressively).
