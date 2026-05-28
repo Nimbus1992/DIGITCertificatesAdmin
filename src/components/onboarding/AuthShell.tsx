@@ -1,7 +1,7 @@
 import React from "react";
-import { Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import authSideImage from "@/assets/auth-side.jpg";
+import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
 
 interface AuthShellProps {
   children: React.ReactNode;
@@ -86,7 +86,7 @@ const AuthShell: React.FC<AuthShellProps> = ({
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img
-              src={(await import("@/assets/city-of-cape-town-logo.png")).default}
+              src={cityOfCapeTownLogo}
               alt="City of Cape Town"
               className="w-7 h-7 object-contain"
             />
