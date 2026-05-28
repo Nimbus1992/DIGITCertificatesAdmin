@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, FileSpreadsheet, X, Lock, FileCheck, RefreshCw, Download } from "lucide-react";
+import { Upload, FileSpreadsheet, X, Lock, FileCheck, RefreshCw, Download, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useOnboarding,
@@ -146,6 +146,21 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
   const [setup, setSetup] = useState<TemplateSetup>(initialSetup);
   const [policy, setPolicy] = useState<RenewalPolicyState>(initialPolicy);
   const [scope, setScope] = useState<WorkflowScope>(initialScope);
+  const [newCategory, setNewCategory] = useState("");
+
+  const addCategory = () => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    const exists = (setup.categoriesList ?? []).some(
+      (c) => c.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (exists) {
+      toast({ title: "Category already exists", variant: "destructive" });
+      return;
+    }
+    setSetup((s) => ({ ...s, categoriesList: [...(s.categoriesList ?? []), trimmed] }));
+    setNewCategory("");
+  };
 
   useEffect(() => {
     if (open) {
@@ -419,6 +434,34 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
                         </TableRow>
                       ));
                     })}
+                    <TableRow>
+                      <TableCell className="py-2">
+                        <Input
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addCategory();
+                            }
+                          }}
+                          placeholder="Add category…"
+                          className="h-8"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={addCategory}
+                          aria-label="Add category"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
