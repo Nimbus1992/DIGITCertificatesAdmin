@@ -87,6 +87,21 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
                 <p className="text-sm text-muted-foreground mt-1.5 max-w-xl">
                   {template.description}
                 </p>
+                {template.aka && template.aka.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide mr-0.5 self-center">
+                      Also called:
+                    </span>
+                    {template.aka.map((a) => (
+                      <span
+                        key={a}
+                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground"
+                      >
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
