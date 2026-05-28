@@ -17,7 +17,7 @@ export interface PdfBranding {
 }
 
 const DEFAULT_BRANDING: PdfBranding = {
-  portalName: "Government Services Portal",
+  portalName: "City of Cape Town",
   primaryColorHex: "#0B4F6C",
 };
 

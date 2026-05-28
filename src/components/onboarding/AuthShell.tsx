@@ -85,11 +85,13 @@ const AuthShell: React.FC<AuthShellProps> = ({
       <header className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-              <Shield className="h-4 w-4 text-primary" />
-            </div>
+            <img
+              src={(await import("@/assets/city-of-cape-town-logo.png")).default}
+              alt="City of Cape Town"
+              className="w-7 h-7 object-contain"
+            />
             <span className="text-sm font-semibold text-foreground tracking-tight">
-              Government Services Portal
+              City of Cape Town
             </span>
           </div>
           {step && (

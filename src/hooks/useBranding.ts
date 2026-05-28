@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useOnboarding, BrandingConfig } from "@/contexts/OnboardingContext";
+import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
 
 const DEFAULT_BRANDING: BrandingConfig = {
   presetId: "teal",
@@ -8,8 +9,9 @@ const DEFAULT_BRANDING: BrandingConfig = {
   font: "Inter",
   buttonRadius: "0.5rem",
   cardRadius: "0.75rem",
-  portalName: "Government Services Portal",
-  copyright: "© 2025 Government Services",
+  portalName: "City of Cape Town",
+  logoDataUrl: cityOfCapeTownLogo,
+  copyright: "© 2025 City of Cape Town",
 };
 
 function hexToHslTriplet(hex: string): string {
