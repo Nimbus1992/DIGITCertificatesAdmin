@@ -37,6 +37,19 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template, onSelect, onPrevi
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{template.description}</p>
+          {template.aka && template.aka.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide mr-0.5">Also called:</span>
+              {template.aka.map((a) => (
+                <span
+                  key={a}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground"
+                >
+                  {a}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" /> {template.estimatedSetupTime}
