@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { Shield } from "lucide-react";
 import authSideImage from "@/assets/auth-side.jpg";
 import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
 
