@@ -14,6 +14,7 @@ import { TRADE_PAYMENT_STAGES } from "./tradeLicenseTemplate";
 export interface ServiceTemplate {
   id: string;
   name: string;
+  aka?: string[];
   description: string;
   icon: typeof Building2;
   modules: string[];
@@ -30,6 +31,13 @@ export interface ServiceTemplate {
 export const tradeTemplate: ServiceTemplate = {
   id: "trade-license",
   name: "Business License",
+  aka: [
+    "Trade License",
+    "Business Registration",
+    "Single Business Permit",
+    "Business Operating Permit",
+    "Shop License",
+  ],
   description:
     "Set up a complete Business License system to accept applications, review requests, issue licenses, and manage renewals.",
   icon: Building2,
@@ -76,6 +84,12 @@ export const tradeTemplate: ServiceTemplate = {
 export const buildingPermitsTemplate: ServiceTemplate = {
   id: "building-permits",
   name: "Building Permits",
+  aka: [
+    "Construction Permit",
+    "Development Permit",
+    "Planning Permission",
+    "Works Approval",
+  ],
   description:
     "Manage building permit applications, plan reviews, inspections, and approvals end-to-end.",
   icon: Hammer,
@@ -88,6 +102,7 @@ export const buildingPermitsTemplate: ServiceTemplate = {
 export const fireNocTemplate: ServiceTemplate = {
   id: "fire-noc",
   name: "Fire NOC",
+  aka: ["Fire Safety Certificate", "Fire Permit", "Fire Safety Approval"],
   description:
     "Issue and renew Fire No Objection Certificates with inspections, compliance checks, and digital certificates.",
   icon: Flame,

@@ -92,7 +92,7 @@ const AuthShell: React.FC<AuthShellProps> = ({
               className="w-7 h-7 object-contain"
             />
             <span className="text-sm font-semibold text-foreground tracking-tight">
-              City of Cape Town
+              City of Cape Town — Admin Console
             </span>
           </div>
           {step && (

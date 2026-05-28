@@ -87,6 +87,21 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
                 <p className="text-sm text-muted-foreground mt-1.5 max-w-xl">
                   {template.description}
                 </p>
+                {template.aka && template.aka.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide mr-0.5 self-center">
+                      Also called:
+                    </span>
+                    {template.aka.map((a) => (
+                      <span
+                        key={a}
+                        className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground"
+                      >
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -160,9 +175,12 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
               {template.flows && template.flows.length > 0 && (
                 <Card className="p-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Flows
-                  </h2>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Flows
+                    </h2>
+                    <Button variant="outline" size="sm" className="h-7 text-xs">Modify Flows</Button>
+                  </div>
                   <div className="space-y-3">
                     {template.flows.map((flow) => (
                       <div key={flow.name}>
@@ -190,9 +208,12 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
 
               {roles.length > 0 && (
                 <Card className="p-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Roles
-                  </h2>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Roles
+                    </h2>
+                    <Button variant="outline" size="sm" className="h-7 text-xs">Add/Edit Roles</Button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {roles.map((r) => (
                       <Tooltip key={r.id}>
@@ -216,9 +237,12 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
               {template.forms && template.forms.length > 0 && (
                 <Card className="p-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Forms
-                  </h2>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Forms
+                    </h2>
+                    <Button variant="outline" size="sm" className="h-7 text-xs">Add/Edit Fields</Button>
+                  </div>
                   <div className="space-y-3">
                     {template.forms.map((f) => (
                       <div key={f.name}>
@@ -241,9 +265,12 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
 
               {template.notifications && template.notifications.length > 0 && (
                 <Card className="p-5">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                    Notifications
-                  </h2>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Notifications
+                    </h2>
+                    <Button variant="outline" size="sm" className="h-7 text-xs">Add/Edit Notifications</Button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {template.notifications.map((n) => (
                       <span
@@ -263,11 +290,14 @@ const TemplateIntroduction: React.FC<TemplateIntroductionProps> = ({
           {/* Customize */}
           {template.payments && template.payments.length > 0 && (
             <Card className="p-5 mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Payments
-                </h2>
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Payments
+                  </h2>
+                </div>
+                <Button variant="outline" size="sm" className="h-7 text-xs">Edit Payment Logic</Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {template.payments.map((p) => (
