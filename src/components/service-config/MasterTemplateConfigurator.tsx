@@ -434,6 +434,34 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
                         </TableRow>
                       ));
                     })}
+                    <TableRow>
+                      <TableCell className="py-2">
+                        <Input
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addCategory();
+                            }
+                          }}
+                          placeholder="Add category…"
+                          className="h-8"
+                        />
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={addCategory}
+                          aria-label="Add category"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
