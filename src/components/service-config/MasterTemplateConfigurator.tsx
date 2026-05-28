@@ -15,6 +15,7 @@ import {
 } from "@/contexts/OnboardingContext";
 import { toast } from "@/hooks/use-toast";
 import { parseCategoriesCsv, parseSubcategoriesCsv } from "@/lib/csvParse";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { seedFormSteps, saveFormSteps } from "@/lib/formStorage";
 import Step4RenewalPolicy, {
   type RenewalPolicyState,
@@ -385,6 +386,43 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
                 </div>
               )}
             </div>
+            {setup.hasCategories && categoriesList.length > 0 && (
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="px-3 py-2 bg-muted/30 text-xs font-semibold text-foreground">
+                  Trades ({categoriesList.length} categories
+                  {setup.hasSubcategories ? `, ${subcategoriesList.length} subcategories` : ""})
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-9">Category</TableHead>
+                      <TableHead className="h-9">Subcategory</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categoriesList.map((cat) => {
+                      const subs = setup.hasSubcategories
+                        ? subcategoriesList.filter((s) => s.parent === cat)
+                        : [];
+                      if (subs.length === 0) {
+                        return (
+                          <TableRow key={cat}>
+                            <TableCell className="py-2 text-sm">{cat}</TableCell>
+                            <TableCell className="py-2 text-sm text-muted-foreground">—</TableCell>
+                          </TableRow>
+                        );
+                      }
+                      return subs.map((s, i) => (
+                        <TableRow key={`${cat}-${s.name}`}>
+                          <TableCell className="py-2 text-sm">{i === 0 ? cat : ""}</TableCell>
+                          <TableCell className="py-2 text-sm">{s.name}</TableCell>
+                        </TableRow>
+                      ));
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
 
           {/* Renewal Policy */}
