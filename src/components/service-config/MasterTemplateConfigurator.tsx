@@ -146,6 +146,21 @@ const MasterTemplateConfigurator: React.FC<Props> = ({ open, onOpenChange, servi
   const [setup, setSetup] = useState<TemplateSetup>(initialSetup);
   const [policy, setPolicy] = useState<RenewalPolicyState>(initialPolicy);
   const [scope, setScope] = useState<WorkflowScope>(initialScope);
+  const [newCategory, setNewCategory] = useState("");
+
+  const addCategory = () => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    const exists = (setup.categoriesList ?? []).some(
+      (c) => c.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (exists) {
+      toast({ title: "Category already exists", variant: "destructive" });
+      return;
+    }
+    setSetup((s) => ({ ...s, categoriesList: [...(s.categoriesList ?? []), trimmed] }));
+    setNewCategory("");
+  };
 
   useEffect(() => {
     if (open) {
