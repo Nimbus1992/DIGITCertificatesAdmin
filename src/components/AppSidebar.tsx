@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
-import { useOnboarding } from "@/contexts/OnboardingContext";
+import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
 
 import {
   Sidebar,
@@ -29,7 +29,7 @@ import {
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Shield } from "lucide-react";
+
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -89,30 +89,24 @@ function NavGroup({ label, items }: { label: string; items: typeof mainItems }) 
 }
 
 export function AppSidebar() {
-  const { state, getActiveService } = useOnboarding();
   const { state: sidebarState } = useSidebar();
   const collapsed = sidebarState === "collapsed";
-  const branding = getActiveService()?.branding;
-  const logoUrl = branding?.logoDataUrl || state.logoUrl;
-  const orgName = branding?.portalName || state.orgName || "LnP Platform";
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          {logoUrl ? (
-            <img src={logoUrl} alt="" className="h-6 w-6 object-contain shrink-0 rounded-sm bg-white/10" />
-          ) : (
-            <Shield className="h-6 w-6 text-sidebar-primary shrink-0" />
-          )}
+          <img
+            src={cityOfCapeTownLogo}
+            alt="City of Cape Town"
+            className="h-7 w-7 object-contain shrink-0 rounded-sm bg-white/10"
+          />
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
-                {orgName}
+                City of Cape Town
               </p>
-              {state.department && (
-                <p className="text-xs text-sidebar-foreground/60 truncate">{state.department}</p>
-              )}
+              <p className="text-xs text-sidebar-foreground/60 truncate">Admin Console</p>
             </div>
           )}
         </div>
