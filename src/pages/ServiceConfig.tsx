@@ -283,8 +283,17 @@ const ServiceConfigInner: React.FC = () => {
         </div>
       </header>
 
-       {mode === "overview" && service ? (
-         <OverviewWorkspace service={service} isLive={!!isLive} onNavigate={setMode} />
+       {mode === "overview" ? (
+         service ? (
+           <OverviewWorkspace service={service} isLive={!!isLive} onNavigate={setMode} />
+         ) : (
+           <main className="max-w-5xl w-full mx-auto px-6 py-16 flex-1 min-h-0 overflow-auto">
+             <div className="text-center text-muted-foreground">
+               <AlertCircle className="h-8 w-8 mx-auto mb-3 opacity-60" />
+               <p className="text-sm">Loading service…</p>
+             </div>
+           </main>
+         )
        ) : mode === "configure" ? (
          <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
            {/* Application Setup */}
@@ -347,11 +356,11 @@ const ServiceConfigInner: React.FC = () => {
         <main className="flex-1 min-h-0">
           <OperationsWorkspace serviceId={id ?? ""} />
         </main>
-      ) : (
+      ) : mode === "deployment" ? (
         <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1 min-h-0 overflow-auto">
           <DeploymentWorkspace serviceUrl={(service as any)?.liveUrl} />
         </main>
-      )}
+      ) : null}
       {service && (
         <MasterTemplateConfigurator open={setupOpen} onOpenChange={setSetupOpen} service={service} />
       )}
