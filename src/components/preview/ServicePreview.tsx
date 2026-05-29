@@ -137,7 +137,7 @@ const ServicePreviewInner: React.FC<{ embedded?: boolean; onExit?: () => void }>
     });
 
   return (
-    <BrandingScope className={embedded ? "flex flex-col bg-background h-full" : "h-screen flex flex-col bg-background"}>
+    <BrandingScope applyToRoot className={embedded ? "flex flex-col bg-background h-full" : "h-screen flex flex-col bg-background"}>
       {!embedded && <PreviewTopBar onExit={handleExit} />}
       {embedded && <EmbeddedDeviceToggle />}
       <div className="flex-1 flex overflow-hidden">
