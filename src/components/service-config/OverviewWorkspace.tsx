@@ -56,8 +56,8 @@ const renewalLabel = (service: ServiceItem): string => {
   const rp = service.renewalPolicy;
   if (!rp) return "Not enabled";
   if (rp.mode === "global") return `Global (${rp.globalMonths} months)`;
-  if (rp.mode === "category") return "Category Based";
-  if (rp.mode === "subcategory") return "Subcategory Based";
+  if (rp.mode === "by_category") return "Category Based";
+  if (rp.mode === "by_subcategory") return "Subcategory Based";
   return "Configured";
 };
 
