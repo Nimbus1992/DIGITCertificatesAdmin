@@ -14,6 +14,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
+import { allTemplates } from "@/data/serviceTemplates";
+
+const getTemplateName = (templateId: string): string => {
+  return allTemplates.find((t) => t.id === templateId)?.name ?? "selected";
+};
 
 type Mode = "overview" | "configure" | "preview" | "operations" | "deployment";
 
@@ -91,7 +96,7 @@ const OverviewWorkspace: React.FC<Props> = ({ service, isLive, onNavigate }) => 
             <h2 className="text-2xl font-semibold text-foreground tracking-tight">{service.name}</h2>
             <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
               This service has been generated successfully from the{" "}
-              <span className="text-foreground font-medium">{service.name}</span> template. You can
+              <span className="text-foreground font-medium">{getTemplateName(service.templateId)}</span> template. You can
               publish it immediately using default configurations or review and customize it before
               going live.
             </p>
