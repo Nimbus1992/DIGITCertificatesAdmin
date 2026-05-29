@@ -18,6 +18,7 @@ import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurat
 import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 import ModuleTabs from "@/components/service-config/ModuleTabs";
+import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
 
@@ -66,13 +67,13 @@ const ServiceConfigInner: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMode = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "preview";
-  const [mode, setMode] = useState<"configure" | "preview" | "operations" | "deployment">(initialMode);
+  const initialMode = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "overview";
+  const [mode, setMode] = useState<"overview" | "configure" | "preview" | "operations" | "deployment">(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
 
   // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
   useEffect(() => {
-    const next = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
+    const next = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
     if (next && next !== mode) {
       setMode(next);
       setActiveTile(null);
@@ -188,11 +189,13 @@ const ServiceConfigInner: React.FC = () => {
 
   const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = isLive
     ? [
+        { id: "overview", label: "Overview" },
         { id: "preview", label: "Preview" },
         { id: "operations", label: "Monitor" },
         { id: "deployment", label: "Manage" },
       ]
     : [
+        { id: "overview", label: "Overview" },
         { id: "configure", label: "Configure" },
         { id: "preview", label: "Preview" },
         { id: "operations", label: "Monitor" },
@@ -280,7 +283,9 @@ const ServiceConfigInner: React.FC = () => {
         </div>
       </header>
 
-       {mode === "configure" ? (
+       {mode === "overview" && service ? (
+         <OverviewWorkspace service={service} isLive={!!isLive} onNavigate={setMode} />
+       ) : mode === "configure" ? (
          <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
            {/* Application Setup */}
            <section className="space-y-4">
