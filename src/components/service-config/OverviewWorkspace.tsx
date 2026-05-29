@@ -14,6 +14,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
+import { allTemplates } from "@/data/serviceTemplates";
+
+const getTemplateName = (templateId: string): string => {
+  return allTemplates.find((t) => t.id === templateId)?.name ?? "selected";
+};
 
 type Mode = "overview" | "configure" | "preview" | "operations" | "deployment";
 
