@@ -79,7 +79,6 @@ const ServiceConfigInner: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
-  }, [location.key]);
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
