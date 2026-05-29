@@ -1,57 +1,85 @@
-# Service Workspace — Overview tab
-
 ## Goal
-After Template Setup, drop users into a calm **Overview** screen (not the device Preview) that summarizes what was generated and points to the next actions.
 
-## Where it lives
-`src/pages/ServiceConfig.tsx` already renders the service header + tabs (Configure / Preview / Monitor / Manage). We extend it with a new `overview` mode and make it the default.
+Transform the post-setup Overview from a generic dashboard into a launch-readiness confirmation. Answer one question for the user: *"Is my service ready, and what should I do next?"*
 
-## Changes
+## Scope
 
-### 1. Route into Overview after Template Setup
-- `src/pages/TemplateSetup.tsx` — `finalize()` navigates to `/service/${id}/configure` with `state: { mode: "overview" }`.
+Only `src/components/service-config/OverviewWorkspace.tsx` is rewritten. No changes to routing, business logic, contexts, or the parent header (Go Live button already lives there). All styling uses existing semantic tokens (`bg-card`, `text-foreground`, `text-muted-foreground`, `accent`, `border-border`, `bg-success`/green via existing pattern in `ServiceConfig.tsx`).
 
-### 2. Add Overview mode to `ServiceConfig.tsx`
-- Extend the `mode` union: `"overview" | "configure" | "preview" | "operations" | "deployment"`.
-- Default `initialMode` to `"overview"` (instead of `"preview"`).
-- Insert **Overview** as the first item in `workspaceTabs` for non-live services (and live, for consistency). Order becomes: Overview | Configure | Preview | Monitor | Manage.
-- Render a new `<OverviewWorkspace service={service} />` when `mode === "overview"`.
+## New layout
 
-### 3. New component `src/components/service-config/OverviewWorkspace.tsx`
-Layout (uses existing tokens: `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `accent`, `Badge`, `Card`, `Button`):
+```text
+┌──────────────────────────────────────────────────────────┐
+│ HERO                                                     │
+│   [✓ Ready for Launch]  ← status badge (accent/success)  │
+│   Business License                                       │
+│   Generated successfully from the Business License       │
+│   template. Publish immediately with defaults, or        │
+│   review and customize before going live.                │
+│                                                          │
+│   [ Go Live ]  [ Preview Experience ]  [ Customize ]     │
+└──────────────────────────────────────────────────────────┘
 
-**Intro block**
-- Subtitle: "Your service has been initialized and is ready for configuration, preview, deployment, and monitoring."
-  (Service name + Draft badge already shown in the parent header; we do not duplicate it. Go Live button also stays in parent header.)
+SERVICE READINESS
+  ✓ License Types Generated: Issuance, Renewal
+  ✓ Business Categories: Retail, Manufacturing, Hospitality
+  ✓ Employee Roles Created: 3
+  ✓ Citizen Portal Generated
+  ✓ Employee Workspace Generated
+  ✓ Renewal Policy: 12 Months
 
-**Setup Summary**
-- Section heading: "Setup Summary".
-- Render as a single bordered card containing a tight list of rows (label on the left, value chips on the right). No large cards.
-- Rows derived from `service`:
-  - **Modules** — chips from `service.customModules` (e.g. Issuance, Renewal).
-  - **Categories** — chips from `service.templateSetup?.categoriesList`; show "None" if empty. If >8, show first 8 + "+N more".
-  - **Subcategories** — chips from `service.templateSetup?.subcategoriesList` (name only); same overflow rule.
-  - **Renewal Configuration** — derived from `service.renewalPolicy?.mode` → "Global ({months} months)" / "Category Based" / "Subcategory Based"; or "Not enabled" if undefined.
-  - **Employee Roles Generated** — count via `useServiceRoles` (or fall back to a constant 3 if hook unavailable in this scope).
-  - **Citizen Portal Generated** — green check chip.
-  - **Employee Workspace Generated** — green check chip.
+GENERATED EXPERIENCES
+  ┌─────────────────────────┐  ┌─────────────────────────┐
+  │ 👤 Citizen Portal       │  │ 🏛 Employee Workspace   │
+  │ ✓ Ready                 │  │ ✓ Ready                 │
+  │ Apply, pay fees, track  │  │ Review applications,    │
+  │ status, download        │  │ process approvals,      │
+  │ licenses.               │  │ issue licenses.         │
+  └─────────────────────────┘  └─────────────────────────┘
 
-**Primary Workspace Actions**
-- Section heading: "Get Started".
-- Grid `grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4`, four equal cards using the same `Card` styling as Configure tiles (icon tile + title + description + CTA button at the bottom).
-  1. **Configure Service** — desc "Forms, workflows, notifications, payments, roles." CTA "Open Configuration" → `setMode("configure")`.
-  2. **Preview Applications** — desc "Preview generated Citizen and Employee experiences." CTA "Open Preview" → `setMode("preview")`.
-  3. **Monitor** — desc "Monitor application volume, SLA performance, approvals." CTA "Open Reports" → `setMode("operations")`.
-  4. **Manage** — desc "Authentication, domains, environments, publishing settings." CTA "Manage Deployment" → `setMode("deployment")`. Disabled (button + card opacity-60, cursor-not-allowed) until `isLive`; show small "Available after Go Live" helper text.
+WHAT WOULD YOU LIKE TO DO NEXT?
+  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+  │ Preview          │  │ Customize        │  │ Monitor & Manage │
+  │ Experience       │  │ Service          │  │ (muted)          │
+  │ Review citizen + │  │ Forms, workflows,│  │ Available after  │
+  │ employee flows.  │  │ notifications,   │  │ Go Live          │
+  │ [Open Preview]   │  │ roles, SLA.      │  │ [Disabled]       │
+  └──────────────────┘  └──────────────────┘  └──────────────────┘
+```
 
-### 4. Persist tab choice
-No persistence needed — defaulting to `overview` is enough; explicit user clicks change `mode` for the session, same as today.
+## Component sections
+
+1. **Hero block** — Card with subtle accent border/background.
+   - Top: success badge `<Badge>` with `CheckCircle2` icon + "Ready for Launch", styled with green tokens consistent with existing "Live" badge in `ServiceConfig.tsx` (`bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400`).
+   - `serviceName` as `<h2 className="text-2xl font-semibold">`.
+   - Description paragraph.
+   - CTA row: `Go Live` (default variant, prominent), `Preview Experience` (secondary), `Customize Service` (ghost/outline).
+   - Go Live: `navigate('/go-live')` after `setActiveService(service.id)` — same pattern as parent header. Hidden when `isLive`; replaced with "View Live Service" / live URL chip.
+   - Preview / Customize call `onNavigate("preview" | "configure")`.
+
+2. **Service Readiness** — Card with check rows. Each row: `CheckCircle2` (text-green) + bold label + value. Derive from existing `service` fields (`customModules`, `templateSetup.categoriesList`, `renewalPolicy`). Keep current `renewalLabel()` helper.
+
+3. **Generated Experiences** — Two-card grid. Each card: icon (`User` / `Briefcase` from lucide), title, "Ready" success chip, one-line description. Cards are non-interactive (no CTAs — actions live in next section).
+
+4. **What would you like to do next?** — Three-card grid:
+   - Preview Experience → `onNavigate("preview")`
+   - Customize Service → `onNavigate("configure")`
+   - Monitor & Manage → disabled + muted, hint "Available after Go Live". Single combined card (was two: Monitor + Manage).
+   - Remove the existing "Configure Service" card from the action grid (now promoted into hero).
+
+## Visual hierarchy
+
+- Hero CTAs use size/weight to enforce: Go Live (default solid) > Preview (secondary) > Customize (ghost).
+- Action card grid changes from 4 equal cards to 3, with the third visibly de-emphasized (opacity-60, `border-dashed`).
+- "Get Started" heading removed entirely; replaced by "What would you like to do next?".
+
+## What stays the same
+
+- Parent header tabs and Go Live button in `ServiceConfig.tsx` (unchanged).
+- Tab label remains "Overview" (no rename to "Service Readiness" — keeps tab bar terse; the hero communicates the state).
+- `OverviewWorkspace` props signature: `{ service, isLive, onNavigate }`.
+- No new dependencies, no new routes, no data model changes.
 
 ## Out of scope
-- No changes to Template Setup wizard steps, OnboardingContext shape, or operations/preview internals.
-- No new routes; Overview is a sub-mode of `/service/:id/configure`, matching the existing pattern.
 
-## Design system
-- Uses only semantic tokens (`bg-card`, `text-foreground`, `text-muted-foreground`, `accent`, `border-border`, `bg-muted`).
-- Icons from `lucide-react` (`Settings2`, `Eye`, `BarChart3`, `Rocket`, `CheckCircle2`).
-- No raw hex colors; chips use `Badge variant="secondary"` and `bg-accent/10 text-accent` for highlights, matching the existing Configure tiles.
+- Template Setup wizard, OnboardingContext, ServiceConfig tab structure, Go Live flow internals.
