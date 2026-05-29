@@ -57,7 +57,6 @@ const OverviewWorkspace: React.FC<Props> = ({ service, isLive, onNavigate }) => 
 
   const modules = service.customModules ?? [];
   const categories = service.templateSetup?.categoriesList ?? [];
-  const rolesGenerated = 3;
 
   const summarize = (items: string[], max = 4) => {
     if (!items.length) return "None";
@@ -127,9 +126,6 @@ const OverviewWorkspace: React.FC<Props> = ({ service, isLive, onNavigate }) => 
             </div>
             <div className="py-1">
               <ReadinessRow label="Business Categories Configured" value={summarize(categories)} />
-            </div>
-            <div className="py-1">
-              <ReadinessRow label="Employee Roles Created" value={String(rolesGenerated)} />
             </div>
             <div className="py-1">
               <ReadinessRow label="Citizen Portal Generated" />
