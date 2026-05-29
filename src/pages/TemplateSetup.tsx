@@ -107,7 +107,7 @@ const TemplateSetup: React.FC = () => {
       workflowScope: hasCategories === true ? workflowScope : "shared",
     };
     addService(newService);
-    navigate(`/service/${newService.id}/configure`);
+    navigate(`/service/${newService.id}/configure`, { state: { mode: "overview" } });
   };
 
   return (
