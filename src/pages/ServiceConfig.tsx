@@ -66,19 +66,19 @@ const ServiceConfigInner: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
-  const location = useLocation();
-  const initialMode = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "preview";
-  const [mode, setMode] = useState<"configure" | "preview" | "operations" | "deployment">(initialMode);
+  const initialMode = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "overview";
+  const [mode, setMode] = useState<"overview" | "configure" | "preview" | "operations" | "deployment">(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
 
   // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
   useEffect(() => {
-    const next = (location.state as { mode?: "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
+    const next = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
     if (next && next !== mode) {
       setMode(next);
       setActiveTile(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   }, [location.key]);
 
   useEffect(() => {
