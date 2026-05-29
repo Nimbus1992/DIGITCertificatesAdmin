@@ -9,6 +9,7 @@ import { Check, Upload, Palette, Type, FileText, Shield, ChevronLeft, X } from "
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import { DEFAULT_BRANDING } from "@/hooks/useBranding";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ThemePreset {
