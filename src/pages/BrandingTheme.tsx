@@ -111,16 +111,16 @@ const BrandingTheme: React.FC = () => {
   const [scope, setScope] = useState<"service" | "platform">(activeService ? "service" : "platform");
   const saved = scope === "service" ? activeService?.branding : state.platformBranding;
 
-  const [selectedPreset, setSelectedPreset] = useState<string>(saved?.presetId ?? "digit");
-  const [primaryColor, setPrimaryColor] = useState(saved?.primaryColor ?? "#C84C0E");
-  const [selectedFont, setSelectedFont] = useState(saved?.font ?? "Roboto");
-  const [buttonRadius, setButtonRadius] = useState(saved?.buttonRadius ?? "4px");
-  const [cardRadius, setCardRadius] = useState(saved?.cardRadius ?? "4px");
+  const [selectedPreset, setSelectedPreset] = useState<string>(saved?.presetId ?? DEFAULT_BRANDING.presetId ?? "teal");
+  const [primaryColor, setPrimaryColor] = useState(saved?.primaryColor ?? DEFAULT_BRANDING.primaryColor);
+  const [selectedFont, setSelectedFont] = useState(saved?.font ?? DEFAULT_BRANDING.font);
+  const [buttonRadius, setButtonRadius] = useState(saved?.buttonRadius ?? DEFAULT_BRANDING.buttonRadius);
+  const [cardRadius, setCardRadius] = useState(saved?.cardRadius ?? DEFAULT_BRANDING.cardRadius);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState(saved?.logoDataUrl ?? state.logoUrl ?? "");
+  const [logoPreview, setLogoPreview] = useState(saved?.logoDataUrl ?? state.logoUrl ?? DEFAULT_BRANDING.logoDataUrl ?? "");
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null);
-  const [copyright, setCopyright] = useState(saved?.copyright ?? "© 2025 DIGIT Platform");
-  const [portalName, setPortalName] = useState(saved?.portalName ?? state.orgName ?? "DIGIT Portal");
+  const [copyright, setCopyright] = useState(saved?.copyright ?? DEFAULT_BRANDING.copyright);
+  const [portalName, setPortalName] = useState(saved?.portalName ?? state.orgName ?? DEFAULT_BRANDING.portalName);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
