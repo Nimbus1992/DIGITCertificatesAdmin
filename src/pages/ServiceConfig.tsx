@@ -283,7 +283,9 @@ const ServiceConfigInner: React.FC = () => {
         </div>
       </header>
 
-       {mode === "configure" ? (
+       {mode === "overview" && service ? (
+         <OverviewWorkspace service={service} isLive={!!isLive} onNavigate={setMode} />
+       ) : mode === "configure" ? (
          <main className="max-w-6xl w-full mx-auto px-6 py-8 space-y-10 flex-1 min-h-0 overflow-auto">
            {/* Application Setup */}
            <section className="space-y-4">
