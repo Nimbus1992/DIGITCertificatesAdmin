@@ -18,6 +18,7 @@ import PaymentsConfigurator from "@/components/service-config/PaymentsConfigurat
 import { ServicePreviewWorkspace } from "@/components/preview/ServicePreview";
 import MasterTemplateConfigurator from "@/components/service-config/MasterTemplateConfigurator";
 import ModuleTabs from "@/components/service-config/ModuleTabs";
+import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
 
