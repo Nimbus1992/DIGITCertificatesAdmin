@@ -20,7 +20,7 @@ import MasterTemplateConfigurator from "@/components/service-config/MasterTempla
 import ModuleTabs from "@/components/service-config/ModuleTabs";
 import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
-import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
+import { OperateWorkspace } from "@/components/operate/OperateWorkspace";
 
 const deploymentSections: { title: string; description: string }[] = [
   { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
