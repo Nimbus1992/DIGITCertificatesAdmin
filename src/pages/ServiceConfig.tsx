@@ -159,13 +159,13 @@ const ServiceConfigInner: React.FC = () => {
     ? [
         { id: "overview", label: "Overview" },
         { id: "preview", label: "Preview" },
-        { id: "operate", label: "Operate" },
+        { id: "operate", label: "Monitor and Manage" },
       ]
     : [
         { id: "overview", label: "Overview" },
         { id: "configure", label: "Configure" },
         { id: "preview", label: "Preview" },
-        { id: "operate", label: "Operate" },
+        { id: "operate", label: "Monitor and Manage" },
       ];
 
 
