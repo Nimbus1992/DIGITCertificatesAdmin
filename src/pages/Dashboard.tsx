@@ -175,7 +175,7 @@ const Dashboard: React.FC = () => {
 
         {/* Empty state */}
         {state.services.length === 0 && (
-          <div className="relative overflow-hidden rounded-2xl border-2 border-accent/30 bg-gradient-to-br from-accent/10 via-background to-primary/5 p-8 md:p-10 animate-slide-up">
+          <div className="relative overflow-hidden rounded-2xl border-2 border-accent/30 bg-gradient-to-br from-accent/10 via-background to-primary/5 p-8 md:p-10">
             <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-accent/15 blur-3xl pointer-events-none" />
             <div className="relative flex flex-col md:flex-row md:items-center gap-6">
               <div className="w-16 h-16 rounded-2xl bg-accent/15 border border-accent/20 flex items-center justify-center shrink-0">
