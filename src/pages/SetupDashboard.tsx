@@ -33,14 +33,6 @@ const SetupDashboard: React.FC = () => {
     ];
   }, [state]);
 
-    return [
-      { key: "org", label: "Organization Confirmed", done: state.isOnboardingComplete, route: "/setup/organization" },
-      { key: "templates", label: "Service Templates Activated", done: state.services.length > 0, route: "/setup/activate-services" },
-      { key: "owners", label: "Service Owners Assigned", done: allOwned, route: "/setup/assign-owners" },
-      { key: "configured", label: "First Service Configured", done: anyConfigured, route: firstDraft ? `/service/${firstDraft.id}/configure` : "/services" },
-      { key: "published", label: "First Service Published", done: anyLive, route: "/go-live" },
-    ];
-  }, [state]);
 
   const completedCount = checklist.filter((c) => c.done).length;
 
