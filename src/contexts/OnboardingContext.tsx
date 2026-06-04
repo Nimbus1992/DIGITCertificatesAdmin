@@ -133,6 +133,11 @@ export interface OnboardingState {
   services: ServiceItem[];
   activeServiceId: string;
   platformBranding?: BrandingConfig;
+  currentUserRole?: UserRole;
+  orgMembers: OrgMember[];
+  serviceOwners: ServiceOwnerAssignment[];
+  pendingActivatedServiceIds: string[];
+  setupComplete: boolean;
 }
 
 const initialState: OnboardingState = {
