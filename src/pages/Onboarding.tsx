@@ -17,7 +17,7 @@ const Onboarding: React.FC = () => {
     if (!state.isOnboardingComplete) {
       updateState({ isOnboardingComplete: true });
     }
-    navigate("/owner", { replace: true });
+    navigate("/home", { replace: true });
   }, [navigate, state.currentUserRole, state.isLoggedIn, state.isOnboardingComplete, updateState]);
 
   // 1. Choose role
@@ -52,7 +52,7 @@ const Onboarding: React.FC = () => {
         if (orgMembers.length === 0 && services.length === 0) {
           navigate("/setup/invite-admins");
         } else {
-          navigate("/dashboard");
+          navigate("/home");
         }
       }}
     />

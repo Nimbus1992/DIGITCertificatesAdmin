@@ -1,119 +1,47 @@
+## Goal
 
-# Restructure First-Time Super Admin Onboarding
+Today Service Owner and Super Admin see two completely different UIs (`/owner` vs `/dashboard`, different sidebars, different gates). We'll collapse them into **one shared interface**, and use a permission layer to hide/disable what a given role can't do. Same screens, same navigation shell — RBAC decides what's visible and what's actionable.
 
-Shift Studio from "create a service immediately" to "set up governance and ownership first, then configure services." Add a Service Owner experience that is distinct from Super Admin.
+## Approach
 
-## 1. Sign-in: choose role first
+### 1. Single permission layer
+Add `src/lib/rbac.ts`:
+- `Permission` union: `services.viewAll`, `services.activate`, `services.assignOwners`, `services.configure`, `services.goLive`, `org.manage`, `users.manage`, `branding.manage`, `audit.view`, `setup.manage`, etc.
+- `ROLE_PERMISSIONS: Record<UserRole, Permission[]>` — `super_admin` gets all; `service_owner` gets only own-service scope (`services.configure`, `services.goLive` on assigned services, `branding.manage` scoped).
+- `useCan(permission)` hook reading `currentUserRole` from `OnboardingContext`.
+- `scopedServices(state)` helper — returns full list for admin, only assigned services for owner.
 
-Update `SignIn` (and `Onboarding.tsx`) to ask, before login, which user you are:
+### 2. Shared home screen
+Replace `OwnerHome` + `SetupDashboard` with one `pages/Home.tsx`:
+- Always shows the "Activated Services" list, filtered through `scopedServices`.
+- The setup checklist (Org Confirmed, Templates Activated, Owners Assigned, First Configured, First Published) renders only if `useCan("setup.manage")`. Owner sees just their services.
+- Per-service row actions filtered by permissions (Configure / Manage / Go Live buttons hidden if not allowed).
 
-- Super Admin
-- Service Owner
+### 3. Single sidebar, filtered
+`AppSidebar` keeps one item list. Each item declares a `permission`. The sidebar filters with `useCan` instead of branching on `isOwner`. Result: owner sees Home + Help; admin sees the full Setup / Configuration / Utilities groups — from the same source of truth.
 
-Two large role cards on the sign-in screen, then the existing email/password form. Selection is stored on `OnboardingState.currentUserRole` ("super_admin" | "service_owner") in localStorage and drives the post-login landing route.
+### 4. Routes
+- `/` redirects to `/home` (after onboarding).
+- `/home` is the unified screen — no role gate.
+- Remove `/owner` and `/dashboard` (redirect both to `/home` for back-compat).
+- Keep existing setup routes (`/setup/invite-admins`, etc.) but swap `RoleGate role="super_admin"` for a new `<Require permission="setup.manage">` wrapper that renders a friendly "You don't have access" panel instead of redirecting.
+- Service-scoped routes (`/service/:id/configure`, `/manage`, `/go-live`) gated by `<Require permission="services.configure" serviceId={id}>` so an owner can only open their own services.
 
-Existing Confirm Org + Reset Password steps remain only for Super Admin first run. Service Owner sign-in skips straight to their own home (see §6).
+### 5. Onboarding flow
+- `Onboarding.tsx`: after sign-in, both roles land on `/home` (drop the owner-specific branch).
+- Keep the role chooser only as a dev/demo switcher (it currently sets `currentUserRole`); no functional branching elsewhere.
 
-## 2. New onboarding steps (full-page, app shell)
+### 6. Cleanup
+- Delete `pages/OwnerHome.tsx`, `pages/SetupDashboard.tsx`, `components/RoleGate.tsx` (replaced by `Require`).
+- Update memory index entries that reference the old split.
 
-After `ConfirmOrganization`, Super Admin lands in the app shell (sidebar visible) and walks through three required setup tiles. These are also accessible later from the Setup Dashboard.
+## Files
 
-### Step A — Invite Additional Admins (`/setup/invite-admins`)
-- Email field + role dropdown (Admin only for now) + "Add another"
-- Status badges: Invited / Active
-- "Skip" and "Continue" CTAs
-- Backed by `org_invites` table (see §5)
+- **new**: `src/lib/rbac.ts`, `src/components/Require.tsx`, `src/pages/Home.tsx`
+- **edit**: `src/App.tsx` (routes), `src/components/AppSidebar.tsx` (permission-filtered), `src/pages/Onboarding.tsx` (single landing), `src/contexts/OnboardingContext.tsx` (only if we need a `hasServiceAccess(serviceId)` helper)
+- **delete**: `src/pages/OwnerHome.tsx`, `src/pages/SetupDashboard.tsx`, `src/components/RoleGate.tsx`
 
-### Step B — Activate Service Templates (`/setup/activate-services`)
-- Reuses `TemplateCard` from `src/components/onboarding/TemplateCard.tsx`
-- Multi-select via card checkbox; Building Permit + Fire NOC stay disabled
-- Each card already shows name, description, modules count — add a small "Roles included" line by reading `tradeLicenseTemplate.roles` length (or seed similar)
-- CTA "Activate Selected Services" creates one Draft `ServiceItem` per selection via `addService` (no wizard, no config)
-- Helper banner: "You can always activate more later from Services."
+## Out of scope
 
-### Step C — Assign Service Owners (`/setup/assign-owners`)
-- One row per newly activated service
-- Two actions: "Assign Existing User" (dropdown of admins/users from `org_members`) or "Invite New User" (inline email)
-- Role description card on the right explaining Service Owner can/cannot do
-- Skip allowed with inline warning: "No Service Owner assigned. This service cannot be configured until ownership is assigned."
-- CTA "Finish Organization Setup" → `/dashboard`
-
-## 3. Setup Dashboard (`/dashboard` replacement for Super Admin)
-
-Replace the current Templates-centric Dashboard for Super Admin with an Organization Setup Dashboard:
-
-- Welcome card: "Your government workspace is ready. Complete the remaining setup activities before services can go live."
-- Clickable checklist tiles, each routing to its setup page:
-  - ✅ Organization Confirmed → `/setup/organization`
-  - ✅ Service Templates Activated → `/setup/activate-services`
-  - ⬜ Service Owners Assigned → `/setup/assign-owners`
-  - ⬜ First Service Configured → opens first draft service's configure page
-  - ⬜ First Service Published → opens Go Live
-- Below the checklist, a compact "Services" section listing activated services with owner avatars and status pills (Draft / Live). Each row links to `/service/:id/manage` for Super Admin oversight (not configure).
-- Existing service grid moves to `/services` (already exists). Sidebar entry "Services" remains.
-
-## 4. Service Owner experience (`/owner`)
-
-When `currentUserRole === "service_owner"`, after login route to `/owner`:
-
-- Header: "My Services"
-- Lists only the services where the signed-in user is the owner (mocked: pick by `state.currentOwnerEmail` matched against `service.ownerEmail` once we have it; until real auth, the role switcher picks one demo owner)
-- Each card: service name, status badge, "Start Setup" CTA → existing `/service/:id/configure`
-- Inside service config, the owner already sees the existing Configure → Add Team → Go Live checklist; no change needed there
-- Sidebar is trimmed for owners: only Services + Help (hide Setup/Configuration/Utilities)
-
-## 5. Lovable Cloud schema
-
-Backend stores invites + ownership so multiple admins can collaborate. Tables (all in `public`, with GRANT + RLS):
-
-- `org_members` — id, user_id (auth), email, full_name, role ('super_admin' | 'admin' | 'service_owner'), status ('invited' | 'active'), invited_by, created_at
-- `service_owners` — id, service_id (text, matches local `ServiceItem.id`), owner_email, owner_user_id (nullable until they accept), assigned_by, created_at
-- RLS: any authenticated org member can SELECT; only super_admin role can INSERT/UPDATE/DELETE. Use a `has_role(uuid, app_role)` security-definer + `app_role` enum per project standards.
-
-Auth: enable Email/Password + Google (project defaults). Skip a `profiles` table for now — name comes from `org_members`.
-
-Invites flow uses Lovable's transactional email (`send-transactional-email`) to email the invitee a sign-up link.
-
-## 6. Routing & guard changes
-
-`App.tsx`:
-- Pre-login: `Onboarding` renders role choice → SignIn → (Super Admin only) Reset Password + Confirm Org
-- After Super Admin onboarding completes → `/dashboard` (new Setup Dashboard)
-- Service Owner login → `/owner`
-- New routes: `/setup/invite-admins`, `/setup/activate-services`, `/setup/assign-owners`, `/owner`
-- A small `<RoleGate role="super_admin">` wrapper around setup/admin routes redirects owners to `/owner`
-
-## 7. Files
-
-New:
-- `src/pages/SetupDashboard.tsx` (replaces current Dashboard content for Super Admin; current Dashboard logic preserved on `/services` which already exists)
-- `src/pages/setup/InviteAdmins.tsx`
-- `src/pages/setup/ActivateServices.tsx`
-- `src/pages/setup/AssignOwners.tsx`
-- `src/pages/OwnerHome.tsx`
-- `src/components/onboarding/RoleChoice.tsx`
-- `src/components/RoleGate.tsx`
-- `src/lib/useOrgMembers.ts`, `src/lib/useServiceOwners.ts`
-
-Edited:
-- `src/pages/Onboarding.tsx` — insert RoleChoice before SignIn; branch after Confirm Org by role
-- `src/components/onboarding/SignIn.tsx` — show selected role chip, add "Change" link
-- `src/contexts/OnboardingContext.tsx` — add `currentUserRole`, `currentUserEmail`, `pendingActivatedServiceIds` (transient between steps B and C)
-- `src/App.tsx` — add new routes, swap `/dashboard` element
-- `src/components/AppSidebar.tsx` — hide non-owner items when role is service_owner
-
-Unchanged: existing service config, Go Live, Preview, Branding, Boundary, Audit, Users & Roles pages.
-
-## 8. Out of scope
-
-- Real billing / license enforcement
-- Real email send beyond invite (already covered by Lovable transactional)
-- Multi-org / tenant switching
-- Migrating existing services in localStorage into Cloud (services stay client-side; only members & ownership go to Cloud)
-
-## Technical notes
-
-- Role choice persisted in localStorage so refresh restores the right landing route.
-- Setup checklist completion is computed from: `state.services.length`, `service_owners` rows, any service with `status === 'live'`, etc. No new flags needed.
-- `RoleGate` checks `state.currentUserRole`; replace with `auth.uid()` + `has_role` when real auth lands.
-- All new screens reuse existing card/typography tokens; no new design primitives.
+- No real auth/Supabase RBAC yet — still driven by `currentUserRole` in context + `serviceOwners` assignments. Structured so swapping in real auth later is a one-file change in `rbac.ts`.
+- No visual redesign of existing screens; only gating and the merged home.

@@ -68,7 +68,7 @@ const AssignOwners: React.FC = () => {
       setupComplete: true,
     });
     if (newOwners.length > 0) toast.success(`Assigned ${newOwners.length} service owner${newOwners.length > 1 ? "s" : ""}`);
-    navigate("/dashboard");
+    navigate("/home");
   };
 
   const assignableUsers = orgMembers;

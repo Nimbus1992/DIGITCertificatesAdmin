@@ -98,7 +98,7 @@ const GoLiveSuccess: React.FC = () => {
         <Button
           variant="outline"
           className="w-full gap-2 h-11"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/home")}
         >
           <LayoutDashboard className="h-4 w-4" /> Back to Dashboard
         </Button>
