@@ -213,35 +213,25 @@ const ServiceConfigInner: React.FC = () => {
             </div>
           </div>
 
-          <TooltipProvider delayDuration={200}>
-            <nav className="mt-5 flex items-center gap-1 -mb-px">
-              {workspaceTabs.map((t) => {
-                const active = mode === t.id;
-                const btn = (
-                  <button
-                    key={t.id}
-                    onClick={() => !t.disabled && setMode(t.id)}
-                    disabled={t.disabled}
-                    className={`relative px-5 h-12 text-sm font-medium transition-colors border-b-2 ${
-                      active
-                        ? "border-accent text-foreground"
-                        : t.disabled
-                          ? "border-transparent text-muted-foreground/50 cursor-not-allowed"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-                return t.tooltip ? (
-                  <Tooltip key={t.id}>
-                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
-                    <TooltipContent>{t.tooltip}</TooltipContent>
-                  </Tooltip>
-                ) : btn;
-              })}
-            </nav>
-          </TooltipProvider>
+          <nav className="mt-5 flex items-center gap-1 -mb-px">
+            {workspaceTabs.map((t) => {
+              const active = mode === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setMode(t.id)}
+                  className={`relative px-5 h-12 text-sm font-medium transition-colors border-b-2 ${
+                    active
+                      ? "border-accent text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+
         </div>
       </header>
 
