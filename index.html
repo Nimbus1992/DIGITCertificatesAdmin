@@ -33,8 +33,92 @@
   <meta property="og:title" content="Lovable App">
   <meta name="twitter:title" content="Lovable App">
   <meta property="og:description" content="Guides government users through setting up their organization and launching their first license or permit service.">
-  <meta name="twitter:description" content="Guides government users through setting up their organization and launching their first license or permit service.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+
+  <script>
+    (function () {
+      try {
+        var DEFAULTS = {
+          primaryColor: "#0D9488",
+          accentColor: "#0F766E",
+          font: "Inter",
+          buttonRadius: "0.5rem",
+          cardRadius: "0.75rem"
+        };
+        var raw = localStorage.getItem("lnp-onboarding-state");
+        var state = raw ? JSON.parse(raw) : null;
+        var svc = null;
+        if (state && Array.isArray(state.services) && state.activeServiceId) {
+          svc = state.services.find(function (s) { return s.id === state.activeServiceId; }) || null;
+        }
+        var legacy = {};
+        if (state) {
+          if (state.themeColor) legacy.primaryColor = state.themeColor;
+        }
+        var b = Object.assign({}, DEFAULTS, legacy, (state && state.platformBranding) || {}, (svc && svc.branding) || {});
+
+        function hexToHsl(hex) {
+          var c = String(hex || "").replace("#", "");
+          if (c.length !== 6) return "174 58% 28%";
+          var r = parseInt(c.slice(0, 2), 16) / 255;
+          var g = parseInt(c.slice(2, 4), 16) / 255;
+          var bl = parseInt(c.slice(4, 6), 16) / 255;
+          var max = Math.max(r, g, bl), min = Math.min(r, g, bl);
+          var h = 0, s = 0, l = (max + min) / 2;
+          if (max !== min) {
+            var d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case r: h = (g - bl) / d + (g < bl ? 6 : 0); break;
+              case g: h = (bl - r) / d + 2; break;
+              case bl: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          return Math.round(h * 360) + " " + Math.round(s * 100) + "% " + Math.round(l * 100) + "%";
+        }
+        function relLum(hex) {
+          var c = String(hex || "").replace("#", "");
+          var ch = [0, 2, 4].map(function (i) {
+            var v = parseInt(c.slice(i, i + 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          });
+          return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+        }
+        function fg(hex) { return relLum(hex) > 0.45 ? "213 50% 15%" : "0 0% 100%"; }
+
+        var primary = hexToHsl(b.primaryColor);
+        var accent = b.accentColor ? hexToHsl(b.accentColor) : primary;
+        var parts = primary.split(" ");
+        var pH = parts[0], pS = parts[1];
+        var vars = {
+          "--primary": primary,
+          "--primary-foreground": fg(b.primaryColor),
+          "--ring": primary,
+          "--accent": accent,
+          "--accent-foreground": fg(b.accentColor || b.primaryColor),
+          "--sidebar-background": pH + " " + pS + " 18%",
+          "--sidebar-foreground": "0 0% 100%",
+          "--sidebar-accent": pH + " " + pS + " 26%",
+          "--sidebar-accent-foreground": "0 0% 100%",
+          "--sidebar-border": pH + " " + pS + " 30%",
+          "--sidebar-primary": primary,
+          "--sidebar-primary-foreground": fg(b.primaryColor),
+          "--sidebar-ring": primary,
+          "--radius": b.cardRadius,
+          "--button-radius": b.buttonRadius
+        };
+        var root = document.documentElement;
+        Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });
+        root.style.setProperty("font-family", "'" + b.font + "', system-ui, sans-serif");
+      } catch (e) { /* no-op; React will apply branding on mount */ }
+    })();
+  </script>
 </head>
+
 
   <body>
     <div id="root"></div>
