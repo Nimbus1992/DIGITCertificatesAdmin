@@ -173,6 +173,11 @@ const initialState: OnboardingState = {
   services: [],
   activeServiceId: "",
   platformBranding: undefined,
+  currentUserRole: undefined,
+  orgMembers: [],
+  serviceOwners: [],
+  pendingActivatedServiceIds: [],
+  setupComplete: false,
 };
 
 interface OnboardingContextType {
