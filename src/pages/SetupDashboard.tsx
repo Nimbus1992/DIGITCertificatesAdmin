@@ -12,24 +12,27 @@ const SetupDashboard: React.FC = () => {
   const { state, setActiveService } = useOnboarding();
 
   const checklist = useMemo(() => {
-    const draftServices = state.services.filter((s) => s.status === "draft");
+    const services = state.services ?? [];
+    const owners = state.serviceOwners ?? [];
+    const draftServices = services.filter((s) => s.status === "draft");
     const firstDraft = draftServices[0];
-    const allOwned = state.services.length > 0 && state.services.every((s) =>
-      state.serviceOwners.some((o) => o.serviceId === s.id),
+    const allOwned = services.length > 0 && services.every((s) =>
+      owners.some((o) => o.serviceId === s.id),
     );
-    const anyConfigured = state.services.some((s) =>
+    const anyConfigured = services.some((s) =>
       s.customModules.length > 0 && (s.branding || s.teamMembers.length > 0),
     );
-    const anyLive = state.services.some((s) => s.isLive);
+    const anyLive = services.some((s) => s.isLive);
 
     return [
       { key: "org", label: "Organization Confirmed", done: state.isOnboardingComplete, route: "/setup/organization" },
-      { key: "templates", label: "Service Templates Activated", done: state.services.length > 0, route: "/setup/activate-services" },
+      { key: "templates", label: "Service Templates Activated", done: services.length > 0, route: "/setup/activate-services" },
       { key: "owners", label: "Service Owners Assigned", done: allOwned, route: "/setup/assign-owners" },
       { key: "configured", label: "First Service Configured", done: anyConfigured, route: firstDraft ? `/service/${firstDraft.id}/configure` : "/services" },
       { key: "published", label: "First Service Published", done: anyLive, route: "/go-live" },
     ];
   }, [state]);
+
 
   const completedCount = checklist.filter((c) => c.done).length;
 
