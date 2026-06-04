@@ -106,7 +106,7 @@ const Home: React.FC = () => {
           </Card>
         )}
 
-        {services.length === 0 ? (
+        {canManageSetup ? null : services.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
