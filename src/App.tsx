@@ -22,6 +22,12 @@ import UsersAccess from "./pages/UsersAccess";
 import AuditLogs from "./pages/AuditLogs";
 import ApplicationAreas from "./pages/ApplicationAreas";
 import BoundaryConfiguration from "./pages/BoundaryConfiguration";
+import SetupDashboard from "./pages/SetupDashboard";
+import OwnerHome from "./pages/OwnerHome";
+import InviteAdmins from "./pages/setup/InviteAdmins";
+import ActivateServices from "./pages/setup/ActivateServices";
+import AssignOwners from "./pages/setup/AssignOwners";
+import RoleGate from "./components/RoleGate";
 
 const queryClient = new QueryClient();
 
@@ -38,13 +44,20 @@ const App = () => (
 
             {/* App shell with sidebar */}
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={<RoleGate role="super_admin"><SetupDashboard /></RoleGate>} />
+              <Route path="/owner" element={<RoleGate role="service_owner"><OwnerHome /></RoleGate>} />
               <Route path="/services" element={<Services />} />
               <Route path="/templates/:templateId/setup" element={<TemplateSetup />} />
               <Route path="/service/:id/configure" element={<ServiceConfig />} />
               <Route path="/service/:id/preview" element={<ServicePreview />} />
               <Route path="/service/:id/manage" element={<ServiceManage />} />
               <Route path="/go-live" element={<GoLive />} />
+
+              {/* New Super Admin setup steps */}
+              <Route path="/setup/invite-admins" element={<RoleGate role="super_admin"><InviteAdmins /></RoleGate>} />
+              <Route path="/setup/activate-services" element={<RoleGate role="super_admin"><ActivateServices /></RoleGate>} />
+              <Route path="/setup/assign-owners" element={<RoleGate role="super_admin"><AssignOwners /></RoleGate>} />
+
 
               {/* Setup */}
               <Route path="/setup/organization" element={<OrganizationProfile />} />
