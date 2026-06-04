@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import RoleChoice from "@/components/onboarding/RoleChoice";
@@ -12,6 +12,14 @@ const Onboarding: React.FC = () => {
   const orgMembers = state.orgMembers ?? [];
   const services = state.services ?? [];
 
+  useEffect(() => {
+    if (state.currentUserRole !== "service_owner" || !state.isLoggedIn) return;
+    if (!state.isOnboardingComplete) {
+      updateState({ isOnboardingComplete: true });
+    }
+    navigate("/owner", { replace: true });
+  }, [navigate, state.currentUserRole, state.isLoggedIn, state.isOnboardingComplete, updateState]);
+
   // 1. Choose role
   if (!state.currentUserRole) {
     return <RoleChoice onPick={() => { /* updateState happens inside */ }} />;
@@ -24,10 +32,6 @@ const Onboarding: React.FC = () => {
 
   // Service Owner: skip the rest, go to their home
   if (state.currentUserRole === "service_owner") {
-    if (!state.isOnboardingComplete) {
-      updateState({ isOnboardingComplete: true });
-    }
-    navigate("/owner", { replace: true });
     return null;
   }
 

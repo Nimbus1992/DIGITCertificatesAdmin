@@ -28,6 +28,7 @@ import InviteAdmins from "./pages/setup/InviteAdmins";
 import ActivateServices from "./pages/setup/ActivateServices";
 import AssignOwners from "./pages/setup/AssignOwners";
 import RoleGate from "./components/RoleGate";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -37,8 +38,9 @@ const App = () => (
       <OnboardingProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <Routes>
             <Route path="/" element={<Navigate to="/onboarding" replace />} />
             <Route path="/onboarding" element={<Onboarding />} />
 
@@ -82,8 +84,9 @@ const App = () => (
             </Route>
 
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
       </OnboardingProvider>
     </TooltipProvider>
   </QueryClientProvider>
