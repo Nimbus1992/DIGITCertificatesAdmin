@@ -28,19 +28,26 @@ const ServiceConfigInner: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMode = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "overview";
-  const [mode, setMode] = useState<"overview" | "configure" | "preview" | "operations" | "deployment">(initialMode);
+  type Mode = "overview" | "configure" | "preview" | "operate";
+  const normalizeMode = (m?: string | null): Mode => {
+    if (m === "operations" || m === "deployment") return "operate";
+    if (m === "overview" || m === "configure" || m === "preview" || m === "operate") return m;
+    return "overview";
+  };
+  const initialMode = normalizeMode((location.state as { mode?: string } | null)?.mode);
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
 
   // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
   useEffect(() => {
-    const next = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
+    const next = normalizeMode((location.state as { mode?: string } | null)?.mode);
     if (next && next !== mode) {
       setMode(next);
       setActiveTile(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
+
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
