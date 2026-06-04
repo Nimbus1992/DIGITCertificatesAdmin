@@ -38,14 +38,12 @@ const BrandingScope: React.FC<Props> = ({ children, override, className, applyTo
   useEffect(() => {
     if (!applyToRoot) return;
     const root = document.documentElement;
-    const entries = Object.entries(cssVars as Record<string, string>);
-    entries.forEach(([k, v]) => root.style.setProperty(k, String(v)));
+    Object.entries(cssVars as Record<string, string>).forEach(([k, v]) => {
+      root.style.setProperty(k, String(v));
+    });
     root.style.setProperty("font-family", `'${fontFamily}', system-ui, sans-serif`);
-    return () => {
-      entries.forEach(([k]) => root.style.removeProperty(k));
-      root.style.removeProperty("font-family");
-    };
   }, [applyToRoot, cssVars, fontFamily]);
+
 
   return (
     <div
