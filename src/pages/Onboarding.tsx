@@ -52,7 +52,7 @@ const Onboarding: React.FC = () => {
         if (orgMembers.length === 0 && services.length === 0) {
           navigate("/setup/invite-admins");
         } else {
-          navigate("/dashboard");
+          navigate("/home");
         }
       }}
     />

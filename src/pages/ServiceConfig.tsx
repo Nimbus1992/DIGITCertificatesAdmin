@@ -175,7 +175,7 @@ const ServiceConfigInner: React.FC = () => {
       <header className="border-b bg-card shrink-0">
         <div className="max-w-6xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/home")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1 min-w-0">
