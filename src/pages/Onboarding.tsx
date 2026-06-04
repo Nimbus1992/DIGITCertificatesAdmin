@@ -9,6 +9,8 @@ import ConfirmOrganization from "@/components/onboarding/ConfirmOrganization";
 const Onboarding: React.FC = () => {
   const { state, updateState } = useOnboarding();
   const navigate = useNavigate();
+  const orgMembers = state.orgMembers ?? [];
+  const services = state.services ?? [];
 
   // 1. Choose role
   if (!state.currentUserRole) {
@@ -43,7 +45,7 @@ const Onboarding: React.FC = () => {
       onComplete={() => {
         updateState({ isOnboardingComplete: true });
         // If first-time, walk through the setup steps. Otherwise dashboard.
-        if (state.orgMembers.length === 0 && state.services.length === 0) {
+        if (orgMembers.length === 0 && services.length === 0) {
           navigate("/setup/invite-admins");
         } else {
           navigate("/dashboard");
