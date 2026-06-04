@@ -20,6 +20,8 @@ import TemplateSetup from "./pages/TemplateSetup";
 import ResponsiveQA from "./pages/ResponsiveQA";
 import UsersAccess from "./pages/UsersAccess";
 import AuditLogs from "./pages/AuditLogs";
+import ApplicationAreas from "./pages/ApplicationAreas";
+import BoundaryConfiguration from "./pages/BoundaryConfiguration";
 
 const queryClient = new QueryClient();
 
@@ -47,7 +49,9 @@ const App = () => (
               {/* Setup */}
               <Route path="/setup/organization" element={<OrganizationProfile />} />
               <Route path="/setup/users" element={<UsersAccess />} />
-              <Route path="/setup/deployment" element={<PlaceholderPage title="Deployment / Zones" description="Configure where your applications are available — by state, city, district, or department." />} />
+              <Route path="/setup/deployment" element={<ApplicationAreas />} />
+              <Route path="/boundary" element={<BoundaryConfiguration />} />
+              <Route path="/service/:id/boundary" element={<BoundaryConfiguration />} />
               <Route path="/setup/auth" element={<PlaceholderPage title="Authentication" description="Set up how your team signs in — Email, Single Sign-On, or One-Time Password." />} />
               <Route path="/setup/license" element={<PlaceholderPage title="License & Billing" description="Manage your license key, subscription plan, and usage." />} />
 
