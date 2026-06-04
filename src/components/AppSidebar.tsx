@@ -16,6 +16,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 import {
   Sidebar,
@@ -90,7 +91,16 @@ function NavGroup({ label, items }: { label: string; items: typeof mainItems }) 
 
 export function AppSidebar() {
   const { state: sidebarState } = useSidebar();
+  const { state } = useOnboarding();
   const collapsed = sidebarState === "collapsed";
+  const isOwner = state.currentUserRole === "service_owner";
+
+  const ownerMainItems = [
+    { title: "My Services", url: "/owner", icon: FileText },
+  ];
+  const ownerUtilItems = [
+    { title: "Help & Support", url: "/help", icon: HelpCircle },
+  ];
 
   return (
     <Sidebar collapsible="icon">
@@ -106,17 +116,28 @@ export function AppSidebar() {
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
                 City of Cape Town
               </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">Admin Console</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">
+                {isOwner ? "Service Owner" : "Admin Console"}
+              </p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <NavGroup label="Main" items={mainItems} />
-        <NavGroup label="Setup" items={setupItems} />
-        <NavGroup label="Configuration" items={configItems} />
-        <NavGroup label="Utilities" items={utilItems} />
+        {isOwner ? (
+          <>
+            <NavGroup label="Main" items={ownerMainItems} />
+            <NavGroup label="Utilities" items={ownerUtilItems} />
+          </>
+        ) : (
+          <>
+            <NavGroup label="Main" items={mainItems} />
+            <NavGroup label="Setup" items={setupItems} />
+            <NavGroup label="Configuration" items={configItems} />
+            <NavGroup label="Utilities" items={utilItems} />
+          </>
+        )}
       </SidebarContent>
     </Sidebar>
   );
