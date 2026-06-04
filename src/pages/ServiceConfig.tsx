@@ -304,13 +304,9 @@ const ServiceConfigInner: React.FC = () => {
         <main className="flex-1 min-h-0">
           <ServicePreviewWorkspace />
         </main>
-      ) : mode === "operations" ? (
+      ) : mode === "operate" ? (
         <main className="flex-1 min-h-0">
-          <OperationsWorkspace serviceId={id ?? ""} />
-        </main>
-      ) : mode === "deployment" ? (
-        <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1 min-h-0 overflow-auto">
-          <DeploymentWorkspace serviceUrl={(service as any)?.liveUrl} />
+          <OperateWorkspace serviceId={id ?? ""} serviceUrl={(service as any)?.liveUrl} />
         </main>
       ) : null}
       {service && (
