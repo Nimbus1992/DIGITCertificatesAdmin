@@ -10,10 +10,10 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 const SetupDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { state, setActiveService } = useOnboarding();
+  const services = state.services ?? [];
+  const owners = state.serviceOwners ?? [];
 
   const checklist = useMemo(() => {
-    const services = state.services ?? [];
-    const owners = state.serviceOwners ?? [];
     const draftServices = services.filter((s) => s.status === "draft");
     const firstDraft = draftServices[0];
     const allOwned = services.length > 0 && services.every((s) =>
@@ -31,7 +31,7 @@ const SetupDashboard: React.FC = () => {
       { key: "configured", label: "First Service Configured", done: anyConfigured, route: firstDraft ? `/service/${firstDraft.id}/configure` : "/services" },
       { key: "published", label: "First Service Published", done: anyLive, route: "/go-live" },
     ];
-  }, [state]);
+  }, [owners, services, state.isOnboardingComplete]);
 
 
   const completedCount = checklist.filter((c) => c.done).length;
@@ -89,7 +89,7 @@ const SetupDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {state.services.length > 0 && (
+        {services.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-foreground">Activated Services</h2>
@@ -98,8 +98,8 @@ const SetupDashboard: React.FC = () => {
               </Button>
             </div>
             <div className="space-y-2">
-              {state.services.map((s) => {
-                const owner = state.serviceOwners.find((o) => o.serviceId === s.id);
+              {services.map((s) => {
+                const owner = owners.find((o) => o.serviceId === s.id);
                 return (
                   <Card key={s.id} className="hover:shadow-md transition-all">
                     <CardContent className="p-4 flex items-center gap-4">
