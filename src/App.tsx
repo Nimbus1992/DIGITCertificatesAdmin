@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import Onboarding from "./pages/Onboarding";
-import Dashboard from "./pages/Dashboard";
+
 import ServiceConfig from "./pages/ServiceConfig";
 import ServicePreview from "./components/preview/ServicePreview";
 import GoLive from "./pages/GoLive";
