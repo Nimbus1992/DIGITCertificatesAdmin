@@ -226,8 +226,8 @@ const OverviewWorkspace: React.FC<Props> = ({ service, isLive, onNavigate }) => 
             </CardContent>
           </Card>
 
-          <Card className={`border-dashed ${isLive ? "hover:shadow-md hover:border-accent/40 transition-all cursor-pointer" : "opacity-60"}`}
-            onClick={() => isLive && onNavigate("operations")}
+          <Card className="border-dashed hover:shadow-md hover:border-accent/40 transition-all cursor-pointer"
+            onClick={() => onNavigate("operate")}
           >
             <CardContent className="p-5 space-y-3">
               <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
