@@ -4,7 +4,7 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 import { ArrowLeft, Rocket, Check, AlertCircle, Settings2 } from "lucide-react";
 import { defaultModules, configTiles } from "@/data/serviceModules";
 import RolesDesigner from "@/components/service-config/RolesDesigner";
@@ -20,66 +20,34 @@ import MasterTemplateConfigurator from "@/components/service-config/MasterTempla
 import ModuleTabs from "@/components/service-config/ModuleTabs";
 import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
-import { OperationsWorkspace } from "@/components/operations/OperationsWorkspace";
+import { OperateWorkspace } from "@/components/operate/OperateWorkspace";
 
-const deploymentSections: { title: string; description: string }[] = [
-  { title: "Production Status", description: "Real-time health, uptime, and recent incidents." },
-  { title: "Active Modules", description: "Modules currently serving live traffic." },
-  { title: "Published Versions", description: "Released versions and rollback history." },
-  { title: "Operational Settings", description: "Runtime configuration for the live service." },
-  { title: "Monitoring", description: "Metrics, alerts, and performance signals." },
-  { title: "Integrations", description: "Connected systems and outbound services." },
-  { title: "Audit Logs", description: "Activity trail across operators and applicants." },
-  { title: "Environment Management", description: "Manage staging, production, and secrets." },
-];
-
-const DeploymentWorkspace: React.FC<{ serviceUrl?: string }> = ({ serviceUrl }) => (
-  <div className="space-y-8">
-    <div>
-      <h2 className="text-xl font-semibold text-foreground">Manage</h2>
-      <p className="text-sm text-muted-foreground mt-1">Operate and manage your live service.</p>
-    </div>
-    <div className="flex items-center gap-2 text-sm">
-      <span className="w-2 h-2 rounded-full bg-green-500" />
-      <span className="font-medium text-foreground">Live</span>
-      {serviceUrl && (
-        <a href={serviceUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline ml-2">
-          {serviceUrl}
-        </a>
-      )}
-    </div>
-    <div className="border-t border-border/60">
-      {deploymentSections.map((s) => (
-        <div key={s.title} className="flex items-center justify-between py-4 border-b border-border/60">
-          <div>
-            <h3 className="text-sm font-medium text-foreground">{s.title}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
-          </div>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Coming soon</span>
-        </div>
-      ))}
-    </div>
-  </div>
-);
 
 const ServiceConfigInner: React.FC = () => {
   const { id } = useParams();
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMode = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode ?? "overview";
-  const [mode, setMode] = useState<"overview" | "configure" | "preview" | "operations" | "deployment">(initialMode);
+  type Mode = "overview" | "configure" | "preview" | "operate";
+  const normalizeMode = (m?: string | null): Mode => {
+    if (m === "operations" || m === "deployment") return "operate";
+    if (m === "overview" || m === "configure" || m === "preview" || m === "operate") return m;
+    return "overview";
+  };
+  const initialMode = normalizeMode((location.state as { mode?: string } | null)?.mode);
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [setupOpen, setSetupOpen] = useState(false);
 
   // Honor inbound navigation state changes (e.g. clicking Configure from Preview top bar).
   useEffect(() => {
-    const next = (location.state as { mode?: "overview" | "configure" | "preview" | "operations" | "deployment" } | null)?.mode;
+    const next = normalizeMode((location.state as { mode?: string } | null)?.mode);
     if (next && next !== mode) {
       setMode(next);
       setActiveTile(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
+
 
   useEffect(() => {
     if (id && state.activeServiceId !== id) setActiveService(id);
@@ -187,25 +155,19 @@ const ServiceConfigInner: React.FC = () => {
     );
   }
 
-  const workspaceTabs: { id: typeof mode; label: string; disabled?: boolean; tooltip?: string }[] = isLive
+  const workspaceTabs: { id: Mode; label: string }[] = isLive
     ? [
         { id: "overview", label: "Overview" },
         { id: "preview", label: "Preview" },
-        { id: "operations", label: "Monitor" },
-        { id: "deployment", label: "Manage" },
+        { id: "operate", label: "Operate" },
       ]
     : [
         { id: "overview", label: "Overview" },
         { id: "configure", label: "Configure" },
         { id: "preview", label: "Preview" },
-        { id: "operations", label: "Monitor" },
-        {
-          id: "deployment",
-          label: "Manage",
-          disabled: true,
-          tooltip: "Available after publishing the service",
-        },
+        { id: "operate", label: "Operate" },
       ];
+
 
   // Main hub view
   return (
@@ -251,35 +213,25 @@ const ServiceConfigInner: React.FC = () => {
             </div>
           </div>
 
-          <TooltipProvider delayDuration={200}>
-            <nav className="mt-5 flex items-center gap-1 -mb-px">
-              {workspaceTabs.map((t) => {
-                const active = mode === t.id;
-                const btn = (
-                  <button
-                    key={t.id}
-                    onClick={() => !t.disabled && setMode(t.id)}
-                    disabled={t.disabled}
-                    className={`relative px-5 h-12 text-sm font-medium transition-colors border-b-2 ${
-                      active
-                        ? "border-accent text-foreground"
-                        : t.disabled
-                          ? "border-transparent text-muted-foreground/50 cursor-not-allowed"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-                return t.tooltip ? (
-                  <Tooltip key={t.id}>
-                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
-                    <TooltipContent>{t.tooltip}</TooltipContent>
-                  </Tooltip>
-                ) : btn;
-              })}
-            </nav>
-          </TooltipProvider>
+          <nav className="mt-5 flex items-center gap-1 -mb-px">
+            {workspaceTabs.map((t) => {
+              const active = mode === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setMode(t.id)}
+                  className={`relative px-5 h-12 text-sm font-medium transition-colors border-b-2 ${
+                    active
+                      ? "border-accent text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+
         </div>
       </header>
 
@@ -352,13 +304,9 @@ const ServiceConfigInner: React.FC = () => {
         <main className="flex-1 min-h-0">
           <ServicePreviewWorkspace />
         </main>
-      ) : mode === "operations" ? (
+      ) : mode === "operate" ? (
         <main className="flex-1 min-h-0">
-          <OperationsWorkspace serviceId={id ?? ""} />
-        </main>
-      ) : mode === "deployment" ? (
-        <main className="max-w-4xl w-full mx-auto px-6 py-10 flex-1 min-h-0 overflow-auto">
-          <DeploymentWorkspace serviceUrl={(service as any)?.liveUrl} />
+          <OperateWorkspace serviceId={id ?? ""} serviceUrl={(service as any)?.liveUrl} />
         </main>
       ) : null}
       {service && (

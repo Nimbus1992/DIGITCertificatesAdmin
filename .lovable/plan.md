@@ -1,18 +1,19 @@
 ## Plan
 
-The remaining flash is likely no longer the color-token reset; it is coming from UI that changes immediately after mount:
+Merge "Monitor" and "Manage" into a single always-enabled tab named **Operate** in the service workspace, and show a dummy-data disclaimer until the service is live.
 
-1. **Stabilize sidebar rendering before first paint**
-   - Update `useIsMobile()` so it initializes from `window.matchMedia` synchronously instead of starting as `undefined` and correcting in `useEffect`.
-   - This prevents the sidebar from rendering desktop layout first, then switching after mount on route/load.
+### Changes
 
-2. **Keep sidebar open/collapsed state stable**
-   - Update `SidebarProvider` to read the saved `sidebar:state` cookie during initial state setup.
-   - This prevents the shell from briefly rendering expanded and then settling to the user’s saved state.
+**`src/pages/ServiceConfig.tsx`**
+- Replace the two tabs (`operations` Monitor and `deployment` Manage) with one tab `operate` labeled "Operate" for both draft and live services. Remove the disabled state and tooltip.
+- Render a new `OperateWorkspace` for that mode. Default `initialMode` still works; map any legacy `operations`/`deployment` navigation state to `operate`.
 
-3. **Remove page-level entrance fades that look like blinking**
-   - Remove `animate-fade-in` from `BrandingTheme` and avoid initial slide/fade on the dashboard empty state.
-   - Keep hover/interaction transitions intact; only remove automatic page-load opacity/position animations.
+**New `src/components/operate/OperateWorkspace.tsx`**
+- Two-pane layout that reuses the existing left secondary nav pattern from `OperationsWorkspace`.
+- Sections: Analytics, SLA Monitoring, Workflow Queues, Audit Logs, Reports & Exports (from current Monitor) plus a new **Manage** section that renders the existing deployment list (Production Status, Active Modules, Published Versions, Operational Settings, Monitoring, Integrations, Audit Logs, Environment Management) currently in `DeploymentWorkspace`.
+- When `service.isLive` is false, show a sticky disclaimer banner at the top: "Preview with sample data. You'll see live data here once the service goes live." Use `bg-warning/10 text-warning-foreground border-warning/30` styling consistent with the design system.
+- Move `DeploymentWorkspace` markup into this file as the "Manage" section; delete the old standalone usage in `ServiceConfig.tsx`.
 
-4. **Verify visually**
-   - Load `/dashboard`, navigate between Dashboard, Branding & Theme, and a service config page, and confirm there is no blank/white/theme flash or shell reflow.
+### Out of scope
+- No changes to the underlying Monitor views, mock data, or design tokens.
+- No changes to Go Live, Configure, Preview, or Overview tabs.
