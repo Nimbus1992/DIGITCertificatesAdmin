@@ -20,7 +20,7 @@ const getTemplateName = (templateId: string): string => {
   return allTemplates.find((t) => t.id === templateId)?.name ?? "selected";
 };
 
-type Mode = "overview" | "configure" | "preview" | "operations" | "deployment";
+type Mode = "overview" | "configure" | "preview" | "operate";
 
 interface Props {
   service: ServiceItem;
