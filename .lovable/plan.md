@@ -1,47 +1,29 @@
-## Two bugs to fix in `ServiceConfig.tsx` + branding
+## Problem
 
-### Bug 1 — Overview tab silently renders the Manage screen
+Pages briefly "blink" before settling. Three things contribute:
 
-In `src/pages/ServiceConfig.tsx` (line 286), the content router is:
+1. **First paint uses index.css defaults, then JS swaps in branded tokens.** `BrandingScope` writes CSS vars (`--primary`, `--sidebar-*`, `--radius`, etc.) to `<html>` inside a `useEffect`. That runs *after* the first render, so users see a frame painted with the default theme, then a recolor.
+2. **`applyToRoot` effect strips and re-sets vars on every dependency change.** The effect returns a cleanup that calls `removeProperty` for every CSS var. Whenever `cssVars`/`fontFamily` identity changes (which happens on most navigations because `useBranding` re-memoizes against context state), React runs cleanup → vars momentarily fall back to the index.css defaults → setup re-applies the branded values. That's a one-frame flash on every route change.
+3. **Font is loaded after mount.** The `<link>` for the chosen Google Font is injected inside a `useEffect`, so the first paint uses the system fallback and then re-flows when the font finishes loading (FOUT).
 
-```tsx
-{mode === "overview" && service ? (
-  <OverviewWorkspace ... />
-) : mode === "configure" ? ( ... )
-  : mode === "preview" ? ( ... )
-  : mode === "operations" ? ( ... )
-  : ( <DeploymentWorkspace /> )   // catch-all = Manage
-}
-```
+## Fix
 
-When `mode === "overview"` but `service` is `undefined` (service not yet hydrated from localStorage, or `id` doesn't match an entry in `state.services`), the condition fails and the chain falls through to the final `else` — which renders **Manage** (the screenshot the user just sent: Overview tab active, Manage content shown).
+**`index.html`** — eliminate the first-paint mismatch:
+- Add `<link rel="preconnect" href="https://fonts.googleapis.com">` and `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` plus a `<link rel="stylesheet">` for the default font (Inter) so it's available before React mounts.
+- Add a tiny inline bootstrap `<script>` that, before React mounts, reads the persisted onboarding state from localStorage, derives the same CSS vars `useBranding` would derive (primary HSL, sidebar shades, radii, font-family) and sets them on `document.documentElement.style`. This makes the very first paint match the branded theme.
 
-Fix:
-- Split the overview branch from the service-existence check. Render `OverviewWorkspace` whenever `mode === "overview"` and the service exists; when the service isn't found, render a small empty state ("Loading service…" or "Service not found") instead of falling through to Manage.
-- Add an explicit `mode === "deployment"` guard before the final `DeploymentWorkspace` render so an unknown mode never silently lands on Manage again.
+**`src/components/BrandingScope.tsx`** — stop the per-navigation flash:
+- In the `applyToRoot` effect, *do not* return a cleanup that removes properties. Just write the new values; subsequent renders overwrite them in place. This removes the unset → reset gap.
+- Keep the scoped inline `style` on the wrapper div as-is so non-root scopes (preview overrides) still work.
 
-### Bug 2 — Theme color flips when switching services/screens
+**`src/hooks/useBranding.ts`** — no behavioral change, but expose a small helper (`computeCssVars(branding)`) so the inline bootstrap script in `index.html` and the hook stay in sync. The helper stays pure and is imported by the hook; the bootstrap script in `index.html` duplicates the small HSL math (acceptable because it must run before any module loads).
 
-Two sources of inconsistency:
+## Out of scope
 
-1. **Conflicting default brand colors.**
-   - `src/hooks/useBranding.ts` → `DEFAULT_BRANDING.primaryColor = "#0D9488"` (teal).
-   - `src/pages/BrandingTheme.tsx` → first-time form defaults to `"#C84C0E"` (DIGIT orange).
-   Result: a service that has never been opened in Branding & Theme uses **teal**, but as soon as the user saves Branding the service flips to **orange** (or whatever they picked). The orange `Go Live` button in the screenshot is exactly this — a saved per-service branding overriding the default.
-   
-   Fix: pick a single canonical default and use it in both files. Per memory the project default is the deep blue / teal accent, so set both to the same `DEFAULT_BRANDING` value imported from `useBranding.ts` (BrandingTheme should initialize its state from `DEFAULT_BRANDING`, not from a hardcoded orange).
+- No changes to branding precedence, persistence shape, or any business logic.
+- No visual redesign — colors, radii, fonts, and layouts remain identical once loaded; only the initial/transition flash is removed.
 
-2. **Preview wraps in `<BrandingScope>` without `applyToRoot`.**
-   `src/components/preview/ServicePreview.tsx` (line 140) sets CSS vars only on its inner div, while `AppLayout` writes them to `<html>` via `applyToRoot`. Portals (tooltips, dropdowns, toasts) rendered while in Preview keep the previous root vars, so the theme appears to "jump" between Preview and other tabs.
-   
-   Fix: pass `applyToRoot` to the Preview's `BrandingScope` so portals inherit the same brand vars consistently. (The cleanup function already restores values on unmount, so leaving Preview returns to the AppLayout-managed vars.)
+## Technical notes
 
-### Files touched
-- `src/pages/ServiceConfig.tsx` — split overview branch, add explicit deployment guard, add not-found fallback.
-- `src/hooks/useBranding.ts` — confirm canonical `DEFAULT_BRANDING`.
-- `src/pages/BrandingTheme.tsx` — initialize state from `DEFAULT_BRANDING` instead of hardcoded `#C84C0E` / `"Roboto"` / `"4px"`.
-- `src/components/preview/ServicePreview.tsx` — add `applyToRoot` to the `BrandingScope` wrapper.
-
-### Out of scope
-- No business logic changes, no schema changes, no new routes or components.
-- Existing per-service saved branding values are preserved untouched.
+- The bootstrap script is ~30 lines, runs synchronously in `<head>`, and is wrapped in `try/catch` so a malformed localStorage entry can never block React from mounting.
+- Removing the effect cleanup is safe because `BrandingScope applyToRoot` is mounted once at the app root (`AppLayout`) and the same vars are always re-written on update — there's no scenario where we need to "unset" them.
