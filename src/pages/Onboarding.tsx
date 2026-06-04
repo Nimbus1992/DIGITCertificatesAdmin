@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import RoleChoice from "@/components/onboarding/RoleChoice";
 import SignIn from "@/components/onboarding/SignIn";
 import ResetPassword from "@/components/onboarding/ResetPassword";
 import ConfirmOrganization from "@/components/onboarding/ConfirmOrganization";
@@ -9,10 +10,26 @@ const Onboarding: React.FC = () => {
   const { state, updateState } = useOnboarding();
   const navigate = useNavigate();
 
+  // 1. Choose role
+  if (!state.currentUserRole) {
+    return <RoleChoice onPick={() => { /* updateState happens inside */ }} />;
+  }
+
+  // 2. Sign in
   if (!state.isLoggedIn) {
     return <SignIn onComplete={() => updateState({ isLoggedIn: true })} />;
   }
 
+  // Service Owner: skip the rest, go to their home
+  if (state.currentUserRole === "service_owner") {
+    if (!state.isOnboardingComplete) {
+      updateState({ isOnboardingComplete: true });
+    }
+    navigate("/owner", { replace: true });
+    return null;
+  }
+
+  // Super Admin: reset password + confirm org
   if (!state.isPasswordReset) {
     return (
       <ResetPassword
@@ -25,7 +42,12 @@ const Onboarding: React.FC = () => {
     <ConfirmOrganization
       onComplete={() => {
         updateState({ isOnboardingComplete: true });
-        navigate("/dashboard");
+        // If first-time, walk through the setup steps. Otherwise dashboard.
+        if (state.orgMembers.length === 0 && state.services.length === 0) {
+          navigate("/setup/invite-admins");
+        } else {
+          navigate("/dashboard");
+        }
       }}
     />
   );

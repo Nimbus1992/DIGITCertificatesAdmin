@@ -6,6 +6,24 @@ export type AuthMethod = "email" | "sso" | "otp";
 export type ServiceStatus = "draft" | "published" | "live";
 export type AccessType = "self_registration" | "pre_registered";
 export type RoleAuthMethod = "mobile_otp" | "email_otp" | "email_password";
+export type UserRole = "super_admin" | "service_owner";
+export type MemberRole = "admin" | "service_owner";
+export type MemberStatus = "invited" | "active";
+
+export interface OrgMember {
+  id: string;
+  email: string;
+  fullName?: string;
+  role: MemberRole;
+  status: MemberStatus;
+  invitedAt: string;
+}
+
+export interface ServiceOwnerAssignment {
+  serviceId: string;
+  ownerEmail: string;
+  assignedAt: string;
+}
 
 export interface RoleUser {
   id: string;
@@ -115,6 +133,11 @@ export interface OnboardingState {
   services: ServiceItem[];
   activeServiceId: string;
   platformBranding?: BrandingConfig;
+  currentUserRole?: UserRole;
+  orgMembers: OrgMember[];
+  serviceOwners: ServiceOwnerAssignment[];
+  pendingActivatedServiceIds: string[];
+  setupComplete: boolean;
 }
 
 const initialState: OnboardingState = {
@@ -150,6 +173,11 @@ const initialState: OnboardingState = {
   services: [],
   activeServiceId: "",
   platformBranding: undefined,
+  currentUserRole: undefined,
+  orgMembers: [],
+  serviceOwners: [],
+  pendingActivatedServiceIds: [],
+  setupComplete: false,
 };
 
 interface OnboardingContextType {
