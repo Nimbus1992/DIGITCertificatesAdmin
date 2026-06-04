@@ -9,10 +9,12 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 const OwnerHome: React.FC = () => {
   const navigate = useNavigate();
   const { state, setActiveService } = useOnboarding();
+  const services = state.services ?? [];
+  const serviceOwners = state.serviceOwners ?? [];
 
   // For demo: an owner sees every service they were assigned. Without real auth, show all assigned services.
-  const myServices = state.services.filter((s) =>
-    state.serviceOwners.some((o) => o.serviceId === s.id),
+  const myServices = services.filter((s) =>
+    serviceOwners.some((o) => o.serviceId === s.id),
   );
 
   return (
@@ -49,7 +51,7 @@ const OwnerHome: React.FC = () => {
                       <Badge variant="outline" className={s.isLive ? "bg-green-100 text-green-700 border-green-300" : "bg-warning/15 text-warning border-warning/30"}>
                         {s.isLive ? "Live" : "Draft"}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">{s.customModules.length} module{s.customModules.length > 1 ? "s" : ""}</span>
+                      <span className="text-xs text-muted-foreground">{(s.customModules ?? []).length} module{(s.customModules ?? []).length > 1 ? "s" : ""}</span>
                     </div>
                   </div>
                   {s.isLive ? (

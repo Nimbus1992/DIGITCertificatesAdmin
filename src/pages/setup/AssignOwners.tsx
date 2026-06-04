@@ -13,14 +13,18 @@ import { useOnboarding, OrgMember, ServiceOwnerAssignment } from "@/contexts/Onb
 const AssignOwners: React.FC = () => {
   const navigate = useNavigate();
   const { state, updateState } = useOnboarding();
+  const services = state.services ?? [];
+  const orgMembers = state.orgMembers ?? [];
+  const serviceOwners = state.serviceOwners ?? [];
+  const pendingActivatedServiceIds = state.pendingActivatedServiceIds ?? [];
 
-  const targetServices = state.services.filter((s) =>
-    state.pendingActivatedServiceIds.length > 0
-      ? state.pendingActivatedServiceIds.includes(s.id)
-      : !state.serviceOwners.some((o) => o.serviceId === s.id),
+  const targetServices = services.filter((s) =>
+    pendingActivatedServiceIds.length > 0
+      ? pendingActivatedServiceIds.includes(s.id)
+      : !serviceOwners.some((o) => o.serviceId === s.id),
   );
 
-  const existingOwnerFor = (id: string) => state.serviceOwners.find((o) => o.serviceId === id);
+  const existingOwnerFor = (id: string) => serviceOwners.find((o) => o.serviceId === id);
 
   const [drafts, setDrafts] = useState<Record<string, { mode: "existing" | "invite"; value: string }>>(() => {
     const init: Record<string, { mode: "existing" | "invite"; value: string }> = {};
@@ -43,7 +47,7 @@ const AssignOwners: React.FC = () => {
       if (!d.value) return;
       if (d.mode === "invite") {
         if (!/\S+@\S+\.\S+/.test(d.value)) return;
-        if (!state.orgMembers.some((m) => m.email === d.value)) {
+        if (!orgMembers.some((m) => m.email === d.value)) {
           newMembers.push({
             id: crypto.randomUUID(),
             email: d.value,
@@ -56,10 +60,10 @@ const AssignOwners: React.FC = () => {
       newOwners.push({ serviceId: sid, ownerEmail: d.value, assignedAt: new Date().toISOString() });
     });
 
-    const remaining = state.serviceOwners.filter((o) => !newOwners.some((n) => n.serviceId === o.serviceId));
+    const remaining = serviceOwners.filter((o) => !newOwners.some((n) => n.serviceId === o.serviceId));
     updateState({
       serviceOwners: [...remaining, ...newOwners],
-      orgMembers: [...state.orgMembers, ...newMembers],
+      orgMembers: [...orgMembers, ...newMembers],
       pendingActivatedServiceIds: [],
       setupComplete: true,
     });
@@ -67,7 +71,7 @@ const AssignOwners: React.FC = () => {
     navigate("/dashboard");
   };
 
-  const assignableUsers = state.orgMembers;
+  const assignableUsers = orgMembers;
   const allUnassigned = targetServices.every((s) => !drafts[s.id]?.value);
 
   return (

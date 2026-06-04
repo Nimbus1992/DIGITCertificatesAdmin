@@ -14,6 +14,7 @@ const isEmail = (v: string) => /\S+@\S+\.\S+/.test(v);
 const InviteAdmins: React.FC = () => {
   const navigate = useNavigate();
   const { state, updateState } = useOnboarding();
+  const orgMembers = state.orgMembers ?? [];
   const [drafts, setDrafts] = useState<{ email: string }[]>([{ email: "" }]);
 
   const update = (i: number, email: string) => {
@@ -33,13 +34,13 @@ const InviteAdmins: React.FC = () => {
         status: "invited",
         invitedAt: new Date().toISOString(),
       }));
-      updateState({ orgMembers: [...state.orgMembers, ...newMembers] });
+      updateState({ orgMembers: [...orgMembers, ...newMembers] });
       toast.success(`Invited ${newMembers.length} administrator${newMembers.length > 1 ? "s" : ""}`);
     }
     navigate("/setup/activate-services");
   };
 
-  const existingAdmins = state.orgMembers.filter((m) => m.role === "admin");
+  const existingAdmins = orgMembers.filter((m) => m.role === "admin");
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
