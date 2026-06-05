@@ -4,7 +4,7 @@ import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
 import { usePersona } from "@/contexts/PersonaContext";
 import { allTemplates, type ServiceTemplate } from "@/data/serviceTemplates";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
