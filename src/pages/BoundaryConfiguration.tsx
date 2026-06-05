@@ -79,6 +79,7 @@ export default function BoundaryConfiguration() {
               setSelectedId(h.id);
               setSavedHierarchy(h);
               setPhase("saved");
+              markGoLiveBoundaryComplete();
             }}
           />
         )}
