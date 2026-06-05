@@ -565,7 +565,7 @@ const TemplateGroup: React.FC<{
   if (templates.length === 0) return null;
   return (
     <div>
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
         {label}
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
