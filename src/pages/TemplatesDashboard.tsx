@@ -231,10 +231,10 @@ const ServicesWorkspace: React.FC = () => {
             >
               <div className="flex items-center gap-2">
                 <LayoutTemplate className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold text-foreground">Available templates</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">{allTemplates.length}</span>
+                <h2 className="text-base font-semibold text-foreground">Available templates</h2>
+                <span className="text-sm text-muted-foreground tabular-nums">{allTemplates.length}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
                 {templatesExpanded ? "Hide" : "Show"}
                 <ChevronDown
                   className={cn("h-3.5 w-3.5 transition-transform", templatesExpanded && "rotate-180")}
