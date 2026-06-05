@@ -150,7 +150,7 @@ const ServicesWorkspace: React.FC = () => {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               {isServiceOwner ? "My services" : "Services"}
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            <p className="text-base text-muted-foreground mt-1 max-w-2xl">
               {isServiceOwner
                 ? "Services assigned to you. Continue configuration or open the live workspace."
                 : "Manage the full lifecycle of your services — from template activation to live operations."}
