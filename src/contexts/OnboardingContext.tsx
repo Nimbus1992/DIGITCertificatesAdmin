@@ -102,6 +102,8 @@ export interface ServiceItem {
   serviceUsers?: ServiceUser[];
   createdAt?: number;
   updatedAt?: number;
+  /** True for short-lived services created only to preview a template. Hidden from dashboards. */
+  isEphemeralPreview?: boolean;
 }
 
 export interface OnboardingState {
