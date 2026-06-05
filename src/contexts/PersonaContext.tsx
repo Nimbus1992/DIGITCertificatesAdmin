@@ -69,6 +69,7 @@ if (typeof window !== "undefined") {
 interface PersonaContextType {
   persona: PersonaState;
   signIn: (email: string) => void;
+  switchPersona: (email: string) => void;
   signOut: () => void;
   update: (u: Partial<PersonaState>) => void;
   addInvitedUser: (u: Omit<InvitedUser, "id" | "status">) => void;

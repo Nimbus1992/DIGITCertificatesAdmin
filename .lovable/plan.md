@@ -1,32 +1,31 @@
-## Problem
+## 1. Persona switcher in top-right (no separate login)
 
-Draft service cards currently always show **Continue configuring** → service workspace (Overview/Configure/Preview/etc.). But the workspace's internals (modules, categories, workflows, forms) all depend on the template setup wizard having been completed first. If a draft was created but setup was never finished, opening the workspace shows empty/broken state.
+**`src/contexts/PersonaContext.tsx`**
+- Add `switchPersona(email)` method: like `signIn` but **does not call `clearDrafts()`** and does not reset the session marker — drafts (and the service-owner assignments on them) must survive the switch. Still triggers `window.location.reload()` so `OnboardingProvider` re-hydrates cleanly under the new persona.
+- Expose it through the context value alongside `signIn` / `signOut`.
 
-## Fix
+**`src/components/AppLayout.tsx`**
+- Replace the current single "Sign out" dropdown with a persona-switcher dropdown built from `PERSONA_SEEDS` (Super Admin, Administrator, Trade Owner, Building Owner).
+- Each entry shows name + role badge + email; clicking calls `switchPersona(seed.email)`.
+- Keep a "Sign out" entry at the bottom (separator above it).
+- Current persona row stays as the trigger (avatar + name + role).
 
-Gate the draft card CTA on whether template setup is complete.
+**Service-owner visibility** — already wired: `TemplatesDashboard` filters `visibleServices` by `assignedOwners.includes(persona.email.toLowerCase())`. No change needed; switching to `trade.owner@egov.demo` will now surface any draft/live service where that email was assigned via "Assign service owner".
 
-**"Setup complete" signal:** `service.templateSetup` is present (set on the final wizard step in `TemplateSetup.tsx`, alongside `customModules` from Step 2). Use `Boolean(s.templateSetup)` as the gate — same signal already used by `computeSetupSteps` for the "structure" step.
+## 2. Remove setup progress bar from draft cards
 
-### In `src/pages/TemplatesDashboard.tsx`
+**`src/pages/TemplatesDashboard.tsx`** — in `DraftServiceCard` (lines ~383–396), delete the entire "Setup progress" block (label row + `<Progress />` + the "Finish template setup…" helper). The `setupComplete` boolean is still computed from `service.templateSetup` and continues to gate the Continue/Complete-setup CTA — that stays. Remove the now-unused `setupProgress` import if nothing else uses it on the page.
 
-1. In `DraftServiceCard`, branch the primary CTA:
-   - **Setup not done** (`!service.templateSetup`):
-     - Primary CTA label: **Complete setup**
-     - onClick: `goConfigure(s)` (template setup wizard)
-     - Hide the **Preview** secondary action (nothing meaningful to preview yet)
-     - Optional subtle helper text on the card: "Finish template setup to start configuring."
-   - **Setup done** (`service.templateSetup` exists):
-     - Primary CTA: **Continue configuring** → `goOverview(s)` (current behavior)
-     - Secondary: **Preview** → `goPreviewService(s)` (current behavior)
+## 3. Go-live tweaks
 
-2. Pass `goConfigure` into `DraftServiceCard` alongside the existing handlers so the card can pick the right destination.
+**`src/pages/GoLive.tsx`**
+- Move the `users` checklist item from required → optional (flip `required: false`).
+- On mount (and on focus), re-read `go-live-checklist-status` from `localStorage` so externally-set completions show up when the user returns from a sub-page.
 
-3. Progress bar / step list on the card (driven by `computeSetupSteps`) already reflects setup status — no change needed there, it will naturally show low completion for un-setup drafts.
+**`src/pages/BoundaryConfiguration.tsx`**
+- In the save path (both "select existing → continue" and "wizard complete"), when `from === "go-live"`, merge `{ boundary: "completed" }` into the `go-live-checklist-status` localStorage entry. This way returning to `/go-live` shows Boundary as ✅ completed without further interaction.
 
-No other files change. Live services are unaffected (setup is always complete by the time a service goes live).
-
-## Why this is safe
-
-- `templateSetup` is written by the setup wizard's final step and is the prerequisite for every downstream configurator (forms, fees, workflow, roles all key off categories/modules from setup).
-- Service owners assigned to a draft before setup is finished will see **Complete setup** and be routed into the wizard — matching the "either super admin or service owner can complete setup" expectation.
+### Technical notes
+- `switchPersona` intentionally skips `clearDrafts`; `signIn` (used from `PersonaLogin`) keeps its current fresh-session behavior.
+- Reload after switch is necessary because `OnboardingProvider` snapshots localStorage on mount; without it the dashboard would still render the previous persona's filtered list until a manual refresh.
+- No backend / data-model changes.
