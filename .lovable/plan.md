@@ -1,71 +1,44 @@
-## Goal
+# Drafts section + restore old Details/Preview screens
 
-Make **assigning a service owner** the first and only step of template *activation*. All other configuration (name, structure, renewal, workflow scope) moves out of activation and becomes a **Continue setup** action initiated from the Services workspace.
+## 1. Replace "Needs attention" with "Drafts"
 
-```
-Activate template
-   ↓
-Assign service owner    ──▶ Save: owner gets invite, draft appears in workspace
-   (optional)                  for owner to continue setup
-   ↓                       
-   Skip                  ──▶ Draft appears in workspace; admin sees
-                              "Continue setup" prompt and resumes wizard
-```
+In `src/pages/TemplatesDashboard.tsx`:
 
-## Changes
+- Rename Section 1 from "Needs attention" to **"Drafts"** (icon: `FileText` or keep `Activity` → switch to `FileText`). Subtitle: *"Services in setup. Continue configuring or preview the experience."*
+- Filter unchanged (`!s.isLive`), but the row is reshaped into a **draft card** (grid 1/2/3 cols, similar to LiveServiceCard) instead of the dense row, so it visually balances with the Live section.
+- Drop the status pill logic ("Just created / Unassigned / Incomplete / Ready to go live"). Keep only:
+  - Service name (clickable → details page)
+  - Template label + "Updated X ago"
+  - Setup progress bar (`done/total · pct%`)
+  - Owner avatars (or "Unassigned" muted text if empty)
+- Two primary CTAs on every draft card:
+  - **Continue configuring** → `goConfigure(s)` (existing wizard resume URL)
+  - **Preview** → `navigate('/service/' + s.id + '/preview')` (existing ServicePreview route)
+- Overflow menu retains: Assign owner, Delete. Remove "View details" entry (Preview replaces it; service name link opens overview).
+- "Just created" highlight (`isRecent`) stays as a subtle ring on the card.
 
-### 1. New `TemplateActivate` page (`src/pages/TemplateActivate.tsx`)
-Route: `/templates/:templateId/activate`
+## 2. Restore old full-page Details and Preview for templates
 
-Single-screen step using the same `SetupShell` chrome as the wizard so the experience feels continuous. Content:
+Currently template Details and Preview open right-side sheets (`TemplateDetailsSheet`, `TemplatePreviewSheet`). Replace with the old full-page screen `src/components/onboarding/TemplateIntroduction.tsx`.
 
-- Heading: "Assign a service owner"
-- Body copy explains: the service owner is responsible for naming, configuring modules, renewal rules, and workflow. This step is optional — you can skip and continue setup yourself.
-- Email input + suggestion chips (reuse `PERSONA_SEEDS` + `persona.invitedUsers`, same as `AssignOwnerSheet`).
-- Two actions in footer:
-  - **Skip — I'll set it up** (ghost) → creates draft with no owner.
-  - **Assign and create draft** (primary, disabled until valid email) → creates draft with `assignedOwners: [email]`.
+- Add a new route in `src/App.tsx`: `/templates/:templateId` → new page `src/pages/TemplateDetailsPage.tsx`.
+- `TemplateDetailsPage` looks up the template by id, renders `<TemplateIntroduction template={t} onBack={...} onUseTemplate={() => navigate('/templates/:id/activate')} onPreview={() => navigate('/templates/:id/preview')} />`.
+- Add a separate route `/templates/:templateId/preview` → new page `src/pages/TemplatePreview.tsx` that wraps `ServicePreview` in a transient `OnboardingContext`/`ServiceConfigContext` seeded from the template (no draft service required). Simplest implementation: create a temporary in-memory `ServiceItem`-shaped object from the template's defaults and route through the existing `ServicePreview` using a `templateId` query param, OR reuse the citizen/employee preview shell with template seed data. Scope this MVP: spin up an ephemeral service via `addService` flagged `isPreviewOnly`, navigate to `/service/:id/preview`, and clean it up on unmount. (If that proves invasive, fall back to a lightweight wrapper that feeds template defaults into `PreviewProvider` directly without persisting a service.)
+- In `TemplatesDashboard.tsx`:
+  - Replace `onPreview={setPreviewTpl}` and `onDetails={setDetailsTpl}` on `TemplateCard`/`TemplateGroup` with `navigate('/templates/:id/preview')` and `navigate('/templates/:id')`.
+  - Remove the `<TemplatePreviewSheet>` and `<TemplateDetailsSheet>` instances and related state (`previewTpl`, `detailsTpl`). The catalog dialog's internal sheets get the same treatment: clicking Preview/Details closes the dialog and navigates to the full-page screen.
+- Same change inside `src/components/services/TemplateCatalogDialog.tsx`: drop the embedded sheets, accept `onPreview(t)` / `onDetails(t)` callbacks from the parent that navigate to the full-page routes.
 
-On either action:
-1. Build a minimal `ServiceItem`:
-   - `id: ${templateId}-${Date.now().toString(36)}`
-   - `name: template.name` (placeholder; owner/admin can rename in Continue setup)
-   - `templateId`, `status: "draft"`, `customModules: ["Issuance"]`
-   - `isPublished: false`, `isLive: false`
-   - `deployment: { availabilityScope: "entire_state", selectedItems: [] }`
-   - `teamMembers: []`, `authMethod: "email"`
-   - `assignedOwners: assigned ? [email] : []`
-2. `addService(draft)`
-3. Toast: "Draft created — continue setup" or "Owner invited — they'll complete setup"
-4. `navigate(/templates?recent=${id})`
+## 3. Files touched
 
-### 2. Update `TemplateSetup` to support resume
-File: `src/pages/TemplateSetup.tsx`
-
-- Read `?serviceId=` query param.
-- When present:
-  - Look up the existing draft from `state.services`.
-  - Hydrate local state (`name`, `renewalEnabled`, `hasCategories`, `categoriesList`, `subcategoriesList`, `renewalPolicy`, `workflowScope`) from `service.templateSetup` / `service.renewalPolicy` / `service.workflowScope` / `service.customModules`.
-  - In `finalize()`, call `updateService(serviceId, { ...patch })` instead of `addService`. Preserve existing `assignedOwners`.
-- When absent: keep current behaviour (legacy direct-setup path).
-
-### 3. Workspace wiring (`src/pages/TemplatesDashboard.tsx`)
-- `activateTemplate(t)` → `navigate(/templates/${t.id}/activate)` (instead of `/setup`).
-- The same change applies in `TemplateCatalogDialog`, `TemplatePreviewSheet`, and `TemplateDetailsSheet` since they all call back through `onActivate`. (Single change in workspace's `activateTemplate` covers all three.)
-- `AttentionRow` "Continue setup" CTA → `navigate(/templates/${s.templateId}/setup?serviceId=${s.id})` (instead of `/service/:id/configure`). This makes the prompt resume the wizard where it left off.
-
-### 4. Route registration (`src/App.tsx`)
-Add: `<Route path="/templates/:templateId/activate" element={<TemplateActivate />} />`
+- `src/pages/TemplatesDashboard.tsx` — rewrite Section 1 as Drafts card grid; remove sheet state; navigate for preview/details.
+- `src/components/services/TemplateCatalogDialog.tsx` — accept preview/details callbacks; drop inline sheets.
+- `src/pages/TemplateDetailsPage.tsx` *(new)* — full-page wrapper around `TemplateIntroduction`.
+- `src/pages/TemplatePreview.tsx` *(new)* — template-level preview using the existing ServicePreview shell.
+- `src/App.tsx` — register `/templates/:templateId` and `/templates/:templateId/preview`.
 
 ## Out of scope
 
-- Real email invitation. The "owner invited" toast is just UI; assignment is stored on the service like today.
-- Resuming partial wizard progress mid-step. Hydration is from saved fields only — the wizard starts at "Identity" but with values pre-filled, and the user steps through; the steps already short-circuit when data is valid.
-- Renaming the wizard's first step. The owner/admin can change the name there.
-
-## Files touched
-
-- `src/pages/TemplateActivate.tsx` (new)
-- `src/pages/TemplateSetup.tsx` (hydrate + update path)
-- `src/pages/TemplatesDashboard.tsx` (activate route + continue-setup route)
-- `src/App.tsx` (route registration)
+- Keeping the dense table row UX for drafts.
+- Rewriting `TemplateIntroduction` itself (used as-is).
+- Real persistence for the template preview sandbox; the ephemeral service approach is acceptable.
