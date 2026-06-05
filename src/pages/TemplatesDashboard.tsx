@@ -185,7 +185,7 @@ const ServicesWorkspace: React.FC = () => {
                   template={templateById.get(s.templateId)}
                   isRecent={s.id === recentId}
                   canManage={canManage}
-                  onContinue={() => goConfigure(s)}
+                  onContinue={() => goOverview(s)}
                   onPreview={() => goPreviewService(s)}
                   onAssign={() => setAssignTarget(s)}
                   onDelete={() => setPendingDelete(s)}
