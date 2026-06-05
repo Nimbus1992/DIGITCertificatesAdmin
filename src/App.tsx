@@ -43,6 +43,7 @@ const App = () => (
             {/* App shell with sidebar */}
             <Route element={<AppLayout />}>
               <Route path="/templates" element={<TemplatesDashboard />} />
+              <Route path="/catalog" element={<TemplatesCatalog />} />
               {/* Legacy aliases */}
               <Route path="/dashboard" element={<Navigate to="/templates" replace />} />
               <Route path="/services" element={<Navigate to="/templates" replace />} />
