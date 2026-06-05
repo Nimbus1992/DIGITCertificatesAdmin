@@ -8,7 +8,7 @@ interface Props {
   redirect?: string;
 }
 
-const RoleGuard: React.FC<Props> = ({ allow, redirect = "/dashboard" }) => {
+const RoleGuard: React.FC<Props> = ({ allow, redirect = "/templates" }) => {
   const { persona } = usePersona();
   if (!persona.role) return <Navigate to="/onboarding" replace />;
   if (!allow.includes(persona.role)) return <Navigate to={redirect} replace />;
