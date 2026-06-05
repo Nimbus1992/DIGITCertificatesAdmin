@@ -381,7 +381,7 @@ const DraftServiceCard: React.FC<{
 
       {!setupComplete && (
         <div className="mt-4">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Finish template setup to start configuring.
           </p>
         </div>
@@ -391,33 +391,33 @@ const DraftServiceCard: React.FC<{
         {owners.length > 0 ? (
           <>
             <Avatar name={owners[0]} />
-            <span className="text-xs text-foreground truncate min-w-0">{owners[0]}</span>
+            <span className="text-sm text-foreground truncate min-w-0">{owners[0]}</span>
             {owners.length > 1 && (
-              <span className="text-[11px] text-muted-foreground shrink-0">+{owners.length - 1}</span>
+              <span className="text-xs text-muted-foreground shrink-0">+{owners.length - 1}</span>
             )}
           </>
         ) : canManage ? (
-          <button onClick={onAssign} className="inline-flex items-center gap-1 text-xs text-warning hover:underline">
+          <button onClick={onAssign} className="inline-flex items-center gap-1 text-sm text-warning hover:underline">
             <UserPlus className="h-3 w-3" /> Assign owner
           </button>
         ) : (
-          <span className="text-xs text-muted-foreground">Unassigned</span>
+          <span className="text-sm text-muted-foreground">Unassigned</span>
         )}
       </div>
 
       <div className="mt-4 flex items-center gap-2">
         {setupComplete ? (
           <>
-            <Button size="sm" className="h-8 text-xs flex-1" onClick={onContinue}>
+            <Button size="sm" className="h-8 text-sm flex-1" onClick={onContinue}>
               Continue configuring
               <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPreview}>
+            <Button size="sm" variant="outline" className="h-8 text-sm" onClick={onPreview}>
               <Eye className="h-3 w-3 mr-1" /> Preview
             </Button>
           </>
         ) : (
-          <Button size="sm" className="h-8 text-xs flex-1" onClick={onCompleteSetup}>
+          <Button size="sm" className="h-8 text-sm flex-1" onClick={onCompleteSetup}>
             Complete setup
             <ArrowRight className="h-3 w-3 ml-1" />
           </Button>
