@@ -7,6 +7,7 @@ import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { PersonaProvider } from "@/contexts/PersonaContext";
 import Onboarding from "./pages/Onboarding";
 import TemplatesDashboard from "./pages/TemplatesDashboard";
+import TemplatesCatalog from "./pages/TemplatesCatalog";
 import ServiceConfig from "./pages/ServiceConfig";
 import ServicePreview from "./components/preview/ServicePreview";
 import GoLive from "./pages/GoLive";
