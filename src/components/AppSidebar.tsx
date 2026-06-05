@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 type NavItem = { title: string; url: string; icon: any };
 
 const workspaceItems: NavItem[] = [
-  { title: "Templates", url: "/templates", icon: LayoutTemplate },
+  { title: "Services", url: "/templates", icon: LayoutTemplate },
 ];
 
 const setupItems: NavItem[] = [
