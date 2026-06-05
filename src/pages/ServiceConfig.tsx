@@ -28,10 +28,10 @@ const ServiceConfigInner: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  type Mode = "overview" | "configure" | "preview" | "operate";
+  type Mode = "overview" | "configure" | "preview" | "operate" | "users";
   const normalizeMode = (m?: string | null): Mode => {
     if (m === "operations" || m === "deployment") return "operate";
-    if (m === "overview" || m === "configure" || m === "preview" || m === "operate") return m;
+    if (m === "overview" || m === "configure" || m === "preview" || m === "operate" || m === "users") return m;
     return "overview";
   };
   const initialMode = normalizeMode((location.state as { mode?: string } | null)?.mode);
