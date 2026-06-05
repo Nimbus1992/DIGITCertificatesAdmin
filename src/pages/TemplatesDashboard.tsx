@@ -338,70 +338,48 @@ const SectionHeader: React.FC<{
  * Attention row
  * ========================================================================= */
 
-const AttentionRow: React.FC<{
+const DraftServiceCard: React.FC<{
   service: ServiceItem;
   template?: ServiceTemplate;
-  isLast: boolean;
   isRecent: boolean;
   canManage: boolean;
   onContinue: () => void;
+  onPreview: () => void;
   onAssign: () => void;
-  onDetails: () => void;
   onDelete: () => void;
-}> = ({ service, template, isLast, isRecent, canManage, onContinue, onAssign, onDetails, onDelete }) => {
+}> = ({ service, template, isRecent, canManage, onContinue, onPreview, onAssign, onDelete }) => {
   const { pct, done, total } = setupProgress(service);
-  const unassigned = (service.assignedOwners?.length ?? 0) === 0;
+  const owners = service.assignedOwners ?? [];
   const Icon = template?.icon ?? LayoutTemplate;
-
-  const statusLabel = isRecent
-    ? "Just created"
-    : unassigned
-    ? "Unassigned"
-    : pct < 100
-    ? "Incomplete"
-    : "Ready to go live";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-4 px-5 py-4 hover:bg-muted/30 transition-colors",
-        !isLast && "border-b border-border",
-        isRecent && "bg-primary/5",
+        "group rounded-lg border bg-card p-5 transition-all hover:shadow-sm hover:border-foreground/15",
+        isRecent ? "border-primary/40 ring-1 ring-primary/15" : "border-border",
       )}
     >
-      <span className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </span>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={onDetails}
-            className="text-sm font-semibold text-foreground hover:text-primary transition-colors truncate"
-          >
-            {service.name}
-          </button>
-          <span
-            className={cn(
-              "inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider shrink-0",
-              isRecent
-                ? "bg-primary text-primary-foreground"
-                : unassigned
-                ? "bg-warning/10 text-warning ring-1 ring-warning/20"
-                : "bg-warning/10 text-warning ring-1 ring-warning/20",
-            )}
-          >
-            {statusLabel}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <span className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+            <Icon className="h-4 w-4 text-muted-foreground" />
           </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground truncate">{service.name}</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              {template ? `from ${template.name} · ` : ""}
+              Updated {formatRelative(service.updatedAt ?? service.createdAt)}
+            </p>
+          </div>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-          {template ? `from ${template.name} · ` : ""}Updated {formatRelative(service.updatedAt ?? service.createdAt)}
-        </p>
+        <span className="inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-warning/10 text-warning ring-1 ring-warning/20 shrink-0">
+          {isRecent ? "New" : "Draft"}
+        </span>
       </div>
 
-      <div className="hidden md:flex flex-col items-end gap-1 w-44 shrink-0">
-        <div className="flex items-center justify-between w-full text-[11px]">
-          <span className="text-muted-foreground">Setup</span>
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-[11px] mb-1.5">
+          <span className="text-muted-foreground">Setup progress</span>
           <span className="font-medium text-foreground tabular-nums">
             {done}/{total} · {pct}%
           </span>
@@ -409,10 +387,31 @@ const AttentionRow: React.FC<{
         <Progress value={pct} className="h-1.5 w-full" />
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Button size="sm" onClick={onContinue} className="h-8 text-xs">
-          Continue setup
+      <div className="mt-4 pt-3 border-t border-border flex items-center gap-2 min-w-0">
+        {owners.length > 0 ? (
+          <>
+            <Avatar name={owners[0]} />
+            <span className="text-xs text-foreground truncate min-w-0">{owners[0]}</span>
+            {owners.length > 1 && (
+              <span className="text-[11px] text-muted-foreground shrink-0">+{owners.length - 1}</span>
+            )}
+          </>
+        ) : canManage ? (
+          <button onClick={onAssign} className="inline-flex items-center gap-1 text-xs text-warning hover:underline">
+            <UserPlus className="h-3 w-3" /> Assign owner
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground">Unassigned</span>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Button size="sm" className="h-8 text-xs flex-1" onClick={onContinue}>
+          Continue configuring
           <ArrowRight className="h-3 w-3 ml-1" />
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPreview}>
+          <Eye className="h-3 w-3 mr-1" /> Preview
         </Button>
         {canManage && (
           <DropdownMenu>
@@ -422,9 +421,6 @@ const AttentionRow: React.FC<{
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={onDetails}>
-                <Eye className="h-3.5 w-3.5 mr-2" /> View details
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={onAssign}>
                 <UserPlus className="h-3.5 w-3.5 mr-2" /> Assign service owner
               </DropdownMenuItem>
