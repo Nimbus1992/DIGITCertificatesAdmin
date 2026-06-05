@@ -160,12 +160,14 @@ const ServiceConfigInner: React.FC = () => {
         { id: "overview", label: "Overview" },
         { id: "preview", label: "Preview" },
         { id: "operate", label: "Monitor and Manage" },
+        { id: "users", label: "Users & Access" },
       ]
     : [
         { id: "overview", label: "Overview" },
         { id: "configure", label: "Configure" },
         { id: "preview", label: "Preview" },
         { id: "operate", label: "Monitor and Manage" },
+        { id: "users", label: "Users & Access" },
       ];
 
 
