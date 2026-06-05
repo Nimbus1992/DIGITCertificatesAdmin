@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useOnboarding } from "@/contexts/OnboardingContext";
@@ -41,11 +41,23 @@ const GoLive: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [comingSoonFor, setComingSoonFor] = useState<string | null>(null);
 
+  useEffect(() => {
+    const reload = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setStatuses(JSON.parse(saved));
+      } catch {}
+    };
+    reload();
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, []);
+
   const activeService = state.services.find((s) => s.id === state.activeServiceId);
 
   const checklist: ChecklistItem[] = [
     { id: "auth", label: "Authentication", description: "Set access type and sign-in method per role", icon: ShieldCheck, required: true, component: RoleAccessSetup },
-    { id: "users", label: "Users & Roles", description: "Invite users and assign roles", icon: Users, required: true, navigateTo: "/setup/users" },
+    { id: "users", label: "Users & Roles", description: "Invite users and assign roles", icon: Users, required: false, navigateTo: "/setup/users" },
     { id: "boundary", label: "Boundary Configuration", description: "Configure geographic or administrative boundaries", icon: MapPin, required: true, navigateTo: "/boundary?from=go-live" },
     { id: "branding", label: "Branding & Theme", description: "Logo, colors and portal name", icon: Palette, required: false, navigateTo: "/config/branding" },
     { id: "languages", label: "Languages", description: "Add language support", icon: Languages, required: false },

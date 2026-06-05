@@ -4,7 +4,7 @@ import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
 import { usePersona } from "@/contexts/PersonaContext";
 import { allTemplates, type ServiceTemplate } from "@/data/serviceTemplates";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +40,7 @@ import { toast } from "sonner";
 import AssignOwnerSheet from "@/components/templates/AssignOwnerSheet";
 import TemplateCatalogDialog from "@/components/services/TemplateCatalogDialog";
 import TemplateCard from "@/components/services/TemplateCard";
-import { setupProgress, mockApplicationVolume } from "@/components/services/computeSetupProgress";
+import { mockApplicationVolume } from "@/components/services/computeSetupProgress";
 
 const formatRelative = (ts?: number) => {
   if (!ts) return "—";
@@ -350,7 +350,6 @@ const DraftServiceCard: React.FC<{
   onAssign: () => void;
   onDelete: () => void;
 }> = ({ service, template, isRecent, canManage, onContinue, onCompleteSetup, onPreview, onAssign, onDelete }) => {
-  const { pct, done, total } = setupProgress(service);
   const owners = service.assignedOwners ?? [];
   const Icon = template?.icon ?? LayoutTemplate;
   const setupComplete = Boolean(service.templateSetup);
@@ -380,20 +379,13 @@ const DraftServiceCard: React.FC<{
         </span>
       </div>
 
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-[11px] mb-1.5">
-          <span className="text-muted-foreground">Setup progress</span>
-          <span className="font-medium text-foreground tabular-nums">
-            {done}/{total} · {pct}%
-          </span>
-        </div>
-        <Progress value={pct} className="h-1.5 w-full" />
-        {!setupComplete && (
-          <p className="text-[11px] text-muted-foreground mt-2">
+      {!setupComplete && (
+        <div className="mt-4">
+          <p className="text-[11px] text-muted-foreground">
             Finish template setup to start configuring.
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="mt-4 pt-3 border-t border-border flex items-center gap-2 min-w-0">
         {owners.length > 0 ? (

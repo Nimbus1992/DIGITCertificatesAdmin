@@ -21,6 +21,16 @@ export default function BoundaryConfiguration() {
 
   const selected = useMemo(() => hierarchies.find((h) => h.id === selectedId) ?? null, [hierarchies, selectedId]);
 
+  const markGoLiveBoundaryComplete = () => {
+    if (from !== "go-live") return;
+    try {
+      const raw = localStorage.getItem("go-live-checklist-status");
+      const cur = raw ? JSON.parse(raw) : {};
+      cur.boundary = "completed";
+      localStorage.setItem("go-live-checklist-status", JSON.stringify(cur));
+    } catch {}
+  };
+
   const goBack = () => {
     if (from === "go-live") navigate("/go-live");
     else if (id) navigate(`/service/${id}/configure`);
@@ -31,6 +41,7 @@ export default function BoundaryConfiguration() {
     if (selected) {
       setSavedHierarchy(selected);
       setPhase("saved");
+      markGoLiveBoundaryComplete();
     }
   };
 
@@ -68,6 +79,7 @@ export default function BoundaryConfiguration() {
               setSelectedId(h.id);
               setSavedHierarchy(h);
               setPhase("saved");
+              markGoLiveBoundaryComplete();
             }}
           />
         )}
