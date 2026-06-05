@@ -350,7 +350,6 @@ const DraftServiceCard: React.FC<{
   onAssign: () => void;
   onDelete: () => void;
 }> = ({ service, template, isRecent, canManage, onContinue, onCompleteSetup, onPreview, onAssign, onDelete }) => {
-  const { pct, done, total } = setupProgress(service);
   const owners = service.assignedOwners ?? [];
   const Icon = template?.icon ?? LayoutTemplate;
   const setupComplete = Boolean(service.templateSetup);
