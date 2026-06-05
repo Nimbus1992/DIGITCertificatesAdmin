@@ -58,25 +58,25 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const signIn = useCallback((email: string) => {
     const seed = PERSONA_SEEDS.find((p) => p.email.toLowerCase() === email.toLowerCase());
     if (seed) {
-      setPersona({
+      setPersona((prev) => ({
         ...initial,
-        ...persona,
+        ...prev,
         email: seed.email,
         role: seed.role,
         name: seed.name,
         assignedTemplates: seed.assignedTemplates,
-      });
+      }));
     } else {
-      // default to service owner if unknown email
+      // Unknown emails default to Administrator (safer than service_owner for demos)
       setPersona({
         ...initial,
         email,
-        role: "service_owner",
+        role: "administrator",
         name: email.split("@")[0],
-        assignedTemplates: ["Business License"],
+        assignedTemplates: [],
       });
     }
-  }, [persona]);
+  }, []);
 
   const signOut = useCallback(() => {
     localStorage.removeItem(KEY);
