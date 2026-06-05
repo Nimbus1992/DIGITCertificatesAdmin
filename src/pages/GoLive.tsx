@@ -45,7 +45,7 @@ const GoLive: React.FC = () => {
 
   const checklist: ChecklistItem[] = [
     { id: "auth", label: "Authentication", description: "Set access type and sign-in method per role", icon: ShieldCheck, required: true, component: RoleAccessSetup },
-    { id: "users", label: "Users & Roles", description: "Invite users and assign roles", icon: Users, required: true, navigateTo: "/setup/users" },
+    { id: "users", label: "Users & Roles", description: "Invite users and assign roles", icon: Users, required: false, navigateTo: "/setup/users" },
     { id: "boundary", label: "Boundary Configuration", description: "Configure geographic or administrative boundaries", icon: MapPin, required: true, navigateTo: "/boundary?from=go-live" },
     { id: "branding", label: "Branding & Theme", description: "Logo, colors and portal name", icon: Palette, required: false, navigateTo: "/config/branding" },
     { id: "languages", label: "Languages", description: "Add language support", icon: Languages, required: false },
