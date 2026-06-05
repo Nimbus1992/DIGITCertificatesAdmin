@@ -41,6 +41,18 @@ const GoLive: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [comingSoonFor, setComingSoonFor] = useState<string | null>(null);
 
+  useEffect(() => {
+    const reload = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setStatuses(JSON.parse(saved));
+      } catch {}
+    };
+    reload();
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, []);
+
   const activeService = state.services.find((s) => s.id === state.activeServiceId);
 
   const checklist: ChecklistItem[] = [
