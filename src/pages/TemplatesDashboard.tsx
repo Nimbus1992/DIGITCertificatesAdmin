@@ -186,6 +186,7 @@ const ServicesWorkspace: React.FC = () => {
                   isRecent={s.id === recentId}
                   canManage={canManage}
                   onContinue={() => goOverview(s)}
+                  onCompleteSetup={() => goConfigure(s)}
                   onPreview={() => goPreviewService(s)}
                   onAssign={() => setAssignTarget(s)}
                   onDelete={() => setPendingDelete(s)}
@@ -344,13 +345,15 @@ const DraftServiceCard: React.FC<{
   isRecent: boolean;
   canManage: boolean;
   onContinue: () => void;
+  onCompleteSetup: () => void;
   onPreview: () => void;
   onAssign: () => void;
   onDelete: () => void;
-}> = ({ service, template, isRecent, canManage, onContinue, onPreview, onAssign, onDelete }) => {
+}> = ({ service, template, isRecent, canManage, onContinue, onCompleteSetup, onPreview, onAssign, onDelete }) => {
   const { pct, done, total } = setupProgress(service);
   const owners = service.assignedOwners ?? [];
   const Icon = template?.icon ?? LayoutTemplate;
+  const setupComplete = Boolean(service.templateSetup);
 
   return (
     <div
@@ -385,6 +388,11 @@ const DraftServiceCard: React.FC<{
           </span>
         </div>
         <Progress value={pct} className="h-1.5 w-full" />
+        {!setupComplete && (
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Finish template setup to start configuring.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 pt-3 border-t border-border flex items-center gap-2 min-w-0">
@@ -406,13 +414,22 @@ const DraftServiceCard: React.FC<{
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <Button size="sm" className="h-8 text-xs flex-1" onClick={onContinue}>
-          Continue configuring
-          <ArrowRight className="h-3 w-3 ml-1" />
-        </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPreview}>
-          <Eye className="h-3 w-3 mr-1" /> Preview
-        </Button>
+        {setupComplete ? (
+          <>
+            <Button size="sm" className="h-8 text-xs flex-1" onClick={onContinue}>
+              Continue configuring
+              <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onPreview}>
+              <Eye className="h-3 w-3 mr-1" /> Preview
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" className="h-8 text-xs flex-1" onClick={onCompleteSetup}>
+            Complete setup
+            <ArrowRight className="h-3 w-3 ml-1" />
+          </Button>
+        )}
         {canManage && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
