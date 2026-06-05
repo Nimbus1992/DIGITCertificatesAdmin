@@ -41,7 +41,7 @@ const AppLayout: React.FC = () => {
                       </span>
                       <span className="hidden sm:flex flex-col items-start leading-tight">
                         <span className="text-xs font-medium">
-                          {persona.role === "super_admin" ? "Super Admin" : "Service Owner"}
+                          {persona.role === "super_admin" ? "Super Admin" : persona.role === "administrator" ? "Administrator" : "Service Owner"}
                         </span>
                         <span className="text-[10px] text-muted-foreground">{persona.email}</span>
                       </span>
@@ -50,7 +50,7 @@ const AppLayout: React.FC = () => {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel className="text-xs">
                       <div className="font-medium">
-                        {persona.role === "super_admin" ? "Super Admin" : "Service Owner"}
+                        {persona.role === "super_admin" ? "Super Admin" : persona.role === "administrator" ? "Administrator" : "Service Owner"}
                       </div>
                       <div className="text-[11px] text-muted-foreground font-normal">{persona.email}</div>
                     </DropdownMenuLabel>
