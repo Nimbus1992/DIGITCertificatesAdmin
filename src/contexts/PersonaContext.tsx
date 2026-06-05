@@ -30,6 +30,41 @@ const initial: PersonaState = {
 };
 
 const KEY = "persona:v1";
+const SESSION_KEY = "persona:session";
+
+const clearDrafts = () => {
+  try {
+    const raw = localStorage.getItem("lnp-onboarding-state");
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const services = Array.isArray(parsed.services) ? parsed.services : [];
+    const removedIds: string[] = services
+      .filter((s: any) => !(s.isLive || s.status === "live"))
+      .map((s: any) => s.id);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (removedIds.some((id) => k.includes(`:${id}:`) || k.endsWith(`:${id}`))) {
+        localStorage.removeItem(k);
+      }
+    }
+    parsed.services = services.filter((s: any) => s.isLive || s.status === "live");
+    parsed.activeServiceId = "";
+    localStorage.setItem("lnp-onboarding-state", JSON.stringify(parsed));
+  } catch {}
+};
+
+// Run once per browser session (tab) BEFORE any provider mounts.
+// Guarantees every fresh login/reload starts with zero pre-existing drafts,
+// even when the persona was hydrated from localStorage and signIn() is skipped.
+if (typeof window !== "undefined") {
+  try {
+    if (!sessionStorage.getItem(SESSION_KEY)) {
+      clearDrafts();
+      sessionStorage.setItem(SESSION_KEY, String(Date.now()));
+    }
+  } catch {}
+}
 
 interface PersonaContextType {
   persona: PersonaState;
@@ -55,31 +90,15 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(KEY, JSON.stringify(persona));
   }, [persona]);
 
-  const clearDrafts = () => {
-    try {
-      const raw = localStorage.getItem("lnp-onboarding-state");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const services = Array.isArray(parsed.services) ? parsed.services : [];
-        const removedIds = services
-          .filter((s: any) => !(s.isLive || s.status === "live"))
-          .map((s: any) => s.id);
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (removedIds.some((id: string) => k.includes(`:${id}:`) || k.endsWith(`:${id}`))) {
-            localStorage.removeItem(k);
-          }
-        }
-        parsed.services = services.filter((s: any) => s.isLive || s.status === "live");
-        parsed.activeServiceId = "";
-        localStorage.setItem("lnp-onboarding-state", JSON.stringify(parsed));
-      }
-    } catch {}
-  };
-
   const signIn = useCallback((email: string) => {
+    // Treat this as a fresh session: drop the marker, purge drafts, re-set marker.
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {}
     clearDrafts();
+    try {
+      sessionStorage.setItem(SESSION_KEY, String(Date.now()));
+    } catch {}
     const seed = PERSONA_SEEDS.find((p) => p.email.toLowerCase() === email.toLowerCase());
     const base: PersonaState = seed
       ? {
@@ -96,15 +115,17 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
           name: email.split("@")[0],
           assignedTemplates: [],
         };
-    // Persist immediately so the post-reload provider hydrates with the new persona.
     localStorage.setItem(KEY, JSON.stringify(base));
     setPersona(base);
-    // Reload so OnboardingProvider re-reads cleaned storage and routes treat this as a fresh session.
+    // Reload so OnboardingProvider re-reads cleaned storage as a fresh session.
     setTimeout(() => window.location.reload(), 0);
   }, []);
 
   const signOut = useCallback(() => {
     localStorage.removeItem(KEY);
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {}
     setPersona(initial);
   }, []);
 
