@@ -40,7 +40,7 @@ import { toast } from "sonner";
 import AssignOwnerSheet from "@/components/templates/AssignOwnerSheet";
 import TemplateCatalogDialog from "@/components/services/TemplateCatalogDialog";
 import TemplateCard from "@/components/services/TemplateCard";
-import { setupProgress, mockApplicationVolume } from "@/components/services/computeSetupProgress";
+import { mockApplicationVolume } from "@/components/services/computeSetupProgress";
 
 const formatRelative = (ts?: number) => {
   if (!ts) return "—";
