@@ -13,7 +13,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePersona } from "@/contexts/PersonaContext";
-import { LogOut, UserRound } from "lucide-react";
+import { PERSONA_SEEDS } from "@/data/personaSeeds";
+import { LogOut, UserRound, Check } from "lucide-react";
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super Admin",
+  administrator: "Administrator",
+  service_owner: "Service Owner",
+};
 
 const AppLayout: React.FC = () => {
   const { persona, signOut } = usePersona();
