@@ -7,6 +7,7 @@ import {
   Lock,
   Palette,
   Languages,
+  Bell,
   Plug,
   ClipboardList,
   HelpCircle,
@@ -15,8 +16,6 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import cityOfCapeTownLogo from "@/assets/city-of-cape-town-logo.png";
-import { useOnboarding } from "@/contexts/OnboardingContext";
-import { can, Permission } from "@/lib/rbac";
 
 import {
   Sidebar,
@@ -31,43 +30,36 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-type NavItem = {
-  title: string;
-  url: string;
-  icon: typeof LayoutDashboard;
-  permission?: Permission;
-};
 
-const mainItems: NavItem[] = [
-  { title: "Home", url: "/home", icon: LayoutDashboard },
-  { title: "Templates", url: "/services", icon: FileText, permission: "services.activate" },
+const mainItems = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Templates", url: "/services", icon: FileText },
 ];
 
-const setupItems: NavItem[] = [
-  { title: "Organization Profile", url: "/setup/organization", icon: Building2, permission: "org.manage" },
-  { title: "Users & Access", url: "/setup/users", icon: Users, permission: "users.manage" },
-  { title: "Application Areas", url: "/setup/deployment", icon: MapPin, permission: "setup.manage" },
-  { title: "Authentication", url: "/setup/auth", icon: Lock, permission: "setup.manage" },
+const setupItems = [
+  { title: "Organization Profile", url: "/setup/organization", icon: Building2 },
+  { title: "Users & Access", url: "/setup/users", icon: Users },
+  { title: "Application Areas", url: "/setup/deployment", icon: MapPin },
+  { title: "Authentication", url: "/setup/auth", icon: Lock },
 ];
 
-const configItems: NavItem[] = [
-  { title: "Branding & Theme", url: "/config/branding", icon: Palette, permission: "branding.manage" },
-  { title: "Languages", url: "/config/languages", icon: Languages, permission: "setup.manage" },
-  { title: "Integrations", url: "/config/integrations", icon: Plug, permission: "setup.manage" },
+const configItems = [
+  { title: "Branding & Theme", url: "/config/branding", icon: Palette },
+  { title: "Languages", url: "/config/languages", icon: Languages },
+  
+  { title: "Integrations", url: "/config/integrations", icon: Plug },
 ];
 
-const utilItems: NavItem[] = [
-  { title: "Audit Log", url: "/audit-log", icon: ClipboardList, permission: "audit.view" },
+const utilItems = [
+  { title: "Audit Log", url: "/audit-log", icon: ClipboardList },
   { title: "Help & Support", url: "/help", icon: HelpCircle },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
+function NavGroup({ label, items }: { label: string; items: typeof mainItems }) {
   const { state: sidebarState } = useSidebar();
   const collapsed = sidebarState === "collapsed";
   const location = useLocation();
-
-  if (items.length === 0) return null;
 
   return (
     <SidebarGroup>
@@ -86,6 +78,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
                   <item.icon className="mr-2 h-4 w-4" />
                   {!collapsed && <span>{item.title}</span>}
                 </NavLink>
+
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
@@ -97,14 +90,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 
 export function AppSidebar() {
   const { state: sidebarState } = useSidebar();
-  const { state } = useOnboarding();
   const collapsed = sidebarState === "collapsed";
-
-  const filter = (items: NavItem[]) =>
-    items.filter((i) => !i.permission || can(state, i.permission));
-
-  const role = state.currentUserRole ?? "super_admin";
-  const roleLabel = role === "service_owner" ? "Service Owner" : "Admin Console";
 
   return (
     <Sidebar collapsible="icon">
@@ -120,17 +106,17 @@ export function AppSidebar() {
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
                 City of Cape Town
               </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">{roleLabel}</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">Admin Console</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <NavGroup label="Main" items={filter(mainItems)} />
-        <NavGroup label="Setup" items={filter(setupItems)} />
-        <NavGroup label="Configuration" items={filter(configItems)} />
-        <NavGroup label="Utilities" items={filter(utilItems)} />
+        <NavGroup label="Main" items={mainItems} />
+        <NavGroup label="Setup" items={setupItems} />
+        <NavGroup label="Configuration" items={configItems} />
+        <NavGroup label="Utilities" items={utilItems} />
       </SidebarContent>
     </Sidebar>
   );

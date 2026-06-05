@@ -145,6 +145,46 @@ const OverviewWorkspace: React.FC<Props> = ({ service, isLive, onNavigate }) => 
         </Card>
       </section>
 
+      {/* GENERATED EXPERIENCES */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Generated Experiences
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-accent" />
+                </div>
+                <ReadyBadge />
+              </div>
+              <div>
+                <h4 className="font-semibold text-foreground">Citizen Portal</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Applicants can apply, pay fees, track status, and download licenses.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Briefcase className="h-5 w-5 text-accent" />
+                </div>
+                <ReadyBadge />
+              </div>
+              <div>
+                <h4 className="font-semibold text-foreground">Employee Workspace</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Officials can review applications, process approvals, and issue licenses.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
       {/* NEXT ACTIONS */}
       <section className="space-y-3">

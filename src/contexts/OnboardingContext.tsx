@@ -6,24 +6,6 @@ export type AuthMethod = "email" | "sso" | "otp";
 export type ServiceStatus = "draft" | "published" | "live";
 export type AccessType = "self_registration" | "pre_registered";
 export type RoleAuthMethod = "mobile_otp" | "email_otp" | "email_password";
-export type UserRole = "super_admin" | "service_owner";
-export type MemberRole = "admin" | "service_owner";
-export type MemberStatus = "invited" | "active";
-
-export interface OrgMember {
-  id: string;
-  email: string;
-  fullName?: string;
-  role: MemberRole;
-  status: MemberStatus;
-  invitedAt: string;
-}
-
-export interface ServiceOwnerAssignment {
-  serviceId: string;
-  ownerEmail: string;
-  assignedAt: string;
-}
 
 export interface RoleUser {
   id: string;
@@ -133,11 +115,6 @@ export interface OnboardingState {
   services: ServiceItem[];
   activeServiceId: string;
   platformBranding?: BrandingConfig;
-  currentUserRole?: UserRole;
-  orgMembers: OrgMember[];
-  serviceOwners: ServiceOwnerAssignment[];
-  pendingActivatedServiceIds: string[];
-  setupComplete: boolean;
 }
 
 const initialState: OnboardingState = {
@@ -173,11 +150,6 @@ const initialState: OnboardingState = {
   services: [],
   activeServiceId: "",
   platformBranding: undefined,
-  currentUserRole: undefined,
-  orgMembers: [],
-  serviceOwners: [],
-  pendingActivatedServiceIds: [],
-  setupComplete: false,
 };
 
 interface OnboardingContextType {
@@ -206,19 +178,6 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = { ...initialState, ...JSON.parse(saved) };
-        parsed.services = Array.isArray(parsed.services) ? parsed.services : [];
-        parsed.orgMembers = Array.isArray(parsed.orgMembers) ? parsed.orgMembers : [];
-        parsed.serviceOwners = Array.isArray(parsed.serviceOwners) ? parsed.serviceOwners : [];
-        parsed.pendingActivatedServiceIds = Array.isArray(parsed.pendingActivatedServiceIds) ? parsed.pendingActivatedServiceIds : [];
-        parsed.teamMembers = Array.isArray(parsed.teamMembers) ? parsed.teamMembers : [];
-        parsed.customModules = Array.isArray(parsed.customModules) ? parsed.customModules : [];
-        parsed.deployment = parsed.deployment ?? initialState.deployment;
-        parsed.services = parsed.services.map((service: ServiceItem) => ({
-          ...service,
-          customModules: Array.isArray(service.customModules) ? service.customModules : [],
-          teamMembers: Array.isArray(service.teamMembers) ? service.teamMembers : [],
-          deployment: service.deployment ?? { availabilityScope: "entire_state", selectedItems: [] },
-        }));
         // Migrate: if there's a serviceName but no applications array, create one
         if (parsed.serviceName && (!parsed.services || parsed.services.length === 0)) {
           const migratedService: ServiceItem = {
@@ -272,7 +231,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const addService = useCallback((service: ServiceItem) => {
     setState((prev) => ({
       ...prev,
-      services: [...(prev.services ?? []), service],
+      services: [...prev.services, service],
       activeServiceId: service.id,
     }));
   }, []);
@@ -280,7 +239,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateService = useCallback((id: string, updates: Partial<ServiceItem>) => {
     setState((prev) => ({
       ...prev,
-      services: (prev.services ?? []).map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      services: prev.services.map((s) => (s.id === id ? { ...s, ...updates } : s)),
     }));
   }, []);
 
@@ -299,7 +258,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     setState((prev) => ({
       ...prev,
-      services: (prev.services ?? []).filter((s) => s.id !== id),
+      services: prev.services.filter((s) => s.id !== id),
       activeServiceId: prev.activeServiceId === id ? "" : prev.activeServiceId,
     }));
   }, []);
@@ -309,13 +268,13 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const getActiveService = useCallback(() => {
-    return (state.services ?? []).find((s) => s.id === state.activeServiceId);
+    return state.services.find((s) => s.id === state.activeServiceId);
   }, [state.services, state.activeServiceId]);
 
   const updateActiveServiceBranding = useCallback((branding: BrandingConfig) => {
     setState((prev) => ({
       ...prev,
-      services: (prev.services ?? []).map((s) =>
+      services: prev.services.map((s) =>
         s.id === prev.activeServiceId ? { ...s, branding } : s
       ),
     }));
