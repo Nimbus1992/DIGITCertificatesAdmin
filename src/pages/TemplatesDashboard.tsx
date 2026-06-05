@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useOnboarding, type ServiceItem } from "@/contexts/OnboardingContext";
 import { usePersona } from "@/contexts/PersonaContext";
 import { allTemplates, type ServiceTemplate } from "@/data/serviceTemplates";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,29 +22,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Search,
   MoreHorizontal,
-  Plus,
   Settings,
   UserPlus,
-  ExternalLink,
   Trash2,
   ArrowRight,
   Eye,
-  Sparkles,
-  AlertTriangle,
-  Power,
   LayoutTemplate,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AssignOwnerSheet from "@/components/templates/AssignOwnerSheet";
 import { toast } from "sonner";
-
-type Row =
-  | { kind: "service"; service: ServiceItem; template?: ServiceTemplate }
-  | { kind: "template"; template: ServiceTemplate };
-
-type FilterKey = "all" | "live" | "draft" | "available";
 
 const formatRelative = (ts?: number) => {
   if (!ts) return "—";
@@ -61,32 +49,28 @@ const formatRelative = (ts?: number) => {
   return new Date(ts).toLocaleDateString();
 };
 
-const StatusDot: React.FC<{ kind: "live" | "draft" | "available" }> = ({ kind }) => {
-  const color =
-    kind === "live"
-      ? "bg-success"
-      : kind === "draft"
-      ? "bg-warning"
-      : "bg-muted-foreground/40";
+type ServiceStatusKind = "draft" | "live" | "archived";
+
+const statusOf = (s: ServiceItem): ServiceStatusKind =>
+  s.isLive ? "live" : "draft";
+
+const StatusChip: React.FC<{ kind: ServiceStatusKind }> = ({ kind }) => {
+  const map: Record<ServiceStatusKind, string> = {
+    live: "bg-success/10 text-success ring-1 ring-success/20",
+    draft: "bg-warning/10 text-warning ring-1 ring-warning/20",
+    archived: "bg-muted text-muted-foreground ring-1 ring-border",
+  };
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className={cn("h-1.5 w-1.5 rounded-full", color, kind === "live" && "ring-2 ring-success/20")} />
-      <span className="capitalize">{kind}</span>
+    <span
+      className={cn(
+        "inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+        map[kind],
+      )}
+    >
+      {kind}
     </span>
   );
 };
-
-const SectionHeader: React.FC<{ label: string; count: number; description?: string }> = ({ label, count, description }) => (
-  <tr className="bg-muted/30 border-t border-border first:border-t-0">
-    <td colSpan={5} className="px-4 py-2">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground">{label}</span>
-        <span className="text-[10px] text-muted-foreground/60">{count}</span>
-        {description && <span className="text-[11px] text-muted-foreground/70 ml-1">· {description}</span>}
-      </div>
-    </td>
-  </tr>
-);
 
 const TemplatesDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -95,70 +79,61 @@ const TemplatesDashboard: React.FC = () => {
   const [params, setParams] = useSearchParams();
   const recentId = params.get("recent");
 
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [query, setQuery] = useState("");
   const [assignTarget, setAssignTarget] = useState<ServiceItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ServiceItem | null>(null);
+  const templatesRef = useRef<HTMLDivElement>(null);
+  const recentRef = useRef<HTMLDivElement>(null);
 
   const isServiceOwner = persona.role === "service_owner";
-  const canActivate = !isServiceOwner;
+  const canManage = !isServiceOwner;
 
   const visibleServices = useMemo(() => {
-    const all = state.services;
-    if (!isServiceOwner) return all;
-    return all.filter((s) => (s.assignedOwners ?? []).includes(persona.email.toLowerCase()));
+    if (!isServiceOwner) return state.services;
+    return state.services.filter((s) =>
+      (s.assignedOwners ?? []).includes(persona.email.toLowerCase()),
+    );
   }, [state.services, isServiceOwner, persona.email]);
 
-  const activatedTemplateIds = useMemo(
-    () => new Set(visibleServices.map((s) => s.templateId)),
-    [visibleServices],
-  );
+  // Sort: recent first, then drafts, then live; within each by updatedAt desc
+  const sortedServices = useMemo(() => {
+    const copy = [...visibleServices];
+    copy.sort((a, b) => (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0));
+    if (recentId) {
+      const idx = copy.findIndex((s) => s.id === recentId);
+      if (idx > 0) {
+        const [item] = copy.splice(idx, 1);
+        copy.unshift(item);
+      }
+    }
+    return copy;
+  }, [visibleServices, recentId]);
 
-  const availableTemplates = useMemo(() => {
-    if (isServiceOwner) return [] as ServiceTemplate[];
-    return allTemplates.filter((t) => !activatedTemplateIds.has(t.id));
-  }, [activatedTemplateIds, isServiceOwner]);
+  const templateById = useMemo(() => {
+    const map = new Map<string, ServiceTemplate>();
+    allTemplates.forEach((t) => map.set(t.id, t));
+    return map;
+  }, []);
 
-  const liveServices = visibleServices.filter((s) => s.isLive);
-  const draftServices = visibleServices.filter((s) => !s.isLive);
+  const usageByTemplate = useMemo(() => {
+    const m = new Map<string, number>();
+    state.services.forEach((s) => m.set(s.templateId, (m.get(s.templateId) ?? 0) + 1));
+    return m;
+  }, [state.services]);
 
-  // Pin recent to top of drafts within the session
-  const pinnedDrafts = useMemo(() => {
-    if (!recentId) return draftServices;
-    const idx = draftServices.findIndex((s) => s.id === recentId);
-    if (idx <= 0) return draftServices;
-    const copy = [...draftServices];
-    const [item] = copy.splice(idx, 1);
-    return [item, ...copy];
-  }, [draftServices, recentId]);
+  useEffect(() => {
+    if (recentId && recentRef.current) {
+      recentRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [recentId]);
 
-  const attention = useMemo(
-    () => draftServices.filter((s) => !(s.assignedOwners ?? []).length).length,
-    [draftServices],
-  );
+  const goConfigure = (s: ServiceItem) =>
+    navigate(`/service/${s.id}/configure`, { state: { mode: "configure" } });
+  const goWorkspace = (s: ServiceItem) =>
+    navigate(`/service/${s.id}/configure`, { state: { mode: "overview" } });
+  const goOperations = (s: ServiceItem) =>
+    navigate(`/service/${s.id}/configure`, { state: { mode: "operate" } });
 
-  const matchesQuery = (label: string) =>
-    !query || label.toLowerCase().includes(query.toLowerCase());
-
-  const showLive = filter === "all" || filter === "live";
-  const showDrafts = filter === "all" || filter === "draft";
-  const showAvailable = !isServiceOwner && (filter === "all" || filter === "available");
-
-  const filteredLive = liveServices.filter((s) => matchesQuery(s.name));
-  const filteredDrafts = pinnedDrafts.filter((s) => matchesQuery(s.name));
-  const filteredAvailable = availableTemplates.filter((t) => matchesQuery(t.name));
-
-  const noResults =
-    (!showLive || filteredLive.length === 0) &&
-    (!showDrafts || filteredDrafts.length === 0) &&
-    (!showAvailable || filteredAvailable.length === 0);
-
-  const totalServices = visibleServices.length;
-
-  const goConfigure = (s: ServiceItem) => navigate(`/service/${s.id}/configure`, { state: { mode: "configure" } });
-  const goWorkspace = (s: ServiceItem) => navigate(`/service/${s.id}/configure`, { state: { mode: "overview" } });
-  const goPreview = (s: ServiceItem) => navigate(`/service/${s.id}/configure`, { state: { mode: "preview" } });
-  const goActivate = (t: ServiceTemplate) => {
+  const goCreate = (t: ServiceTemplate) => {
     if (t.comingSoon) {
       toast.info(`${t.name} is coming soon`);
       return;
@@ -166,169 +141,82 @@ const TemplatesDashboard: React.FC = () => {
     navigate(`/templates/${t.id}/setup`);
   };
 
+  const scrollToTemplates = () =>
+    templatesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-[1280px] mx-auto px-8 py-6">
+      <div className="max-w-[1280px] mx-auto px-8 py-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-6 mb-5">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {isServiceOwner ? "My services" : "Templates"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isServiceOwner
-                ? "Services assigned to you. Configure and publish when ready."
-                : "Activate templates, manage drafts, and operate live services."}
-            </p>
-          </div>
-          {canActivate && availableTemplates.length > 0 && (
-            <Button size="sm" className="h-9 gap-1.5" onClick={() => setFilter("available")}>
-              <Plus className="h-3.5 w-3.5" /> Activate template
-            </Button>
-          )}
-        </div>
+        <header className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {isServiceOwner ? "My services" : "Services"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+            {isServiceOwner
+              ? "Services assigned to you. Continue configuration or open the live workspace."
+              : "Manage your active services and create new ones from templates."}
+          </p>
+        </header>
 
-        {/* Stat strip */}
-        <div className="flex items-center gap-6 px-4 py-2.5 rounded-md border border-border bg-card mb-4">
-          <Stat label="Live" value={liveServices.length} dot="bg-success" />
-          <Divider />
-          <Stat label="Draft" value={draftServices.length} dot="bg-warning" />
-          {!isServiceOwner && (
-            <>
-              <Divider />
-              <Stat label="Available" value={availableTemplates.length} dot="bg-muted-foreground/40" />
-            </>
-          )}
-          {attention > 0 && (
-            <>
-              <Divider />
-              <button
-                onClick={() => setFilter("draft")}
-                className="inline-flex items-center gap-1.5 text-xs text-warning font-medium hover:underline"
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {attention} need owner{attention === 1 ? "" : "s"}
-              </button>
-            </>
-          )}
-          <div className="ml-auto text-[11px] text-muted-foreground hidden md:block">
-            {totalServices} service{totalServices === 1 ? "" : "s"}
+        {/* My Services */}
+        <section className="mb-12">
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-base font-semibold text-foreground">My services</h2>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {sortedServices.length}
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Filters + search */}
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="inline-flex items-center rounded-md border border-border bg-card p-0.5">
-            {([
-              { key: "all", label: "All" },
-              { key: "live", label: "Live" },
-              { key: "draft", label: "Draft" },
-              ...(!isServiceOwner ? [{ key: "available" as const, label: "Available" }] : []),
-            ] as { key: FilterKey; label: string }[]).map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setFilter(p.key)}
-                className={cn(
-                  "px-3 h-7 text-xs font-medium rounded-[5px] transition-colors",
-                  filter === p.key
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="relative w-64 max-w-full">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search templates and services…"
-              className="h-8 pl-8 text-sm"
+          {sortedServices.length === 0 ? (
+            <EmptyServicesCard
+              isServiceOwner={isServiceOwner}
+              onBrowse={scrollToTemplates}
             />
-          </div>
-        </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedServices.map((s) => (
+                <ServiceCard
+                  key={s.id}
+                  service={s}
+                  template={templateById.get(s.templateId)}
+                  recent={s.id === recentId}
+                  recentRef={s.id === recentId ? recentRef : undefined}
+                  canManage={canManage}
+                  onOpen={() => goWorkspace(s)}
+                  onConfigure={() => goConfigure(s)}
+                  onOperations={() => goOperations(s)}
+                  onAssign={() => setAssignTarget(s)}
+                  onDelete={() => setPendingDelete(s)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
 
-        {/* Empty state (entire dashboard is empty) */}
-        {totalServices === 0 && availableTemplates.length === 0 && (
-          <EmptyState role={persona.role} />
-        )}
-
-        {totalServices === 0 && availableTemplates.length > 0 && !isServiceOwner && filter === "all" && (
-          <FirstRunBanner onActivate={() => setFilter("available")} />
-        )}
-
-        {/* Table */}
-        {(totalServices > 0 || availableTemplates.length > 0) && (
-          <div className="rounded-md border border-border bg-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 border-b border-border">
-                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <th className="text-left font-medium px-4 h-9">Service / Template</th>
-                  <th className="text-left font-medium px-4 h-9 w-[120px]">Status</th>
-                  <th className="text-left font-medium px-4 h-9 w-[220px]">Owner</th>
-                  <th className="text-left font-medium px-4 h-9 w-[110px]">Updated</th>
-                  <th className="text-right font-medium px-4 h-9 w-[120px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {showLive && filteredLive.length > 0 && (
-                  <>
-                    <SectionHeader label="Live services" count={filteredLive.length} description="Operating in production" />
-                    {filteredLive.map((s) => (
-                      <ServiceRow
-                        key={s.id}
-                        service={s}
-                        kind="live"
-                        canManage={!isServiceOwner}
-                        onOpen={() => goWorkspace(s)}
-                        onConfigure={() => goConfigure(s)}
-                        onAssign={() => setAssignTarget(s)}
-                        onDelete={() => setPendingDelete(s)}
-                      />
-                    ))}
-                  </>
-                )}
-
-                {showDrafts && filteredDrafts.length > 0 && (
-                  <>
-                    <SectionHeader label="Draft services" count={filteredDrafts.length} description="In configuration" />
-                    {filteredDrafts.map((s) => (
-                      <ServiceRow
-                        key={s.id}
-                        service={s}
-                        kind="draft"
-                        recent={s.id === recentId}
-                        canManage={!isServiceOwner}
-                        onOpen={() => goWorkspace(s)}
-                        onConfigure={() => goConfigure(s)}
-                        onAssign={() => setAssignTarget(s)}
-                        onDelete={() => setPendingDelete(s)}
-                      />
-                    ))}
-                  </>
-                )}
-
-                {showAvailable && filteredAvailable.length > 0 && (
-                  <>
-                    <SectionHeader label="Available templates" count={filteredAvailable.length} description="Ready to activate" />
-                    {filteredAvailable.map((t) => (
-                      <TemplateRow key={t.id} template={t} onActivate={() => goActivate(t)} />
-                    ))}
-                  </>
-                )}
-
-                {noResults && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center">
-                      <p className="text-sm text-muted-foreground">No results for "{query}".</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Templates */}
+        {!isServiceOwner && (
+          <section ref={templatesRef} className="scroll-mt-8">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-foreground">Start a new service</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Create a new service using a pre-built template. Each template can be used for
+                multiple services.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {allTemplates.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  usedBy={usageByTemplate.get(t.id) ?? 0}
+                  onCreate={() => goCreate(t)}
+                />
+              ))}
+            </div>
+          </section>
         )}
       </div>
 
@@ -371,94 +259,87 @@ const TemplatesDashboard: React.FC = () => {
   );
 };
 
-const Stat: React.FC<{ label: string; value: number; dot: string }> = ({ label, value, dot }) => (
-  <div className="flex items-center gap-2">
-    <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
-    <span className="text-xs text-muted-foreground">{label}</span>
-    <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
-  </div>
+/* ----------------------------- Service card ----------------------------- */
+
+const Avatar: React.FC<{ name: string }> = ({ name }) => (
+  <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
+    {name[0]?.toUpperCase()}
+  </span>
 );
 
-const Divider = () => <span className="h-4 w-px bg-border" />;
-
-const OwnerCell: React.FC<{ owners: string[]; onAssign?: () => void }> = ({ owners, onAssign }) => {
-  if (owners.length === 0) {
-    return onAssign ? (
-      <button
-        onClick={onAssign}
-        className="text-xs text-warning hover:underline inline-flex items-center gap-1"
-      >
-        <UserPlus className="h-3 w-3" />
-        Unassigned
-      </button>
-    ) : (
-      <span className="text-xs text-muted-foreground">Unassigned</span>
-    );
-  }
-  const first = owners[0];
-  const rest = owners.length - 1;
-  return (
-    <div className="flex items-center gap-2 min-w-0">
-      <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
-        {first[0]?.toUpperCase()}
-      </span>
-      <span className="text-sm text-foreground truncate">{first}</span>
-      {rest > 0 && <span className="text-[11px] text-muted-foreground">+{rest}</span>}
-    </div>
-  );
-};
-
-const ServiceRow: React.FC<{
+const ServiceCard: React.FC<{
   service: ServiceItem;
-  kind: "live" | "draft";
+  template?: ServiceTemplate;
   recent?: boolean;
+  recentRef?: React.RefObject<HTMLDivElement>;
   canManage: boolean;
   onOpen: () => void;
   onConfigure: () => void;
+  onOperations: () => void;
   onAssign: () => void;
   onDelete: () => void;
-}> = ({ service, kind, recent, canManage, onOpen, onConfigure, onAssign, onDelete }) => {
+}> = ({
+  service,
+  template,
+  recent,
+  recentRef,
+  canManage,
+  onOpen,
+  onConfigure,
+  onOperations,
+  onAssign,
+  onDelete,
+}) => {
+  const kind = statusOf(service);
   const owners = service.assignedOwners ?? [];
+  const Icon = template?.icon ?? LayoutTemplate;
+
   return (
-    <tr className="border-t border-border hover:bg-muted/40 transition-colors group">
-      <td className="px-4 py-2.5">
-        <button onClick={onOpen} className="text-left">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-foreground truncate">{service.name}</span>
-            {recent && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                Just created
-              </span>
+    <div
+      ref={recentRef}
+      className={cn(
+        "group relative rounded-lg border bg-card p-5 transition-all",
+        "hover:shadow-sm hover:border-foreground/15",
+        recent ? "border-primary/40 ring-1 ring-primary/20" : "border-border",
+      )}
+    >
+      {recent && (
+        <span className="absolute -top-2 left-4 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-primary text-primary-foreground">
+          Just created
+        </span>
+      )}
+
+      <div className="flex items-start justify-between gap-3">
+        <button
+          onClick={onOpen}
+          className="flex items-start gap-3 text-left min-w-0 flex-1"
+        >
+          <span className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                {service.name}
+              </h3>
+            </div>
+            {template && (
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                from {template.name} Template
+              </p>
             )}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
-            {service.customModules.length > 0 ? service.customModules.join(" · ") : "—"}
-          </div>
         </button>
-      </td>
-      <td className="px-4 py-2.5">
-        <StatusDot kind={kind} />
-      </td>
-      <td className="px-4 py-2.5">
-        <OwnerCell owners={owners} onAssign={canManage ? onAssign : undefined} />
-      </td>
-      <td className="px-4 py-2.5 text-xs text-muted-foreground tabular-nums">
-        {formatRelative(service.updatedAt ?? service.createdAt)}
-      </td>
-      <td className="px-4 py-2.5">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onConfigure}
-            className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            {kind === "live" ? "Manage" : "Continue"}
-            <ArrowRight className="h-3 w-3 ml-1" />
-          </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <StatusChip kind={kind} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 -mr-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
@@ -467,121 +348,213 @@ const ServiceRow: React.FC<{
                 <Eye className="h-3.5 w-3.5 mr-2" /> Open workspace
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onConfigure}>
-                <Settings className="h-3.5 w-3.5 mr-2" /> {kind === "live" ? "Manage configuration" : "Continue configuration"}
+                <Settings className="h-3.5 w-3.5 mr-2" />
+                {kind === "live" ? "Manage configuration" : "Continue configuration"}
               </DropdownMenuItem>
               {canManage && (
                 <DropdownMenuItem onClick={onAssign}>
                   <UserPlus className="h-3.5 w-3.5 mr-2" /> Assign owners
                 </DropdownMenuItem>
               )}
-              {kind === "live" && (
-                <DropdownMenuItem disabled>
-                  <ExternalLink className="h-3.5 w-3.5 mr-2" /> View public URL
-                </DropdownMenuItem>
-              )}
-              {canManage && (
+              {canManage && kind === "draft" && (
                 <>
                   <DropdownMenuSeparator />
-                  {kind === "live" ? (
-                    <DropdownMenuItem disabled>
-                      <Power className="h-3.5 w-3.5 mr-2" /> Deactivate
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete service
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem
+                    onClick={onDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete service
+                  </DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </td>
-    </tr>
+      </div>
+
+      {/* Meta */}
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {owners.length > 0 ? (
+            <>
+              <Avatar name={owners[0]} />
+              <span className="text-xs text-foreground truncate">{owners[0]}</span>
+              {owners.length > 1 && (
+                <span className="text-[11px] text-muted-foreground">+{owners.length - 1}</span>
+              )}
+            </>
+          ) : canManage ? (
+            <button
+              onClick={onAssign}
+              className="inline-flex items-center gap-1 text-xs text-warning hover:underline"
+            >
+              <UserPlus className="h-3 w-3" /> Unassigned · assign owner
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground">Unassigned</span>
+          )}
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          Updated {formatRelative(service.updatedAt ?? service.createdAt)}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
+        {kind === "live" ? (
+          <>
+            <Button size="sm" className="h-8 text-xs flex-1" onClick={onOpen}>
+              Open service
+              <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={onOperations}
+            >
+              View operations
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button size="sm" className="h-8 text-xs flex-1" onClick={onConfigure}>
+              Continue configuration
+              <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              onClick={onOpen}
+            >
+              Open
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
   );
 };
 
-const TemplateRow: React.FC<{ template: ServiceTemplate; onActivate: () => void }> = ({ template, onActivate }) => {
+/* ----------------------------- Template card ----------------------------- */
+
+const TemplateCard: React.FC<{
+  template: ServiceTemplate;
+  usedBy: number;
+  onCreate: () => void;
+}> = ({ template, usedBy, onCreate }) => {
   const Icon = template.icon;
+  const capabilities = template.features?.length
+    ? template.features
+    : template.modules ?? [];
+  const visible = capabilities.slice(0, 4);
+  const extra = capabilities.length - visible.length;
+
   return (
-    <tr className="border-t border-border hover:bg-muted/40 transition-colors group">
-      <td className="px-4 py-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+    <div
+      className={cn(
+        "group relative rounded-lg border border-border bg-card p-5 transition-all",
+        "hover:shadow-sm hover:border-foreground/15",
+        template.comingSoon && "opacity-70",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="h-9 w-9 rounded-md bg-muted flex items-center justify-center shrink-0">
+            <Icon className="h-4 w-4 text-muted-foreground" />
           </span>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground truncate">
+            <h3 className="text-sm font-semibold text-foreground truncate">
               {template.name}
-              {template.comingSoon && (
-                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
-                  Coming soon
-                </span>
-              )}
-            </div>
-            <div className="text-[11px] text-muted-foreground truncate max-w-[480px]">
-              {template.description}
-            </div>
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Template</p>
           </div>
         </div>
-      </td>
-      <td className="px-4 py-2.5">
-        <StatusDot kind="available" />
-      </td>
-      <td className="px-4 py-2.5 text-xs text-muted-foreground">—</td>
-      <td className="px-4 py-2.5 text-xs text-muted-foreground">{template.estimatedSetupTime}</td>
-      <td className="px-4 py-2.5">
-        <div className="flex items-center justify-end">
-          <Button
-            size="sm"
-            variant={template.comingSoon ? "ghost" : "outline"}
-            onClick={onActivate}
-            disabled={template.comingSoon}
-            className="h-7 px-3 text-xs gap-1"
-          >
-            <Plus className="h-3 w-3" /> Activate
-          </Button>
+        <span
+          className={cn(
+            "inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider shrink-0",
+            template.comingSoon
+              ? "bg-muted text-muted-foreground ring-1 ring-border"
+              : "bg-success/10 text-success ring-1 ring-success/20",
+          )}
+        >
+          {template.comingSoon ? "Coming soon" : "Ready"}
+        </span>
+      </div>
+
+      <p className="text-xs text-muted-foreground mt-3 leading-relaxed line-clamp-2">
+        {template.description}
+      </p>
+
+      {visible.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {visible.map((c) => (
+            <span
+              key={c}
+              className="inline-flex items-center h-5 px-2 rounded text-[11px] bg-muted text-muted-foreground"
+            >
+              {c}
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="inline-flex items-center h-5 px-2 rounded text-[11px] bg-muted text-muted-foreground">
+              +{extra}
+            </span>
+          )}
         </div>
-      </td>
-    </tr>
+      )}
+
+      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between gap-3">
+        <span className="text-[11px] text-muted-foreground">
+          {template.comingSoon
+            ? "Not yet available"
+            : `Used by ${usedBy} service${usedBy === 1 ? "" : "s"}`}
+        </span>
+        <Button
+          size="sm"
+          variant={template.comingSoon ? "ghost" : "default"}
+          onClick={onCreate}
+          disabled={template.comingSoon}
+          className="h-8 text-xs"
+        >
+          {template.comingSoon ? "Coming soon" : "Create service"}
+          {!template.comingSoon && <ArrowRight className="h-3 w-3 ml-1" />}
+        </Button>
+      </div>
+    </div>
   );
 };
 
-const EmptyState: React.FC<{ role: string | null }> = ({ role }) => (
-  <div className="rounded-md border border-dashed border-border bg-card px-6 py-16 text-center">
+/* ----------------------------- Empty state ----------------------------- */
+
+const EmptyServicesCard: React.FC<{
+  isServiceOwner: boolean;
+  onBrowse: () => void;
+}> = ({ isServiceOwner, onBrowse }) => (
+  <div className="rounded-lg border border-dashed border-border bg-card px-6 py-10 text-center">
     <div className="h-10 w-10 mx-auto rounded-md bg-muted flex items-center justify-center mb-3">
       <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
     </div>
-    {role === "service_owner" ? (
+    {isServiceOwner ? (
       <>
-        <h2 className="text-sm font-semibold text-foreground">No services assigned</h2>
+        <h3 className="text-sm font-semibold text-foreground">No services assigned</h3>
         <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
           Your administrator will give you access once a service is activated. Check back shortly.
         </p>
       </>
     ) : (
       <>
-        <h2 className="text-sm font-semibold text-foreground">Nothing to show yet</h2>
-        <p className="text-xs text-muted-foreground mt-1">Templates will appear here once available.</p>
+        <h3 className="text-sm font-semibold text-foreground">No services yet</h3>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+          Create your first service from a template below. You can spin up multiple services from
+          the same template.
+        </p>
+        <Button size="sm" variant="outline" className="mt-4 h-8 text-xs" onClick={onBrowse}>
+          Browse templates <ArrowDown className="h-3 w-3 ml-1" />
+        </Button>
       </>
     )}
-  </div>
-);
-
-const FirstRunBanner: React.FC<{ onActivate: () => void }> = ({ onActivate }) => (
-  <div className="mb-3 rounded-md border border-border bg-muted/30 px-4 py-3 flex items-center justify-between gap-4">
-    <div className="flex items-center gap-3 min-w-0">
-      <Sparkles className="h-4 w-4 text-primary shrink-0" />
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-foreground">Activate your first service</div>
-        <div className="text-xs text-muted-foreground truncate">
-          Choose a ready-to-use template to begin. You can assign an owner after activation.
-        </div>
-      </div>
-    </div>
-    <Button size="sm" onClick={onActivate} className="h-8 gap-1.5 shrink-0">
-      Browse templates <ArrowRight className="h-3.5 w-3.5" />
-    </Button>
   </div>
 );
 
