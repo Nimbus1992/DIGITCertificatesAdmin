@@ -41,6 +41,7 @@ export default function BoundaryConfiguration() {
     if (selected) {
       setSavedHierarchy(selected);
       setPhase("saved");
+      markGoLiveBoundaryComplete();
     }
   };
 
