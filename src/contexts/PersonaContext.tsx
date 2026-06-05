@@ -55,27 +55,52 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(KEY, JSON.stringify(persona));
   }, [persona]);
 
+  const clearDrafts = () => {
+    try {
+      const raw = localStorage.getItem("lnp-onboarding-state");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const services = Array.isArray(parsed.services) ? parsed.services : [];
+        const removedIds = services
+          .filter((s: any) => !(s.isLive || s.status === "live"))
+          .map((s: any) => s.id);
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (removedIds.some((id: string) => k.includes(`:${id}:`) || k.endsWith(`:${id}`))) {
+            localStorage.removeItem(k);
+          }
+        }
+        parsed.services = services.filter((s: any) => s.isLive || s.status === "live");
+        parsed.activeServiceId = "";
+        localStorage.setItem("lnp-onboarding-state", JSON.stringify(parsed));
+      }
+    } catch {}
+  };
+
   const signIn = useCallback((email: string) => {
+    clearDrafts();
     const seed = PERSONA_SEEDS.find((p) => p.email.toLowerCase() === email.toLowerCase());
-    if (seed) {
-      setPersona((prev) => ({
-        ...initial,
-        ...prev,
-        email: seed.email,
-        role: seed.role,
-        name: seed.name,
-        assignedTemplates: seed.assignedTemplates,
-      }));
-    } else {
-      // Unknown emails default to Administrator (safer than service_owner for demos)
-      setPersona({
-        ...initial,
-        email,
-        role: "administrator",
-        name: email.split("@")[0],
-        assignedTemplates: [],
-      });
-    }
+    const base: PersonaState = seed
+      ? {
+          ...initial,
+          email: seed.email,
+          role: seed.role,
+          name: seed.name,
+          assignedTemplates: seed.assignedTemplates,
+        }
+      : {
+          ...initial,
+          email,
+          role: "administrator",
+          name: email.split("@")[0],
+          assignedTemplates: [],
+        };
+    // Persist immediately so the post-reload provider hydrates with the new persona.
+    localStorage.setItem(KEY, JSON.stringify(base));
+    setPersona(base);
+    // Reload so OnboardingProvider re-reads cleaned storage and routes treat this as a fresh session.
+    setTimeout(() => window.location.reload(), 0);
   }, []);
 
   const signOut = useCallback(() => {
