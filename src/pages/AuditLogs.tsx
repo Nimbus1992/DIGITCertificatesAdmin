@@ -8,6 +8,7 @@ import { AuditDetailDrawer } from "@/components/audit/AuditDetailDrawer";
 import { governanceEvents, configActivityEvents, deployments, runtimeEvents } from "@/data/auditLogs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePersona } from "@/contexts/PersonaContext";
 
 function exportCsv(filename: string, rows: Record<string, unknown>[]) {
   if (rows.length === 0) {
@@ -128,6 +129,8 @@ const InsightStrip: React.FC = () => {
 const AuditLogsInner: React.FC = () => {
   const [selected, setSelected] = useState<UnifiedEvent | null>(null);
   const [open, setOpen] = useState(false);
+  const { persona } = usePersona();
+  const scopedTemplate = persona.role === "service_owner" ? persona.assignedTemplates[0] : null;
 
   return (
     <div className="px-6 py-6 max-w-[1400px] mx-auto space-y-5">
@@ -143,7 +146,14 @@ const AuditLogsInner: React.FC = () => {
         <HeaderActions />
       </div>
 
+      {scopedTemplate && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+          Showing logs scoped to <span className="font-semibold">{scopedTemplate}</span>.
+        </div>
+      )}
+
       <InsightStrip />
+
 
       {/* Unified surface: filter bar + table */}
       <div className="rounded-lg border bg-card overflow-hidden">
