@@ -60,6 +60,22 @@ export interface RenewalPolicy {
 
 export type WorkflowScope = "shared" | "by_category" | "by_subcategory";
 
+export type ServiceUserRole =
+  | "service_owner"
+  | "document_verifier"
+  | "field_inspector"
+  | "approver"
+  | "counter_operator";
+
+export interface ServiceUser {
+  id: string;
+  email: string;
+  name?: string;
+  role: ServiceUserRole;
+  status: "Invited" | "Active";
+  invitedAt: number;
+}
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -80,6 +96,12 @@ export interface ServiceItem {
   templateSetup?: TemplateSetup;
   renewalPolicy?: RenewalPolicy;
   workflowScope?: WorkflowScope;
+  /** Emails of service owners with access to this service. */
+  assignedOwners?: string[];
+  /** Service-scoped users (verifiers, inspectors, approvers, counter operators, additional owners). */
+  serviceUsers?: ServiceUser[];
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface OnboardingState {
