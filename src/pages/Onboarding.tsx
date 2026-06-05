@@ -5,10 +5,10 @@ import { useOnboarding } from "@/contexts/OnboardingContext";
 import PersonaLogin from "@/components/onboarding/PersonaLogin";
 import ChangePassword from "@/components/onboarding/ChangePassword";
 import ConfirmOrganization from "@/components/onboarding/ConfirmOrganization";
-import InviteTeam from "@/components/onboarding/InviteTeam";
+import AddAdministrators from "@/components/onboarding/AddAdministrators";
 import OnboardingComplete from "@/components/onboarding/OnboardingComplete";
 
-type Step = "password" | "org" | "invite" | "done";
+type Step = "password" | "org" | "admins" | "done";
 
 const Onboarding: React.FC = () => {
   const { persona, update } = usePersona();
@@ -16,12 +16,10 @@ const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = React.useState<Step>("password");
 
-  // Redirect if already onboarded
   useEffect(() => {
     if (!persona.role) return;
     if (persona.hasCompletedOnboarding) {
-      if (persona.role === "service_owner") navigate("/services", { replace: true });
-      else navigate("/dashboard", { replace: true });
+      navigate("/templates", { replace: true });
     }
   }, [persona.role, persona.hasCompletedOnboarding, navigate]);
 
@@ -29,14 +27,14 @@ const Onboarding: React.FC = () => {
     return <PersonaLogin />;
   }
 
-  // Service Owner: change password only, then to /services
-  if (persona.role === "service_owner") {
+  // Administrator and Service Owner: password reset only, then Templates
+  if (persona.role === "administrator" || persona.role === "service_owner") {
     return (
       <ChangePassword
-        step="Welcome · Set your password"
+        step={persona.role === "administrator" ? "Welcome · Set your password" : "Welcome · Set your password"}
         onComplete={() => {
           update({ hasChangedPassword: true, hasCompletedOnboarding: true });
-          navigate("/services");
+          navigate("/templates");
         }}
       />
     );
@@ -46,7 +44,7 @@ const Onboarding: React.FC = () => {
   if (step === "password") {
     return (
       <ChangePassword
-        step="Step 1 of 4 · Change Password"
+        step="Step 1 of 3 · Change password"
         onComplete={() => {
           update({ hasChangedPassword: true });
           updateState({ isLoggedIn: true, isPasswordReset: true, isActivated: true });
@@ -57,11 +55,11 @@ const Onboarding: React.FC = () => {
   }
 
   if (step === "org") {
-    return <ConfirmOrganization onComplete={() => setStep("invite")} />;
+    return <ConfirmOrganization onComplete={() => setStep("admins")} />;
   }
 
-  if (step === "invite") {
-    return <InviteTeam onBack={() => setStep("org")} onComplete={() => setStep("done")} />;
+  if (step === "admins") {
+    return <AddAdministrators onBack={() => setStep("org")} onComplete={() => setStep("done")} />;
   }
 
   return (
@@ -69,7 +67,7 @@ const Onboarding: React.FC = () => {
       onComplete={() => {
         update({ hasCompletedOnboarding: true });
         updateState({ isOnboardingComplete: true });
-        navigate("/dashboard");
+        navigate("/templates");
       }}
     />
   );

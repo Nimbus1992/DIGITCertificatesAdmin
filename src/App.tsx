@@ -5,9 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { PersonaProvider } from "@/contexts/PersonaContext";
-import RoleGuard from "@/components/RoleGuard";
 import Onboarding from "./pages/Onboarding";
-import Dashboard from "./pages/Dashboard";
+import TemplatesDashboard from "./pages/TemplatesDashboard";
 import ServiceConfig from "./pages/ServiceConfig";
 import ServicePreview from "./components/preview/ServicePreview";
 import GoLive from "./pages/GoLive";
@@ -17,7 +16,6 @@ import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 import PlaceholderPage from "./pages/placeholder/PlaceholderPage";
 import BrandingTheme from "./pages/BrandingTheme";
-import Services from "./pages/Services";
 import TemplateSetup from "./pages/TemplateSetup";
 import ResponsiveQA from "./pages/ResponsiveQA";
 import UsersAccess from "./pages/UsersAccess";
@@ -41,8 +39,11 @@ const App = () => (
 
             {/* App shell with sidebar */}
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/services" element={<Services />} />
+              <Route path="/templates" element={<TemplatesDashboard />} />
+              {/* Legacy aliases */}
+              <Route path="/dashboard" element={<Navigate to="/templates" replace />} />
+              <Route path="/services" element={<Navigate to="/templates" replace />} />
+
               <Route path="/templates/:templateId/setup" element={<TemplateSetup />} />
               <Route path="/service/:id/configure" element={<ServiceConfig />} />
               <Route path="/service/:id/preview" element={<ServicePreview />} />
@@ -61,7 +62,6 @@ const App = () => (
               {/* Configuration */}
               <Route path="/config/branding" element={<BrandingTheme />} />
               <Route path="/config/languages" element={<PlaceholderPage title="Languages" description="Add language support and manage translations for your applications." />} />
-              
               <Route path="/config/integrations" element={<PlaceholderPage title="Integrations" description="Connect payment gateways, document verification, and external APIs." />} />
 
               {/* Utilities */}

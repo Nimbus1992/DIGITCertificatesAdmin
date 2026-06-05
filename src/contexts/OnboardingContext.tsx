@@ -60,6 +60,22 @@ export interface RenewalPolicy {
 
 export type WorkflowScope = "shared" | "by_category" | "by_subcategory";
 
+export type ServiceUserRole =
+  | "service_owner"
+  | "document_verifier"
+  | "field_inspector"
+  | "approver"
+  | "counter_operator";
+
+export interface ServiceUser {
+  id: string;
+  email: string;
+  name?: string;
+  role: ServiceUserRole;
+  status: "Invited" | "Active";
+  invitedAt: number;
+}
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -80,6 +96,12 @@ export interface ServiceItem {
   templateSetup?: TemplateSetup;
   renewalPolicy?: RenewalPolicy;
   workflowScope?: WorkflowScope;
+  /** Emails of service owners with access to this service. */
+  assignedOwners?: string[];
+  /** Service-scoped users (verifiers, inspectors, approvers, counter operators, additional owners). */
+  serviceUsers?: ServiceUser[];
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface OnboardingState {
@@ -166,6 +188,9 @@ interface OnboardingContextType {
   getActiveService: () => ServiceItem | undefined;
   updateActiveServiceBranding: (branding: BrandingConfig) => void;
   updatePlatformBranding: (branding: BrandingConfig) => void;
+  setServiceOwners: (serviceId: string, owners: string[]) => void;
+  addServiceUser: (serviceId: string, user: Omit<ServiceUser, "id" | "invitedAt" | "status">) => void;
+  removeServiceUser: (serviceId: string, userId: string) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -178,7 +203,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = { ...initialState, ...JSON.parse(saved) };
-        // Migrate: if there's a serviceName but no applications array, create one
+        // Legacy migration: serviceName -> services[]
         if (parsed.serviceName && (!parsed.services || parsed.services.length === 0)) {
           const migratedService: ServiceItem = {
             id: parsed.selectedTemplateId || "application-1",
@@ -194,6 +219,26 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           };
           parsed.services = [migratedService];
           parsed.activeServiceId = migratedService.id;
+        }
+        // Migration: backfill assignedOwners + timestamps for existing services
+        // and seed legacy owner personas onto services that match their template.
+        const TEMPLATE_OWNER_HINTS: Record<string, string[]> = {
+          "trade-license": ["trade.owner@egov.demo"],
+          "building-permits": ["building.owner@egov.demo"],
+        };
+        if (Array.isArray(parsed.services)) {
+          parsed.services = parsed.services.map((s: ServiceItem) => {
+            const hints = TEMPLATE_OWNER_HINTS[s.templateId] || [];
+            const existing = s.assignedOwners ?? [];
+            const merged = Array.from(new Set([...existing, ...hints]));
+            return {
+              ...s,
+              assignedOwners: merged,
+              serviceUsers: s.serviceUsers ?? [],
+              createdAt: s.createdAt ?? Date.now(),
+              updatedAt: s.updatedAt ?? Date.now(),
+            };
+          });
         }
         return parsed;
       }
@@ -229,9 +274,19 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const addService = useCallback((service: ServiceItem) => {
+    const now = Date.now();
     setState((prev) => ({
       ...prev,
-      services: [...prev.services, service],
+      services: [
+        ...prev.services,
+        {
+          ...service,
+          assignedOwners: service.assignedOwners ?? [],
+          serviceUsers: service.serviceUsers ?? [],
+          createdAt: service.createdAt ?? now,
+          updatedAt: service.updatedAt ?? now,
+        },
+      ],
       activeServiceId: service.id,
     }));
   }, []);
@@ -239,7 +294,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateService = useCallback((id: string, updates: Partial<ServiceItem>) => {
     setState((prev) => ({
       ...prev,
-      services: prev.services.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      services: prev.services.map((s) => (s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s)),
     }));
   }, []);
 
@@ -284,11 +339,61 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setState((prev) => ({ ...prev, platformBranding: branding }));
   }, []);
 
+  const setServiceOwners = useCallback((serviceId: string, owners: string[]) => {
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === serviceId
+          ? { ...s, assignedOwners: Array.from(new Set(owners.map((e) => e.trim().toLowerCase()).filter(Boolean))), updatedAt: Date.now() }
+          : s,
+      ),
+    }));
+  }, []);
+
+  const addServiceUser = useCallback(
+    (serviceId: string, user: Omit<ServiceUser, "id" | "invitedAt" | "status">) => {
+      setState((prev) => ({
+        ...prev,
+        services: prev.services.map((s) =>
+          s.id === serviceId
+            ? {
+                ...s,
+                serviceUsers: [
+                  ...(s.serviceUsers ?? []),
+                  {
+                    ...user,
+                    email: user.email.trim().toLowerCase(),
+                    id: `su_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    invitedAt: Date.now(),
+                    status: "Invited",
+                  },
+                ],
+                updatedAt: Date.now(),
+              }
+            : s,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const removeServiceUser = useCallback((serviceId: string, userId: string) => {
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === serviceId
+          ? { ...s, serviceUsers: (s.serviceUsers ?? []).filter((u) => u.id !== userId), updatedAt: Date.now() }
+          : s,
+      ),
+    }));
+  }, []);
+
   return (
     <OnboardingContext.Provider value={{
       state, updateState, nextStep, prevStep, goToStep, resetOnboarding,
       addService, updateService, deleteService, setActiveService, getActiveService,
       updateActiveServiceBranding, updatePlatformBranding,
+      setServiceOwners, addServiceUser, removeServiceUser,
     }}>
       {children}
     </OnboardingContext.Provider>

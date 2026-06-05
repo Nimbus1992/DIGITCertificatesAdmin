@@ -21,6 +21,8 @@ import ModuleTabs from "@/components/service-config/ModuleTabs";
 import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 import { OperateWorkspace } from "@/components/operate/OperateWorkspace";
+import ServiceUsersPanel from "@/components/service-config/ServiceUsersPanel";
+import { usePersona } from "@/contexts/PersonaContext";
 
 
 const ServiceConfigInner: React.FC = () => {
@@ -28,10 +30,10 @@ const ServiceConfigInner: React.FC = () => {
   const { state, updateService, setActiveService } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
-  type Mode = "overview" | "configure" | "preview" | "operate";
+  type Mode = "overview" | "configure" | "preview" | "operate" | "users";
   const normalizeMode = (m?: string | null): Mode => {
     if (m === "operations" || m === "deployment") return "operate";
-    if (m === "overview" || m === "configure" || m === "preview" || m === "operate") return m;
+    if (m === "overview" || m === "configure" || m === "preview" || m === "operate" || m === "users") return m;
     return "overview";
   };
   const initialMode = normalizeMode((location.state as { mode?: string } | null)?.mode);
@@ -95,6 +97,9 @@ const ServiceConfigInner: React.FC = () => {
 
   const isPublished = service?.isPublished || state.isPublished;
   const isLive = service?.isLive || state.isLive;
+  const { persona } = usePersona();
+  const canManageUsers = persona.role !== "service_owner"
+    || (service?.assignedOwners ?? []).includes((persona.email || "").toLowerCase());
 
   const coreTiles = configTiles.filter((t) => t.group === "core");
   const additionalTiles = configTiles.filter((t) => t.group === "additional");
@@ -160,12 +165,14 @@ const ServiceConfigInner: React.FC = () => {
         { id: "overview", label: "Overview" },
         { id: "preview", label: "Preview" },
         { id: "operate", label: "Monitor and Manage" },
+        { id: "users", label: "Users & Access" },
       ]
     : [
         { id: "overview", label: "Overview" },
         { id: "configure", label: "Configure" },
         { id: "preview", label: "Preview" },
         { id: "operate", label: "Monitor and Manage" },
+        { id: "users", label: "Users & Access" },
       ];
 
 
@@ -175,7 +182,7 @@ const ServiceConfigInner: React.FC = () => {
       <header className="border-b bg-card shrink-0">
         <div className="max-w-6xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/templates")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1 min-w-0">
@@ -307,6 +314,10 @@ const ServiceConfigInner: React.FC = () => {
       ) : mode === "operate" ? (
         <main className="flex-1 min-h-0">
           <OperateWorkspace serviceId={id ?? ""} serviceUrl={(service as any)?.liveUrl} />
+        </main>
+      ) : mode === "users" ? (
+        <main className="flex-1 min-h-0 overflow-auto">
+          {service && <ServiceUsersPanel service={service} canManage={canManageUsers} />}
         </main>
       ) : null}
       {service && (

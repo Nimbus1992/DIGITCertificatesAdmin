@@ -139,7 +139,7 @@ const GoLive: React.FC = () => {
           onClick={() => {
             const sid = activeService?.id ?? state.activeServiceId;
             if (sid) navigate(`/service/${sid}/configure`);
-            else navigate("/services");
+            else navigate("/templates");
           }}
           className="gap-1 mb-6 -ml-2"
         >

@@ -1,6 +1,5 @@
 import {
-  LayoutDashboard,
-  FileText,
+  LayoutTemplate,
   Building2,
   Users,
   MapPin,
@@ -11,7 +10,6 @@ import {
   ClipboardList,
   HelpCircle,
   Settings,
-  Lock as LockIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -32,16 +30,15 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
-type NavItem = { title: string; url: string; icon: any; viewOnly?: boolean };
+type NavItem = { title: string; url: string; icon: any };
 
-const mainItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Templates", url: "/services", icon: FileText },
+const workspaceItems: NavItem[] = [
+  { title: "Templates", url: "/templates", icon: LayoutTemplate },
 ];
 
 const setupItems: NavItem[] = [
-  { title: "Organization Profile", url: "/setup/organization", icon: Building2 },
-  { title: "Users & Access", url: "/setup/users", icon: Users },
+  { title: "Organization", url: "/setup/organization", icon: Building2 },
+  { title: "Platform Users", url: "/setup/users", icon: Users },
   { title: "Application Areas", url: "/setup/deployment", icon: MapPin },
   { title: "Authentication", url: "/setup/auth", icon: Lock },
 ];
@@ -54,23 +51,9 @@ const configItems: NavItem[] = [
 
 const utilItems: NavItem[] = [
   { title: "Audit Log", url: "/audit-log", icon: ClipboardList },
-  { title: "Help & Support", url: "/help", icon: HelpCircle },
+  { title: "Help", url: "/help", icon: HelpCircle },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
-
-// Items that are view-only for Service Owners
-const SO_VIEW_ONLY = new Set([
-  "/dashboard",
-  "/setup/organization",
-  "/setup/deployment",
-  "/setup/auth",
-  "/config/branding",
-]);
-
-function scopeForRole(items: NavItem[], role: string | null): NavItem[] {
-  if (role !== "service_owner") return items;
-  return items.map((i) => (SO_VIEW_ONLY.has(i.url) ? { ...i, viewOnly: true } : i));
-}
 
 function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   const { state: sidebarState } = useSidebar();
@@ -81,28 +64,22 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.08em] text-sidebar-foreground/50 font-medium">
+        {label}
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+              <SidebarMenuButton asChild isActive={location.pathname.startsWith(item.url)}>
                 <NavLink
                   to={item.url}
-                  end
-                  className={cn(
-                    "hover:bg-sidebar-accent/40 text-sidebar-foreground/80",
-                    item.viewOnly && "opacity-70",
-                  )}
-                  activeClassName="bg-sidebar-accent/60 text-sidebar-foreground font-medium border-l-2 border-sidebar-primary"
+                  end={item.url === "/templates"}
+                  className={cn("hover:bg-sidebar-accent/40 text-sidebar-foreground/80")}
+                  activeClassName="bg-sidebar-accent/60 text-sidebar-foreground font-medium"
                 >
                   <item.icon className="mr-2 h-4 w-4" />
-                  {!collapsed && (
-                    <span className="flex items-center gap-1.5">
-                      {item.title}
-                      {item.viewOnly && <LockIcon className="h-3 w-3 opacity-60" />}
-                    </span>
-                  )}
+                  {!collapsed && <span>{item.title}</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -119,6 +96,26 @@ export function AppSidebar() {
   const { persona } = usePersona();
 
   const role = persona.role;
+  const isServiceOwner = role === "service_owner";
+  const isAdmin = role === "administrator";
+
+  // Service owners get a stripped-down workspace
+  const workspace = isServiceOwner
+    ? [{ title: "My Services", url: "/templates", icon: LayoutTemplate }]
+    : workspaceItems;
+
+  // Administrators can't manage the Organization profile
+  const setup = isServiceOwner
+    ? []
+    : isAdmin
+    ? setupItems.filter((i) => i.url !== "/setup/organization")
+    : setupItems;
+
+  const config = isServiceOwner ? [] : configItems;
+
+  const utils = isServiceOwner
+    ? utilItems.filter((i) => i.url !== "/audit-log") // SO sees per-service audit later
+    : utilItems;
 
   return (
     <Sidebar collapsible="icon">
@@ -134,8 +131,14 @@ export function AppSidebar() {
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
                 City of Cape Town
               </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">
-                {role === "service_owner" ? "Service Owner" : role === "super_admin" ? "Super Admin" : "Admin Console"}
+              <p className="text-[11px] text-sidebar-foreground/60 truncate">
+                {role === "service_owner"
+                  ? "Service Owner"
+                  : role === "administrator"
+                  ? "Administrator"
+                  : role === "super_admin"
+                  ? "Super Admin"
+                  : "Admin Console"}
               </p>
             </div>
           )}
@@ -143,10 +146,10 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <NavGroup label="Main" items={scopeForRole(mainItems, role)} />
-        <NavGroup label="Setup" items={scopeForRole(setupItems, role)} />
-        <NavGroup label="Configuration" items={scopeForRole(configItems, role)} />
-        <NavGroup label="Utilities" items={scopeForRole(utilItems, role)} />
+        <NavGroup label="Workspace" items={workspace} />
+        <NavGroup label="Platform" items={setup} />
+        <NavGroup label="Configuration" items={config} />
+        <NavGroup label="Utilities" items={utils} />
       </SidebarContent>
     </Sidebar>
   );

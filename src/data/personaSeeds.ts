@@ -1,9 +1,10 @@
-export type PersonaRole = "super_admin" | "service_owner";
+export type PersonaRole = "super_admin" | "administrator" | "service_owner";
 
 export interface PersonaSeed {
   email: string;
   role: PersonaRole;
   name: string;
+  /** Used only as a migration hint for legacy demo state. New services use ServiceItem.assignedOwners. */
   assignedTemplates: string[];
 }
 
@@ -22,6 +23,12 @@ export const PERSONA_SEEDS: PersonaSeed[] = [
     email: "superadmin@egov.demo",
     role: "super_admin",
     name: "Super Admin",
+    assignedTemplates: [],
+  },
+  {
+    email: "admin@egov.demo",
+    role: "administrator",
+    name: "Administrator",
     assignedTemplates: [],
   },
   {
@@ -45,26 +52,42 @@ export const TEMPLATE_NAME_TO_ID: Record<string, string> = {
   "Fire NOC": "fire-noc",
 };
 
-export const ROLE_DESCRIPTIONS: Record<"administrator" | "service_owner", { title: string; can: string[]; cannot?: string[] }> = {
+export const ROLE_DESCRIPTIONS: Record<PersonaRole | "administrator", { title: string; can: string[]; cannot?: string[] }> = {
+  super_admin: {
+    title: "Super Admin",
+    can: [
+      "Manage organization profile and platform settings",
+      "Invite administrators",
+      "Activate templates and assign service owners",
+      "Access every service workspace",
+    ],
+  },
   administrator: {
     title: "Administrator",
     can: [
-      "Manage Organization Profile",
-      "Manage Users & Roles",
-      "Manage Authentication",
-      "Manage Boundaries",
-      "View Audit Logs",
-      "Configure applications (cannot apply, approve, or reject)",
+      "Activate templates and create services",
+      "Assign service owners and manage service-level users",
+      "Manage authentication, boundaries, branding",
+      "View platform audit logs",
     ],
+    cannot: ["Modify the organization profile"],
   },
   service_owner: {
     title: "Service Owner",
     can: [
       "Configure assigned services",
       "Manage service teams and service-specific users",
-      "View service-specific audit logs",
       "Publish services",
+      "View service-specific audit logs",
     ],
-    cannot: ["Manage organization settings", "Manage other services"],
+    cannot: ["Activate new templates", "Access services they are not assigned to", "Manage organization settings"],
   },
 };
+
+export const SERVICE_USER_ROLES: { value: string; label: string; description: string }[] = [
+  { value: "service_owner", label: "Service Owner", description: "Full control over this service" },
+  { value: "document_verifier", label: "Document Verifier", description: "Reviews submitted documents" },
+  { value: "field_inspector", label: "Field Inspector", description: "Conducts on-site inspections" },
+  { value: "approver", label: "Approver", description: "Approves or rejects applications" },
+  { value: "counter_operator", label: "Counter Operator", description: "Files applications on behalf of citizens" },
+];

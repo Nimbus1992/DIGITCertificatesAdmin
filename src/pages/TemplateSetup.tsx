@@ -24,7 +24,7 @@ const TemplateSetup: React.FC = () => {
 
   useEffect(() => {
     if (!template || template.comingSoon) {
-      navigate("/services", { replace: true });
+      navigate("/templates", { replace: true });
     }
   }, [template, navigate]);
 
@@ -63,7 +63,7 @@ const TemplateSetup: React.FC = () => {
   }, [renewalEnabled, hasCategories]);
 
   const handleBack = () => {
-    if (step === "identity") navigate("/services");
+    if (step === "identity") navigate("/templates");
     else if (step === "structure") setStep("identity");
     else if (step === "modules") setStep("structure");
     else if (step === "renewal") setStep("modules");
@@ -107,7 +107,7 @@ const TemplateSetup: React.FC = () => {
       workflowScope: hasCategories === true ? workflowScope : "shared",
     };
     addService(newService);
-    navigate(`/service/${newService.id}/configure`, { state: { mode: "overview" } });
+    navigate(`/templates?recent=${encodeURIComponent(newService.id)}`);
   };
 
   return (
