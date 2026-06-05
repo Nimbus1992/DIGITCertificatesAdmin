@@ -50,7 +50,7 @@ const TemplatesCatalog: React.FC = () => {
         <div className="space-y-8">
           {live.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                 Live on SaaS
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -70,7 +70,7 @@ const TemplatesCatalog: React.FC = () => {
 
           {soon.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                 Coming soon
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
