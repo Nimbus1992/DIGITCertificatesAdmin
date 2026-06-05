@@ -31,7 +31,7 @@ import {
   Trash2,
   Eye,
   LayoutTemplate,
-  Activity,
+  FileText,
   Rocket,
   ChevronDown,
 } from "lucide-react";
@@ -39,8 +39,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import AssignOwnerSheet from "@/components/templates/AssignOwnerSheet";
 import TemplateCatalogDialog from "@/components/services/TemplateCatalogDialog";
-import TemplatePreviewSheet from "@/components/services/TemplatePreviewSheet";
-import TemplateDetailsSheet from "@/components/services/TemplateDetailsSheet";
 import TemplateCard from "@/components/services/TemplateCard";
 import { setupProgress, mockApplicationVolume } from "@/components/services/computeSetupProgress";
 
@@ -72,8 +70,6 @@ const ServicesWorkspace: React.FC = () => {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<ServiceItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ServiceItem | null>(null);
-  const [previewTpl, setPreviewTpl] = useState<ServiceTemplate | null>(null);
-  const [detailsTpl, setDetailsTpl] = useState<ServiceTemplate | null>(null);
   const [templatesExpanded, setTemplatesExpanded] = useState(true);
 
   const isServiceOwner = persona.role === "service_owner";
@@ -92,13 +88,14 @@ const ServicesWorkspace: React.FC = () => {
   }, [state.services]);
 
   const visibleServices = useMemo(() => {
-    if (!isServiceOwner) return state.services;
-    return state.services.filter((s) =>
+    const base = state.services.filter((s) => !s.isEphemeralPreview);
+    if (!isServiceOwner) return base;
+    return base.filter((s) =>
       (s.assignedOwners ?? []).includes(persona.email.toLowerCase()),
     );
   }, [state.services, isServiceOwner, persona.email]);
 
-  const attentionServices = useMemo(() => {
+  const draftServices = useMemo(() => {
     const list = visibleServices.filter((s) => !s.isLive);
     return [...list].sort((a, b) => {
       if (recentId) {
@@ -125,6 +122,16 @@ const ServicesWorkspace: React.FC = () => {
     navigate(`/service/${s.id}/configure`, { state: { mode: "overview" } });
   const goOperations = (s: ServiceItem) =>
     navigate(`/service/${s.id}/configure`, { state: { mode: "operate" } });
+  const goPreviewService = (s: ServiceItem) => navigate(`/service/${s.id}/preview`);
+
+  const openTemplateDetails = (t: ServiceTemplate) => navigate(`/templates/${t.id}`);
+  const openTemplatePreview = (t: ServiceTemplate) => {
+    if (t.comingSoon) {
+      toast.info(`${t.name} is coming soon`);
+      return;
+    }
+    navigate(`/templates/${t.id}/preview`);
+  };
 
   const activateTemplate = (t: ServiceTemplate) => {
     if (t.comingSoon) {
