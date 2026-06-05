@@ -186,6 +186,7 @@ const ServicesWorkspace: React.FC = () => {
                   isRecent={s.id === recentId}
                   canManage={canManage}
                   onContinue={() => goOverview(s)}
+                  onCompleteSetup={() => goConfigure(s)}
                   onPreview={() => goPreviewService(s)}
                   onAssign={() => setAssignTarget(s)}
                   onDelete={() => setPendingDelete(s)}
