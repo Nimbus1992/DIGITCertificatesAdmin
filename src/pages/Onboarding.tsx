@@ -1,29 +1,73 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePersona } from "@/contexts/PersonaContext";
 import { useOnboarding } from "@/contexts/OnboardingContext";
-import SignIn from "@/components/onboarding/SignIn";
-import ResetPassword from "@/components/onboarding/ResetPassword";
+import PersonaLogin from "@/components/onboarding/PersonaLogin";
+import ChangePassword from "@/components/onboarding/ChangePassword";
 import ConfirmOrganization from "@/components/onboarding/ConfirmOrganization";
+import InviteTeam from "@/components/onboarding/InviteTeam";
+import OnboardingComplete from "@/components/onboarding/OnboardingComplete";
+
+type Step = "password" | "org" | "invite" | "done";
 
 const Onboarding: React.FC = () => {
-  const { state, updateState } = useOnboarding();
+  const { persona, update } = usePersona();
+  const { updateState } = useOnboarding();
   const navigate = useNavigate();
+  const [step, setStep] = React.useState<Step>("password");
 
-  if (!state.isLoggedIn) {
-    return <SignIn onComplete={() => updateState({ isLoggedIn: true })} />;
+  // Redirect if already onboarded
+  useEffect(() => {
+    if (!persona.role) return;
+    if (persona.hasCompletedOnboarding) {
+      if (persona.role === "service_owner") navigate("/services", { replace: true });
+      else navigate("/dashboard", { replace: true });
+    }
+  }, [persona.role, persona.hasCompletedOnboarding, navigate]);
+
+  if (!persona.role) {
+    return <PersonaLogin />;
   }
 
-  if (!state.isPasswordReset) {
+  // Service Owner: change password only, then to /services
+  if (persona.role === "service_owner") {
     return (
-      <ResetPassword
-        onComplete={() => updateState({ isPasswordReset: true, isActivated: true, currentStep: 1 })}
+      <ChangePassword
+        step="Welcome · Set your password"
+        onComplete={() => {
+          update({ hasChangedPassword: true, hasCompletedOnboarding: true });
+          navigate("/services");
+        }}
       />
     );
   }
 
+  // Super Admin flow
+  if (step === "password") {
+    return (
+      <ChangePassword
+        step="Step 1 of 4 · Change Password"
+        onComplete={() => {
+          update({ hasChangedPassword: true });
+          updateState({ isLoggedIn: true, isPasswordReset: true, isActivated: true });
+          setStep("org");
+        }}
+      />
+    );
+  }
+
+  if (step === "org") {
+    return <ConfirmOrganization onComplete={() => setStep("invite")} />;
+  }
+
+  if (step === "invite") {
+    return <InviteTeam onBack={() => setStep("org")} onComplete={() => setStep("done")} />;
+  }
+
   return (
-    <ConfirmOrganization
+    <OnboardingComplete
       onComplete={() => {
+        update({ hasCompletedOnboarding: true });
         updateState({ isOnboardingComplete: true });
         navigate("/dashboard");
       }}
