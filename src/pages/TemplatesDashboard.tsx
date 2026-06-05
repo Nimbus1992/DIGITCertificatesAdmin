@@ -328,10 +328,10 @@ const SectionHeader: React.FC<{
   <div className="mb-4">
     <div className="flex items-baseline gap-2">
       <Icon className="h-4 w-4 text-muted-foreground self-center" />
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      <span className="text-sm text-muted-foreground tabular-nums">{count}</span>
     </div>
-    {subtitle && <p className="text-xs text-muted-foreground mt-1 ml-6">{subtitle}</p>}
+    {subtitle && <p className="text-sm text-muted-foreground mt-1 ml-6">{subtitle}</p>}
   </div>
 );
 
