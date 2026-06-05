@@ -599,23 +599,23 @@ const EmptyState: React.FC<{
     </div>
     {isServiceOwner ? (
       <>
-        <h3 className="text-sm font-semibold text-foreground">No live services yet</h3>
-        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+        <h3 className="text-base font-semibold text-foreground">No live services yet</h3>
+        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
           Your services will appear here once they go live.
         </p>
       </>
     ) : (
       <>
-        <h3 className="text-sm font-semibold text-foreground">
+        <h3 className="text-base font-semibold text-foreground">
           {hasAttention ? "No live services yet" : "Get started with your first service"}
         </h3>
-        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
           {hasAttention
             ? "Finish configuring a draft above to take it live."
             : "Activate a template to create your first service. You can run multiple services from the same template."}
         </p>
         {!hasAttention && (
-          <Button size="sm" className="mt-4 h-8 text-xs" onClick={onCreate}>
+          <Button size="sm" className="mt-4 h-8 text-sm" onClick={onCreate}>
             <Plus className="h-3 w-3 mr-1" /> Create new service
           </Button>
         )}
