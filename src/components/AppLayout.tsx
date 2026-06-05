@@ -23,13 +23,15 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 const AppLayout: React.FC = () => {
-  const { persona, signOut } = usePersona();
+  const { persona, signOut, switchPersona } = usePersona();
   const navigate = useNavigate();
 
   const handleSignOut = () => {
     signOut();
     navigate("/onboarding", { replace: true });
   };
+
+  const currentRoleLabel = persona.role ? ROLE_LABEL[persona.role] : "";
 
   return (
     <BrandingScope applyToRoot>
@@ -47,23 +49,34 @@ const AppLayout: React.FC = () => {
                         <UserRound className="h-3.5 w-3.5" />
                       </span>
                       <span className="hidden sm:flex flex-col items-start leading-tight">
-                        <span className="text-xs font-medium">
-                          {persona.role === "super_admin" ? "Super Admin" : persona.role === "administrator" ? "Administrator" : "Service Owner"}
-                        </span>
+                        <span className="text-xs font-medium">{currentRoleLabel}</span>
                         <span className="text-[10px] text-muted-foreground">{persona.email}</span>
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="text-xs">
-                      <div className="font-medium">
-                        {persona.role === "super_admin" ? "Super Admin" : persona.role === "administrator" ? "Administrator" : "Service Owner"}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground font-normal">{persona.email}</div>
-                    </DropdownMenuLabel>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel className="text-xs">Switch persona</DropdownMenuLabel>
+                    {PERSONA_SEEDS.map((seed) => {
+                      const active = seed.email.toLowerCase() === persona.email.toLowerCase();
+                      return (
+                        <DropdownMenuItem
+                          key={seed.email}
+                          onClick={() => { if (!active) switchPersona(seed.email); }}
+                          className="flex items-start gap-2 py-2"
+                        >
+                          <span className="mt-0.5 h-4 w-4 flex items-center justify-center">
+                            {active && <Check className="h-3.5 w-3.5 text-primary" />}
+                          </span>
+                          <span className="flex flex-col leading-tight min-w-0">
+                            <span className="text-xs font-medium">{seed.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{ROLE_LABEL[seed.role]} · {seed.email}</span>
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut}>
-                      <LogOut className="h-4 w-4 mr-2" /> Sign out / switch persona
+                      <LogOut className="h-4 w-4 mr-2" /> Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
