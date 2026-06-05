@@ -200,7 +200,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = { ...initialState, ...JSON.parse(saved) };
-        // Migrate: if there's a serviceName but no applications array, create one
+        // Legacy migration: serviceName -> services[]
         if (parsed.serviceName && (!parsed.services || parsed.services.length === 0)) {
           const migratedService: ServiceItem = {
             id: parsed.selectedTemplateId || "application-1",
@@ -216,6 +216,26 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           };
           parsed.services = [migratedService];
           parsed.activeServiceId = migratedService.id;
+        }
+        // Migration: backfill assignedOwners + timestamps for existing services
+        // and seed legacy owner personas onto services that match their template.
+        const TEMPLATE_OWNER_HINTS: Record<string, string[]> = {
+          "trade-license": ["trade.owner@egov.demo"],
+          "building-permits": ["building.owner@egov.demo"],
+        };
+        if (Array.isArray(parsed.services)) {
+          parsed.services = parsed.services.map((s: ServiceItem) => {
+            const hints = TEMPLATE_OWNER_HINTS[s.templateId] || [];
+            const existing = s.assignedOwners ?? [];
+            const merged = Array.from(new Set([...existing, ...hints]));
+            return {
+              ...s,
+              assignedOwners: merged,
+              serviceUsers: s.serviceUsers ?? [],
+              createdAt: s.createdAt ?? Date.now(),
+              updatedAt: s.updatedAt ?? Date.now(),
+            };
+          });
         }
         return parsed;
       }
