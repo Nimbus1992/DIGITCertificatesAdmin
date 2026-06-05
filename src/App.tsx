@@ -7,6 +7,7 @@ import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { PersonaProvider } from "@/contexts/PersonaContext";
 import Onboarding from "./pages/Onboarding";
 import TemplatesDashboard from "./pages/TemplatesDashboard";
+import TemplatesCatalog from "./pages/TemplatesCatalog";
 import ServiceConfig from "./pages/ServiceConfig";
 import ServicePreview from "./components/preview/ServicePreview";
 import GoLive from "./pages/GoLive";
@@ -43,6 +44,7 @@ const App = () => (
             {/* App shell with sidebar */}
             <Route element={<AppLayout />}>
               <Route path="/templates" element={<TemplatesDashboard />} />
+              <Route path="/catalog" element={<TemplatesCatalog />} />
               {/* Legacy aliases */}
               <Route path="/dashboard" element={<Navigate to="/templates" replace />} />
               <Route path="/services" element={<Navigate to="/templates" replace />} />
