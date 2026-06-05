@@ -143,7 +143,7 @@ const ServicesWorkspace: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-[1280px] mx-auto px-8 py-8">
+      <div className="max-w-[1280px] mx-auto px-8 py-8 text-base">
         {/* =================== Header =================== */}
         <header className="flex items-start justify-between gap-6 mb-8 pb-6 border-b border-border">
           <div className="min-w-0">
