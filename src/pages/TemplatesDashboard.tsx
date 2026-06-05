@@ -367,14 +367,14 @@ const DraftServiceCard: React.FC<{
             <Icon className="h-4 w-4 text-muted-foreground" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-foreground truncate">{service.name}</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+            <h3 className="text-base font-semibold text-foreground truncate">{service.name}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {template ? `from ${template.name} · ` : ""}
               Updated {formatRelative(service.updatedAt ?? service.createdAt)}
             </p>
           </div>
         </div>
-        <span className="inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-warning/10 text-warning ring-1 ring-warning/20 shrink-0">
+        <span className="inline-flex items-center h-5 px-1.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-warning/10 text-warning ring-1 ring-warning/20 shrink-0">
           {isRecent ? "New" : "Draft"}
         </span>
       </div>
