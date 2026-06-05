@@ -175,7 +175,7 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   return (
-    <Ctx.Provider value={{ persona, signIn, signOut, update, addInvitedUser, removeInvitedUser }}>
+    <Ctx.Provider value={{ persona, signIn, switchPersona, signOut, update, addInvitedUser, removeInvitedUser }}>
       {children}
     </Ctx.Provider>
   );
