@@ -274,9 +274,19 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const addService = useCallback((service: ServiceItem) => {
+    const now = Date.now();
     setState((prev) => ({
       ...prev,
-      services: [...prev.services, service],
+      services: [
+        ...prev.services,
+        {
+          ...service,
+          assignedOwners: service.assignedOwners ?? [],
+          serviceUsers: service.serviceUsers ?? [],
+          createdAt: service.createdAt ?? now,
+          updatedAt: service.updatedAt ?? now,
+        },
+      ],
       activeServiceId: service.id,
     }));
   }, []);
@@ -284,7 +294,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateService = useCallback((id: string, updates: Partial<ServiceItem>) => {
     setState((prev) => ({
       ...prev,
-      services: prev.services.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      services: prev.services.map((s) => (s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s)),
     }));
   }, []);
 
