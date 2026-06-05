@@ -213,7 +213,7 @@ const ServicesWorkspace: React.FC = () => {
                   canManage={canManage}
                   onOpen={() => goOverview(s)}
                   onOperations={() => goOperations(s)}
-                  onConfigure={() => goConfigure(s)}
+                  onConfigure={() => goManageConfig(s)}
                   onAssign={() => setAssignTarget(s)}
                 />
               ))}
