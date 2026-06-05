@@ -34,6 +34,7 @@ type NavItem = { title: string; url: string; icon: any };
 
 const workspaceItems: NavItem[] = [
   { title: "Services", url: "/templates", icon: LayoutTemplate },
+  { title: "Templates", url: "/catalog", icon: LayoutTemplate },
 ];
 
 const setupItems: NavItem[] = [
