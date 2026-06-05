@@ -21,6 +21,8 @@ import ModuleTabs from "@/components/service-config/ModuleTabs";
 import OverviewWorkspace from "@/components/service-config/OverviewWorkspace";
 import { ServiceConfigProvider } from "@/contexts/ServiceConfigContext";
 import { OperateWorkspace } from "@/components/operate/OperateWorkspace";
+import ServiceUsersPanel from "@/components/service-config/ServiceUsersPanel";
+import { usePersona } from "@/contexts/PersonaContext";
 
 
 const ServiceConfigInner: React.FC = () => {
