@@ -310,6 +310,10 @@ const ServiceConfigInner: React.FC = () => {
         <main className="flex-1 min-h-0">
           <OperateWorkspace serviceId={id ?? ""} serviceUrl={(service as any)?.liveUrl} />
         </main>
+      ) : mode === "users" ? (
+        <main className="flex-1 min-h-0 overflow-auto">
+          {service && <ServiceUsersPanel service={service} canManage={canManageUsers} />}
+        </main>
       ) : null}
       {service && (
         <MasterTemplateConfigurator open={setupOpen} onOpenChange={setSetupOpen} service={service} />
