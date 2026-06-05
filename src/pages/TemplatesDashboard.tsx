@@ -476,29 +476,29 @@ const LiveServiceCard: React.FC<{
             <Icon className="h-4 w-4 text-muted-foreground" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+            <h3 className="text-base font-semibold text-foreground truncate group-hover:text-primary transition-colors">
               {service.name}
             </h3>
             {template && (
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">from {template.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">from {template.name}</p>
             )}
           </div>
         </button>
-        <span className="inline-flex items-center h-5 px-1.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-success/10 text-success ring-1 ring-success/20 shrink-0">
+        <span className="inline-flex items-center h-5 px-1.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-success/10 text-success ring-1 ring-success/20 shrink-0">
           Live
         </span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Applications</dt>
-          <dd className="text-sm font-semibold text-foreground tabular-nums mt-0.5">
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Applications</dt>
+          <dd className="text-base font-semibold text-foreground tabular-nums mt-0.5">
             {volume.toLocaleString()}
           </dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Updated</dt>
-          <dd className="text-sm text-foreground mt-0.5">{formatRelative(service.updatedAt ?? service.createdAt)}</dd>
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Updated</dt>
+          <dd className="text-base text-foreground mt-0.5">{formatRelative(service.updatedAt ?? service.createdAt)}</dd>
         </div>
       </dl>
 
@@ -506,26 +506,26 @@ const LiveServiceCard: React.FC<{
         {owners.length > 0 ? (
           <>
             <Avatar name={owners[0]} />
-            <span className="text-xs text-foreground truncate min-w-0">{owners[0]}</span>
+            <span className="text-sm text-foreground truncate min-w-0">{owners[0]}</span>
             {owners.length > 1 && (
-              <span className="text-[11px] text-muted-foreground shrink-0">+{owners.length - 1}</span>
+              <span className="text-xs text-muted-foreground shrink-0">+{owners.length - 1}</span>
             )}
           </>
         ) : canManage ? (
-          <button onClick={onAssign} className="inline-flex items-center gap-1 text-xs text-warning hover:underline">
+          <button onClick={onAssign} className="inline-flex items-center gap-1 text-sm text-warning hover:underline">
             <UserPlus className="h-3 w-3" /> Assign owner
           </button>
         ) : (
-          <span className="text-xs text-muted-foreground">Unassigned</span>
+          <span className="text-sm text-muted-foreground">Unassigned</span>
         )}
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <Button size="sm" className="h-8 text-xs flex-1" onClick={onOpen}>
+        <Button size="sm" className="h-8 text-sm flex-1" onClick={onOpen}>
           Open service
           <ArrowRight className="h-3 w-3 ml-1" />
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onOperations}>
+        <Button size="sm" variant="outline" className="h-8 text-sm" onClick={onOperations}>
           Operations
         </Button>
         <DropdownMenu>
