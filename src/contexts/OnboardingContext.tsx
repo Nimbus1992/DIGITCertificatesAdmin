@@ -188,6 +188,9 @@ interface OnboardingContextType {
   getActiveService: () => ServiceItem | undefined;
   updateActiveServiceBranding: (branding: BrandingConfig) => void;
   updatePlatformBranding: (branding: BrandingConfig) => void;
+  setServiceOwners: (serviceId: string, owners: string[]) => void;
+  addServiceUser: (serviceId: string, user: Omit<ServiceUser, "id" | "invitedAt" | "status">) => void;
+  removeServiceUser: (serviceId: string, userId: string) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
