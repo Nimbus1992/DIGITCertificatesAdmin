@@ -190,20 +190,14 @@ const ServicesWorkspace: React.FC = () => {
         )}
 
         {/* =================== Section 2 — Live services =================== */}
-        <section className="mb-12">
-          <SectionHeader
-            icon={Rocket}
-            title="Live services"
-            count={liveServices.length}
-            subtitle="Deployed services accepting applications."
-          />
-          {liveServices.length === 0 ? (
-            <EmptyState
-              isServiceOwner={isServiceOwner}
-              hasAttention={attentionServices.length > 0}
-              onCreate={() => setCatalogOpen(true)}
+        {liveServices.length > 0 && (
+          <section className="mb-12">
+            <SectionHeader
+              icon={Rocket}
+              title="Live services"
+              count={liveServices.length}
+              subtitle="Deployed services accepting applications."
             />
-          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {liveServices.map((s) => (
                 <LiveServiceCard
@@ -218,8 +212,8 @@ const ServicesWorkspace: React.FC = () => {
                 />
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {/* =================== Section 3 — Templates =================== */}
         {!isServiceOwner && (
