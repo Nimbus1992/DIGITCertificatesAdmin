@@ -122,6 +122,32 @@ export const PersonaProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTimeout(() => window.location.reload(), 0);
   }, []);
 
+  const switchPersona = useCallback((email: string) => {
+    const seed = PERSONA_SEEDS.find((p) => p.email.toLowerCase() === email.toLowerCase());
+    const base: PersonaState = seed
+      ? {
+          ...initial,
+          email: seed.email,
+          role: seed.role,
+          name: seed.name,
+          assignedTemplates: seed.assignedTemplates,
+          hasChangedPassword: true,
+          hasCompletedOnboarding: true,
+        }
+      : {
+          ...initial,
+          email,
+          role: "administrator",
+          name: email.split("@")[0],
+          assignedTemplates: [],
+          hasChangedPassword: true,
+          hasCompletedOnboarding: true,
+        };
+    localStorage.setItem(KEY, JSON.stringify(base));
+    setPersona(base);
+    setTimeout(() => window.location.reload(), 0);
+  }, []);
+
   const signOut = useCallback(() => {
     localStorage.removeItem(KEY);
     try {
