@@ -450,7 +450,7 @@ const DraftServiceCard: React.FC<{
  * ========================================================================= */
 
 const Avatar: React.FC<{ name: string }> = ({ name }) => (
-  <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
+  <span className="h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold flex items-center justify-center shrink-0">
     {name[0]?.toUpperCase()}
   </span>
 );
