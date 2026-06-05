@@ -329,11 +329,61 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setState((prev) => ({ ...prev, platformBranding: branding }));
   }, []);
 
+  const setServiceOwners = useCallback((serviceId: string, owners: string[]) => {
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === serviceId
+          ? { ...s, assignedOwners: Array.from(new Set(owners.map((e) => e.trim().toLowerCase()).filter(Boolean))), updatedAt: Date.now() }
+          : s,
+      ),
+    }));
+  }, []);
+
+  const addServiceUser = useCallback(
+    (serviceId: string, user: Omit<ServiceUser, "id" | "invitedAt" | "status">) => {
+      setState((prev) => ({
+        ...prev,
+        services: prev.services.map((s) =>
+          s.id === serviceId
+            ? {
+                ...s,
+                serviceUsers: [
+                  ...(s.serviceUsers ?? []),
+                  {
+                    ...user,
+                    email: user.email.trim().toLowerCase(),
+                    id: `su_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    invitedAt: Date.now(),
+                    status: "Invited",
+                  },
+                ],
+                updatedAt: Date.now(),
+              }
+            : s,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const removeServiceUser = useCallback((serviceId: string, userId: string) => {
+    setState((prev) => ({
+      ...prev,
+      services: prev.services.map((s) =>
+        s.id === serviceId
+          ? { ...s, serviceUsers: (s.serviceUsers ?? []).filter((u) => u.id !== userId), updatedAt: Date.now() }
+          : s,
+      ),
+    }));
+  }, []);
+
   return (
     <OnboardingContext.Provider value={{
       state, updateState, nextStep, prevStep, goToStep, resetOnboarding,
       addService, updateService, deleteService, setActiveService, getActiveService,
       updateActiveServiceBranding, updatePlatformBranding,
+      setServiceOwners, addServiceUser, removeServiceUser,
     }}>
       {children}
     </OnboardingContext.Provider>
