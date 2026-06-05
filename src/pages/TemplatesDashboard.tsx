@@ -118,6 +118,8 @@ const ServicesWorkspace: React.FC = () => {
   );
 
   const goConfigure = (s: ServiceItem) =>
+    navigate(`/templates/${s.templateId}/setup?serviceId=${encodeURIComponent(s.id)}`);
+  const goManageConfig = (s: ServiceItem) =>
     navigate(`/service/${s.id}/configure`, { state: { mode: "configure" } });
   const goOverview = (s: ServiceItem) =>
     navigate(`/service/${s.id}/configure`, { state: { mode: "overview" } });
@@ -129,7 +131,7 @@ const ServicesWorkspace: React.FC = () => {
       toast.info(`${t.name} is coming soon`);
       return;
     }
-    navigate(`/templates/${t.id}/setup`);
+    navigate(`/templates/${t.id}/activate`);
   };
 
   return (
@@ -211,7 +213,7 @@ const ServicesWorkspace: React.FC = () => {
                   canManage={canManage}
                   onOpen={() => goOverview(s)}
                   onOperations={() => goOperations(s)}
-                  onConfigure={() => goConfigure(s)}
+                  onConfigure={() => goManageConfig(s)}
                   onAssign={() => setAssignTarget(s)}
                 />
               ))}

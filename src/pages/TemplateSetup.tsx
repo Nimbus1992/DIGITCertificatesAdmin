@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import SetupShell, { type SetupStepKey } from "@/components/template-setup/SetupShell";
 import Step1Identity from "@/components/template-setup/Step1Identity";
 import Step2Modules from "@/components/template-setup/Step2Modules";
@@ -14,12 +14,19 @@ import { useOnboarding, type ServiceItem, type WorkflowScope } from "@/contexts/
 
 const TemplateSetup: React.FC = () => {
   const { templateId } = useParams<{ templateId: string }>();
+  const [params] = useSearchParams();
+  const serviceId = params.get("serviceId");
   const navigate = useNavigate();
-  const { state, addService } = useOnboarding();
+  const { state, addService, updateService } = useOnboarding();
 
   const template = useMemo(
     () => allTemplates.find((t) => t.id === templateId),
     [templateId],
+  );
+
+  const existing = useMemo(
+    () => (serviceId ? state.services.find((s) => s.id === serviceId) : undefined),
+    [serviceId, state.services],
   );
 
   useEffect(() => {
@@ -29,29 +36,43 @@ const TemplateSetup: React.FC = () => {
   }, [template, navigate]);
 
   const [step, setStep] = useState<SetupStepKey>("identity");
-  const [name, setName] = useState(template?.name ?? "");
-  const [renewalEnabled, setRenewalEnabled] = useState(true);
-  const [hasCategories, setHasCategories] = useState<boolean | null>(null);
+  const [name, setName] = useState(existing?.name ?? template?.name ?? "");
+  const [renewalEnabled, setRenewalEnabled] = useState(
+    existing ? (existing.customModules ?? []).includes("Renewal") : true,
+  );
+  const [hasCategories, setHasCategories] = useState<boolean | null>(
+    existing?.templateSetup ? existing.templateSetup.hasCategories : null,
+  );
   const [categoriesFile, setCategoriesFile] = useState<File | null>(null);
-  const [hasSubcategories, setHasSubcategories] = useState<boolean | null>(null);
+  const [hasSubcategories, setHasSubcategories] = useState<boolean | null>(
+    existing?.templateSetup ? existing.templateSetup.hasSubcategories : null,
+  );
   const [subcategoriesFile, setSubcategoriesFile] = useState<File | null>(null);
-  const [categoriesList, setCategoriesList] = useState<string[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>(
+    existing?.templateSetup?.categoriesList ?? [],
+  );
   const [subcategoriesList, setSubcategoriesList] = useState<
     { name: string; parent: string }[]
-  >([]);
-  const [renewalPolicy, setRenewalPolicy] = useState<RenewalPolicyState>({
-    mode: "global",
-    globalMonths: 12,
-    perCategory: {},
-    perSubcategory: {},
-  });
-  const [workflowScope, setWorkflowScope] = useState<WorkflowScope>("shared");
+  >(existing?.templateSetup?.subcategoriesList ?? []);
+  const [renewalPolicy, setRenewalPolicy] = useState<RenewalPolicyState>(
+    existing?.renewalPolicy ?? {
+      mode: "global",
+      globalMonths: 12,
+      perCategory: {},
+      perSubcategory: {},
+    },
+  );
+  const [workflowScope, setWorkflowScope] = useState<WorkflowScope>(
+    existing?.workflowScope ?? "shared",
+  );
 
   if (!template) return null;
 
   const trimmed = name.trim();
   const duplicate = state.services.some(
-    (s) => s.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    (s) =>
+      s.id !== existing?.id &&
+      s.name.trim().toLowerCase() === trimmed.toLowerCase(),
   );
 
   const visibleSteps: SetupStepKey[] = useMemo(() => {
@@ -84,27 +105,38 @@ const TemplateSetup: React.FC = () => {
 
   const finalize = () => {
     const customModules = ["Issuance", ...(renewalEnabled ? ["Renewal"] : [])];
+    const templateSetup = {
+      hasCategories: hasCategories === true,
+      hasSubcategories: hasSubcategories === true,
+      categoriesFileName: categoriesFile?.name,
+      subcategoriesFileName: subcategoriesFile?.name,
+      categoriesList,
+      subcategoriesList,
+    };
+    const patch = {
+      name: trimmed,
+      customModules,
+      templateSetup,
+      renewalPolicy: renewalEnabled ? renewalPolicy : undefined,
+      workflowScope: hasCategories === true ? workflowScope : ("shared" as WorkflowScope),
+    };
+
+    if (existing) {
+      updateService(existing.id, patch);
+      navigate(`/templates?recent=${encodeURIComponent(existing.id)}`);
+      return;
+    }
+
     const newService: ServiceItem = {
       id: `${template.id}-${Date.now().toString(36)}`,
-      name: trimmed,
       templateId: template.id,
       status: "draft",
-      customModules,
       isPublished: false,
       isLive: false,
       deployment: { availabilityScope: "entire_state", selectedItems: [] },
       teamMembers: [],
       authMethod: "email",
-      templateSetup: {
-        hasCategories: hasCategories === true,
-        hasSubcategories: hasSubcategories === true,
-        categoriesFileName: categoriesFile?.name,
-        subcategoriesFileName: subcategoriesFile?.name,
-        categoriesList,
-        subcategoriesList,
-      },
-      renewalPolicy: renewalEnabled ? renewalPolicy : undefined,
-      workflowScope: hasCategories === true ? workflowScope : "shared",
+      ...patch,
     };
     addService(newService);
     navigate(`/templates?recent=${encodeURIComponent(newService.id)}`);
@@ -114,7 +146,7 @@ const TemplateSetup: React.FC = () => {
     <SetupShell
       current={step}
       onBack={step === "initialize" ? undefined : handleBack}
-      backLabel={step === "identity" ? "Back to templates" : "Back"}
+      backLabel={step === "identity" ? "Back to services" : "Back"}
       visibleSteps={visibleSteps}
     >
       {step === "identity" && (

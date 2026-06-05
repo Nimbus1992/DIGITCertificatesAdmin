@@ -17,6 +17,7 @@ import AppLayout from "./components/AppLayout";
 import PlaceholderPage from "./pages/placeholder/PlaceholderPage";
 import BrandingTheme from "./pages/BrandingTheme";
 import TemplateSetup from "./pages/TemplateSetup";
+import TemplateActivate from "./pages/TemplateActivate";
 import ResponsiveQA from "./pages/ResponsiveQA";
 import UsersAccess from "./pages/UsersAccess";
 import AuditLogs from "./pages/AuditLogs";
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/dashboard" element={<Navigate to="/templates" replace />} />
               <Route path="/services" element={<Navigate to="/templates" replace />} />
 
+              <Route path="/templates/:templateId/activate" element={<TemplateActivate />} />
               <Route path="/templates/:templateId/setup" element={<TemplateSetup />} />
               <Route path="/service/:id/configure" element={<ServiceConfig />} />
               <Route path="/service/:id/preview" element={<ServicePreview />} />

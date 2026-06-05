@@ -1,98 +1,71 @@
 ## Goal
 
-Convert the current `/templates` page from a "Templates Dashboard" into a unified **Services** workspace — the operational home of the platform. Templates become entry points; Services become the primary object with a clear Draft → Live → Operational lifecycle.
-
-## Naming & routing
-
-- Rename page to **Services** (sidebar label + page H1). Route stays `/templates` for now to avoid breaking links; add `/services` as canonical, keep `/templates` as alias (already aliased the other way today — flip the direction).
-- Update sidebar nav label in `src/components/AppSidebar.tsx`.
-
-## Page structure
+Make **assigning a service owner** the first and only step of template *activation*. All other configuration (name, structure, renewal, workflow scope) moves out of activation and becomes a **Continue setup** action initiated from the Services workspace.
 
 ```
-┌─ Header ──────────────────────────────────────────────┐
-│ Services                          [+ Create New Service]│
-│ Manage the full lifecycle of your services             │
-└────────────────────────────────────────────────────────┘
-
-┌─ 1. Needs attention ──────────────────────────────────┐
-│  (Drafts, unassigned, incomplete, not deployed)        │
-│  Compact rows with progress bar + inline actions       │
-└────────────────────────────────────────────────────────┘
-
-┌─ 2. Live services ────────────────────────────────────┐
-│  Cards: status, owner, last updated, app volume (mock) │
-│  Quick actions: Open • Operations • Deployment         │
-└────────────────────────────────────────────────────────┘
-
-┌─ 3. Available templates  [collapsible] ───────────────┐
-│  Live on SaaS / Coming soon — compact premium cards    │
-│  Each: Preview • View details • Activate               │
-└────────────────────────────────────────────────────────┘
+Activate template
+   ↓
+Assign service owner    ──▶ Save: owner gets invite, draft appears in workspace
+   (optional)                  for owner to continue setup
+   ↓                       
+   Skip                  ──▶ Draft appears in workspace; admin sees
+                              "Continue setup" prompt and resumes wizard
 ```
 
-### Section 1 — Needs attention
-Filter: `status === "draft"` OR `assignedOwners` empty OR setup incomplete OR not live. Row layout (not card grid) for higher density:
-- Service name + "from {Template}" subtitle
-- Status pill (Draft / Unassigned / Incomplete)
-- Setup progress bar with % (computed from completed config sections — derive from existing `templateSetup`, `roleAccess`, `deployment`, branding, etc.)
-- Actions: **Continue setup**, Assign owner, View details
+## Changes
 
-### Section 2 — Live services
-Card grid. Each card:
-- Title, status chip (Live), template lineage
-- Assigned owner avatar + name
-- Last updated (relative)
-- Application volume (mocked deterministic number keyed off service id)
-- Actions: **Open service**, View operations, View deployment
+### 1. New `TemplateActivate` page (`src/pages/TemplateActivate.tsx`)
+Route: `/templates/:templateId/activate`
 
-### Section 3 — Available templates
-Collapsible, lower visual weight than sections 1–2. Group by `comingSoon`:
-- **Live on SaaS** — ready templates
-- **Coming soon** — disabled with badge
+Single-screen step using the same `SetupShell` chrome as the wizard so the experience feels continuous. Content:
 
-Each compact card has three explicit CTAs:
-- **Preview template** → opens a sheet/drawer summarising citizen flow, employee flow, workflow steps, documents, generated outputs (use existing `howItWorks`, `flows`, `forms`, `notifications`, `payments` data from `serviceTemplates.ts`).
-- **View details** → opens a sheet listing modules, generated roles, workflow summary, configuration scope, documents.
-- **Activate template** → navigates to `/templates/:id/setup` (existing flow).
+- Heading: "Assign a service owner"
+- Body copy explains: the service owner is responsible for naming, configuring modules, renewal rules, and workflow. This step is optional — you can skip and continue setup yourself.
+- Email input + suggestion chips (reuse `PERSONA_SEEDS` + `persona.invitedUsers`, same as `AssignOwnerSheet`).
+- Two actions in footer:
+  - **Skip — I'll set it up** (ghost) → creates draft with no owner.
+  - **Assign and create draft** (primary, disabled until valid email) → creates draft with `assignedOwners: [email]`.
 
-## Primary CTA — Create New Service
+On either action:
+1. Build a minimal `ServiceItem`:
+   - `id: ${templateId}-${Date.now().toString(36)}`
+   - `name: template.name` (placeholder; owner/admin can rename in Continue setup)
+   - `templateId`, `status: "draft"`, `customModules: ["Issuance"]`
+   - `isPublished: false`, `isLive: false`
+   - `deployment: { availabilityScope: "entire_state", selectedItems: [] }`
+   - `teamMembers: []`, `authMethod: "email"`
+   - `assignedOwners: assigned ? [email] : []`
+2. `addService(draft)`
+3. Toast: "Draft created — continue setup" or "Owner invited — they'll complete setup"
+4. `navigate(/templates?recent=${id})`
 
-Header button opens a **Template Catalog dialog** (Option A): full-screen modal listing all templates grouped Live / Coming soon, with the same Preview / Details / Activate actions as section 3. Activating closes the dialog and routes to `/templates/:id/setup`. Section 3 remains for browsing without the modal.
+### 2. Update `TemplateSetup` to support resume
+File: `src/pages/TemplateSetup.tsx`
 
-## Template activation ≠ Service configuration
+- Read `?serviceId=` query param.
+- When present:
+  - Look up the existing draft from `state.services`.
+  - Hydrate local state (`name`, `renewalEnabled`, `hasCategories`, `categoriesList`, `subcategoriesList`, `renewalPolicy`, `workflowScope`) from `service.templateSetup` / `service.renewalPolicy` / `service.workflowScope` / `service.customModules`.
+  - In `finalize()`, call `updateService(serviceId, { ...patch })` instead of `addService`. Preserve existing `assignedOwners`.
+- When absent: keep current behaviour (legacy direct-setup path).
 
-No change to existing `/templates/:id/setup` flow's depth — but ensure it surfaces an **Assign Service Owner (optional)** step that can be skipped, and that on completion the service lands in **Section 1 (Needs attention)** as a Draft with a "Continue setup" CTA resuming the wizard.
+### 3. Workspace wiring (`src/pages/TemplatesDashboard.tsx`)
+- `activateTemplate(t)` → `navigate(/templates/${t.id}/activate)` (instead of `/setup`).
+- The same change applies in `TemplateCatalogDialog`, `TemplatePreviewSheet`, and `TemplateDetailsSheet` since they all call back through `onActivate`. (Single change in workspace's `activateTemplate` covers all three.)
+- `AttentionRow` "Continue setup" CTA → `navigate(/templates/${s.templateId}/setup?serviceId=${s.id})` (instead of `/service/:id/configure`). This makes the prompt resume the wizard where it left off.
 
-> Setup wizard resume logic is already present via `ServiceConfig` routing; no functional changes there. Plan limits work to the workspace page + a small "owner optional" affordance verification.
-
-## Components to add
-
-```
-src/pages/ServicesWorkspace.tsx           // replaces TemplatesDashboard
-src/components/services/AttentionRow.tsx
-src/components/services/LiveServiceCard.tsx
-src/components/services/TemplateCatalogDialog.tsx
-src/components/services/TemplatePreviewSheet.tsx
-src/components/services/TemplateDetailsSheet.tsx
-src/components/services/computeSetupProgress.ts
-```
-
-Keep existing `AssignOwnerSheet`. Delete old `TemplatesDashboard.tsx` (or keep file, re-export new component) and update `App.tsx` route.
-
-## Visual direction
-
-Enterprise SaaS density (Linear / Stripe / Vercel):
-- Section 1 = data rows, not card grid
-- Section 2 = 3-up card grid, compact
-- Section 3 = 3- or 4-up compact card grid, muted
-- Single H1, consistent 12/14/16 px type scale, generous but not excessive spacing
-- Reuse existing semantic tokens (`bg-card`, `text-muted-foreground`, `success`, `warning`, `border`) — no new colors
-- One primary action per row/card; secondary actions in dropdown
+### 4. Route registration (`src/App.tsx`)
+Add: `<Route path="/templates/:templateId/activate" element={<TemplateActivate />} />`
 
 ## Out of scope
 
-- Backend persistence (state stays in `OnboardingContext` + localStorage)
-- Real application-volume metrics (mocked)
-- Changes to the template setup wizard internals beyond confirming owner-assignment is skippable
-- Changing the `/templates/:id/setup` route shape
+- Real email invitation. The "owner invited" toast is just UI; assignment is stored on the service like today.
+- Resuming partial wizard progress mid-step. Hydration is from saved fields only — the wizard starts at "Identity" but with values pre-filled, and the user steps through; the steps already short-circuit when data is valid.
+- Renaming the wizard's first step. The owner/admin can change the name there.
+
+## Files touched
+
+- `src/pages/TemplateActivate.tsx` (new)
+- `src/pages/TemplateSetup.tsx` (hydrate + update path)
+- `src/pages/TemplatesDashboard.tsx` (activate route + continue-setup route)
+- `src/App.tsx` (route registration)
