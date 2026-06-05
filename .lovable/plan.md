@@ -1,92 +1,28 @@
-## Redesign: Templates → Service Workspace
+## Purge draft services on every fresh login session
 
-Rebuild `src/pages/TemplatesDashboard.tsx` as a card-based catalog. Services are the primary object; templates are reusable blueprints that can spawn many services.
+### Problem
+`clearDrafts()` only fires inside `signIn()`. Because the persona is cached in `localStorage`, returning users (or reloads) skip `signIn` entirely, so old drafts persist forever. The user sees pre-existing `Business License` drafts they never created in the current session.
 
-### Page structure
+### Fix (single file: `src/contexts/PersonaContext.tsx`)
 
-```
-┌─ Header ─────────────────────────────────────┐
-│  Services                                    │
-│  Manage your active services and create new  │
-│  ones from templates.                        │
-└──────────────────────────────────────────────┘
+1. **Lift `clearDrafts` into a module-level helper** so it can run during `PersonaProvider` initialization (before any component mounts), not just inside `signIn`.
 
-┌─ My Services ────────────────────────────────┐
-│  [Service Card]  [Service Card]  [Service…]  │
-│  3-col responsive grid (2 / 1 col on narrow) │
-└──────────────────────────────────────────────┘
+2. **Introduce a session marker** in `sessionStorage` (key `persona:session`).
+   - `sessionStorage` is wiped when the tab closes and is not shared across browser sessions — exactly the "per login" boundary the user described.
+   - On `PersonaProvider` mount, if `sessionStorage.getItem("persona:session")` is missing → this is a fresh login session → call `clearDrafts()` synchronously, then set the marker.
+   - This runs even when the persona is hydrated from `localStorage` (no explicit `signIn` call needed).
 
-┌─ Start a New Service ────────────────────────┐
-│  Create a new service using a pre-built      │
-│  template.                                   │
-│  [Template Card]  [Template Card]  [Template]│
-└──────────────────────────────────────────────┘
-```
+3. **`signIn` also clears the marker first** then calls `clearDrafts`, so an in-tab persona switch still purges.
 
-### Section 1 — My Services (card grid)
+4. **`signOut` clears the marker** so the next `signIn` is treated as fresh.
 
-Each service card shows:
-- Service name (lg, semibold) + small template-origin line ("from Business License Template")
-- Status chip: `Draft` (warning), `Live` (success), `Archived` (muted)
-- Owner row: avatar + name (or "Unassigned" warning link for admins)
-- Meta: "Updated 2h ago"
-- Primary action by status:
-  - Draft → **Continue configuration**
-  - Live → **Open service** + secondary **View operations**
-  - Archived → **Reopen** (disabled placeholder)
-- Overflow menu (⋯): Open workspace, Assign owners (admins), Delete (drafts, admins)
-- Hover: subtle border lift + shadow; whole card clickable to workspace
+5. Remove the post-`signIn` `window.location.reload()`. Since `clearDrafts` now runs before `OnboardingProvider` mounts on the next load, the reload is unnecessary; for the in-tab `signIn` path, the existing flow already navigates to `/templates` which re-reads context.
 
-Empty state (no services): single centered card "No services yet — create one from a template below" with a scroll-to-templates button. Replaces the old empty state + first-run banner.
+### Result
+- Every browser session (tab open / login / hard reload) starts with **zero draft services**, regardless of what's in `localStorage`.
+- Drafts created **during** the session persist normally (they're written after the purge).
+- Live services are never touched.
 
-Service-owner persona: section title becomes "My services", only assigned services shown, no admin-only actions, templates section hidden.
-
-### Section 2 — Start a New Service (template grid)
-
-Section header: "Start a new service" + subtitle.
-
-Each template card shows:
-- Icon tile + template name
-- Ready/Coming soon chip (top-right)
-- 1-line description
-- **Capabilities** row: small pill chips (Issuance, Renewal, Payments, Workflow, Citizen Portal) — derived from `template.modules`/`template.capabilities`; cap at 5 with "+N"
-- **Used by** count: number of services already created from this template (compute from `state.services.filter(s => s.templateId === t.id).length`)
-- Primary CTA **Create service** (routes to `/templates/:id/setup`)
-- Secondary CTA **View template** (opens a details sheet — reuse existing template metadata; if no detail view exists, link to setup with a `?preview=1` flag or open a lightweight sheet showing description + capabilities)
-- Coming-soon state: card dimmed, CTA disabled showing "Coming soon"
-
-Templates section is hidden for service-owner persona.
-
-### Removals
-
-Delete from current file: stat strip, filter pills, search box (optional — see open question), section-header rows, table markup, `SectionHeader`/`ServiceRow`/`TemplateRow`/`StatusDot`/`Stat`/`Divider`/`FirstRunBanner`, all "activate" CTAs in header. Owner/Updated/Status columns disappear (data moves into card).
-
-### Preserved behavior
-
-- `recent` query param → highlight the matching service card with a "Just created" ribbon + scroll into view; clear param after first render.
-- Delete confirmation dialog (`AlertDialog`) and `AssignOwnerSheet` integration unchanged.
-- Routing helpers (`goConfigure`, `goWorkspace`, `goActivate`) unchanged.
-- Persona-based visibility (service_owner vs admin) preserved.
-- Toasts on create/delete preserved.
-
-### Visual language
-
-- Cards: `rounded-lg border border-border bg-card`, `p-5`, hover `shadow-sm` + `border-foreground/15`.
-- Status chips: small (`h-5 px-2 text-[10px] uppercase tracking-wide`), semantic token backgrounds (`bg-success/10 text-success`, `bg-warning/10 text-warning`, `bg-muted text-muted-foreground`).
-- Capability pills: `h-5 px-2 rounded text-[11px] bg-muted text-muted-foreground`.
-- Spacing: section gap `mt-10`, grid `gap-4`, generous header padding.
-- Typography: section titles `text-base font-semibold`, subtitles `text-sm text-muted-foreground`.
-- No tables, no dense rows, no repeated dashboard widgets.
-- All colors via semantic tokens in `index.css` — no raw hex.
-
-### Files
-
-- Rewrite: `src/pages/TemplatesDashboard.tsx` (single file; ~ -350/+300 lines).
-- No new components required unless the "View template" sheet is built — see open question.
-- No changes to routes, contexts, or data layer.
-
-### Open questions
-
-1. **Search**: keep a single search input above My Services (filters both services and templates), or drop entirely as part of the "no spreadsheet" goal?
-2. **View template** secondary CTA: build a lightweight details sheet now (new `TemplateDetailsSheet.tsx`), or defer and have the button route to the setup flow's first step in read-only mode?
-3. **Archived** status: current data model has only `isLive` boolean — should "Archived" be wired now (needs a flag) or rendered only as a future-ready chip option?
+### Risk / scope
+- One file touched. No data model or UI changes.
+- `sessionStorage` is per-tab — opening a new tab counts as a new session and will purge drafts. This matches the user's stated intent ("after I login").
