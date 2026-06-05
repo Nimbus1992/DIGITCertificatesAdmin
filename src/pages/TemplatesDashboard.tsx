@@ -168,27 +168,26 @@ const ServicesWorkspace: React.FC = () => {
           )}
         </header>
 
-        {/* =================== Section 1 — Needs attention =================== */}
-        {attentionServices.length > 0 && (
+        {/* =================== Section 1 — Drafts =================== */}
+        {draftServices.length > 0 && (
           <section className="mb-10">
             <SectionHeader
-              icon={Activity}
-              title="Needs attention"
-              count={attentionServices.length}
-              subtitle="Drafts, unassigned, or incomplete services that need configuration before they can go live."
+              icon={FileText}
+              title="Drafts"
+              count={draftServices.length}
+              subtitle="Services in setup. Continue configuring or preview the experience."
             />
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
-              {attentionServices.map((s, i) => (
-                <AttentionRow
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {draftServices.map((s) => (
+                <DraftServiceCard
                   key={s.id}
                   service={s}
                   template={templateById.get(s.templateId)}
-                  isLast={i === attentionServices.length - 1}
                   isRecent={s.id === recentId}
                   canManage={canManage}
                   onContinue={() => goConfigure(s)}
+                  onPreview={() => goPreviewService(s)}
                   onAssign={() => setAssignTarget(s)}
-                  onDetails={() => goOverview(s)}
                   onDelete={() => setPendingDelete(s)}
                 />
               ))}
@@ -248,16 +247,16 @@ const ServicesWorkspace: React.FC = () => {
                   label="Live on SaaS"
                   templates={allTemplates.filter((t) => !t.comingSoon)}
                   usageByTemplate={usageByTemplate}
-                  onPreview={setPreviewTpl}
-                  onDetails={setDetailsTpl}
+                  onPreview={openTemplatePreview}
+                  onDetails={openTemplateDetails}
                   onActivate={activateTemplate}
                 />
                 <TemplateGroup
                   label="Coming soon"
                   templates={allTemplates.filter((t) => t.comingSoon)}
                   usageByTemplate={usageByTemplate}
-                  onPreview={setPreviewTpl}
-                  onDetails={setDetailsTpl}
+                  onPreview={openTemplatePreview}
+                  onDetails={openTemplateDetails}
                   onActivate={activateTemplate}
                 />
               </div>
@@ -271,27 +270,9 @@ const ServicesWorkspace: React.FC = () => {
         open={catalogOpen}
         onOpenChange={setCatalogOpen}
         onActivate={activateTemplate}
+        onPreview={openTemplatePreview}
+        onDetails={openTemplateDetails}
         usageByTemplate={usageByTemplate}
-      />
-
-      <TemplatePreviewSheet
-        template={previewTpl}
-        open={!!previewTpl}
-        onOpenChange={(o) => !o && setPreviewTpl(null)}
-        onActivate={(t) => {
-          setPreviewTpl(null);
-          activateTemplate(t);
-        }}
-      />
-
-      <TemplateDetailsSheet
-        template={detailsTpl}
-        open={!!detailsTpl}
-        onOpenChange={(o) => !o && setDetailsTpl(null)}
-        onActivate={(t) => {
-          setDetailsTpl(null);
-          activateTemplate(t);
-        }}
       />
 
       <AssignOwnerSheet
