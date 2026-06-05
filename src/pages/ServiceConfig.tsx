@@ -97,6 +97,9 @@ const ServiceConfigInner: React.FC = () => {
 
   const isPublished = service?.isPublished || state.isPublished;
   const isLive = service?.isLive || state.isLive;
+  const { persona } = usePersona();
+  const canManageUsers = persona.role !== "service_owner"
+    || (service?.assignedOwners ?? []).includes((persona.email || "").toLowerCase());
 
   const coreTiles = configTiles.filter((t) => t.group === "core");
   const additionalTiles = configTiles.filter((t) => t.group === "additional");
